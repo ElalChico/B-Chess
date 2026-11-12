@@ -1,9 +1,12 @@
 /*
- * CHESS-X · © Elal Chico
+ * B-CHESS · © Elal Chico
  * Diálogo de recorte de foto de perfil.
- * Permite acercar (pellizco) y arrastrar para posicionar la foto;
- * el recuadro de recorte se mantiene SIEMPRE centrado.
- * La foto inicial se centra y ajusta para caber completa dentro del recuadro.
+ *
+ * La foto se dibuja con una matriz EXPLÍCITA (escala + desplazamiento) sobre
+ * un Canvas, de forma que lo que se ve en el recuadro circular es exactamente
+ * la región que se guarda. Antes se usaba ContentScale.Crop, que recortaba la
+ * imagen antes de aplicar el zoom: la previsualización y el resultado no
+ * coincidían y la foto se salía del recuadro.
  */
 
 package com.bchess.android.ui.components
@@ -11,10 +14,8 @@ package com.bchess.android.ui.components
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -42,14 +43,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -59,12 +57,16 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
+
+/** Zoom máximo permitido con el pellizco. */
+private const val MAX_ZOOM = 5f
 
 /**
  * Diálogo para recortar la foto de perfil.
- * - Zoom con dos dedos y doble toque.
- * - Arrastrar para mover la foto y posicionarla.
- * - El recuadro de recorte está SIEMPRE centrado en pantalla.
+ * - Pellizca para acercar y arrastra para posicionar.
+ * - Botones para zoom preciso y para restablecer.
+ * - El recuadro circular es SIEMPRE el centro y es lo que se guarda.
  * - [onConfirm] recibe un Bitmap cuadrado ya recortado.
  */
 @Composable
@@ -92,16 +94,29 @@ fun PhotoCropDialog(
             // Recuadro CIRCULAR SIEMPRE centrado, con margen respecto a la pantalla
             val frameSide: Dp = (if (maxW < maxH) maxW else maxH) * 0.78f
             val frameSizePx = with(density) { frameSide.toPx() }
-            val halfFrame = frameSizePx / 2f
 
-            // Zoom y desplazamiento de la foto (estado retenido)
-            var scale by remember { mutableFloatStateOf(1f) }
-            var offset by remember { mutableStateOf(Offset.Zero) }
-
-            // Límites de arrastre: la foto nunca se sale del recuadro circular.
             val srcW = bitmap.width.toFloat().coerceAtLeast(1f)
             val srcH = bitmap.height.toFloat().coerceAtLeast(1f)
-            val fitScale = remember(frameSizePx, srcW, srcH) { max(frameSizePx / srcW, frameSizePx / srcH) }
+
+            // Escala base: la foto SIEMPRE cubre el recuadro (nunca quedan huecos)
+            val coverScale = remember(frameSizePx, srcW, srcH) {
+                max(frameSizePx / srcW, frameSizePx / srcH)
+            }
+
+            // Zoom del usuario y desplazamiento del contenido
+            var zoom by remember { mutableFloatStateOf(1f) }
+            var offset by remember { mutableStateOf(Offset.Zero) }
+
+            // Tamaño real del contenido dibujado (para limitar el arrastre)
+            val drawnW = srcW * coverScale * zoom
+            val drawnH = srcH * coverScale * zoom
+            val maxOffsetX = max(0f, (drawnW - frameSizePx) / 2f)
+            val maxOffsetY = max(0f, (drawnH - frameSizePx) / 2f)
+
+            fun clampOffset(value: Offset): Offset = Offset(
+                value.x.coerceIn(-maxOffsetX, maxOffsetX),
+                value.y.coerceIn(-maxOffsetY, maxOffsetY)
+            )
 
             Column(
                 modifier = Modifier.fillMaxSize(),
@@ -115,13 +130,13 @@ fun PhotoCropDialog(
                     fontWeight = FontWeight.ExtraBold
                 )
                 Text(
-                    "Pellizca para acercar · arrastra para centrar · doble toque para restablecer",
+                    "Pellizca para acercar · arrastra para centrar",
                     color = Color(0xFF8B96A5),
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
                 )
 
-                // Zona interactiva: mide EXACTAMENTE igual que el recuadro circular de recorte
+                // Zona interactiva: mide EXACTAMENTE igual que el recuadro circular
                 Box(
                     modifier = Modifier
                         .size(frameSide)
@@ -129,66 +144,101 @@ fun PhotoCropDialog(
                         .background(Color(0xFF0B0D10)),
                     contentAlignment = Alignment.Center
                 ) {
-                    // La foto, escalada y desplazada por gestos
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "Foto a recortar",
-                        contentScale = ContentScale.Crop,
+                    // Foto dibujada con matriz explícita: lo que se ve es lo que se guarda
+                    Canvas(
                         modifier = Modifier
                             .fillMaxSize()
-                            .clip(CircleShape)
-                            .graphicsLayer {
-                                scaleX = scale
-                                scaleY = scale
-                                translationX = offset.x
-                                translationY = offset.y
-                            }
                             .pointerInput(Unit) {
-                                detectTransformGestures { centroid, pan, zoom, _ ->
-                                    val oldScale = scale
-                                    val newScale = (oldScale * zoom).coerceIn(1f, 5f)
-                                    val center = Offset(size.width / 2f, size.height / 2f)
-                                    val anchor = centroid - center - offset
-                                    val zoomPan = anchor * (1f - newScale / oldScale)
-                                    val drawnW = srcW * fitScale * newScale
-                                    val drawnH = srcH * fitScale * newScale
-                                    val maxX = max(0f, (drawnW - frameSizePx) / 2f)
-                                    val maxY = max(0f, (drawnH - frameSizePx) / 2f)
-                                    val newX = (offset.x + pan.x + zoomPan.x).coerceIn(-maxX, maxX)
-                                    val newY = (offset.y + pan.y + zoomPan.y).coerceIn(-maxY, maxY)
-                                    scale = newScale
-                                    offset = Offset(newX, newY)
+                                detectTransformGestures { centroid, pan, gestureZoom, _ ->
+                                    val oldZoom = zoom
+                                    val newZoom = (oldZoom * gestureZoom).coerceIn(1f, MAX_ZOOM)
+
+                                    // Mantiene fijo el punto que está bajo el dedo
+                                    val anchor = centroid - Offset(size.width / 2f, size.height / 2f) - offset
+                                    val zoomShift = anchor * (1f - newZoom / oldZoom)
+
+                                    val target = offset + zoomShift + pan
+                                    zoom = newZoom
+
+                                    // Los límites dependen del nuevo tamaño del contenido
+                                    val newDrawnW = srcW * coverScale * newZoom
+                                    val newDrawnH = srcH * coverScale * newZoom
+                                    val limitX = max(0f, (newDrawnW - frameSizePx) / 2f)
+                                    val limitY = max(0f, (newDrawnH - frameSizePx) / 2f)
+                                    offset = Offset(
+                                        target.x.coerceIn(-limitX, limitX),
+                                        target.y.coerceIn(-limitY, limitY)
+                                    )
                                 }
                             }
-                            .pointerInput(Unit) {
-                                detectTapGestures(onDoubleTap = {
-                                    scale = if (scale > 1.05f) 1f else 2.2f
-                                    offset = Offset.Zero
-                                })
-                            },
-                        alpha = 1f
-                    )
+                    ) {
+                        val dstW = srcW * coverScale * zoom
+                        val dstH = srcH * coverScale * zoom
+                        val left = size.width / 2f - dstW / 2f + offset.x
+                        val top = size.height / 2f - dstH / 2f + offset.y
+                        drawImage(
+                            image = bitmap.asImageBitmap(),
+                            srcOffset = androidx.compose.ui.unit.IntOffset.Zero,
+                            srcSize = androidx.compose.ui.unit.IntSize(bitmap.width, bitmap.height),
+                            dstOffset = androidx.compose.ui.unit.IntOffset(left.roundToInt(), top.roundToInt()),
+                            dstSize = androidx.compose.ui.unit.IntSize(dstW.roundToInt(), dstH.roundToInt())
+                        )
+                    }
 
                     // Borde VERDE del recuadro CIRCULAR (siempre centrado)
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         drawCircle(
-                            color = Color(0xFF3DDC97), // Verde CHESS-X
-                            radius = halfFrame,
+                            color = Color(0xFF3DDC97),
+                            radius = size.minDimension / 2f,
                             style = Stroke(width = 3.dp.toPx())
-                        )
-                    }
-
-                    // Círculo guía central sutil
-                    Canvas(modifier = Modifier.size(frameSide)) {
-                        drawCircle(
-                            color = Color(0x33FFFFFF),
-                            radius = halfFrame - 1.dp.toPx(),
-                            style = Stroke(width = 1.dp.toPx())
                         )
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
+
+                // Zoom preciso y restablecer
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ZoomButton("-") {
+                        val newZoom = (zoom / 1.4f).coerceIn(1f, MAX_ZOOM)
+                        zoom = newZoom
+                        offset = clampOffset(offset)
+                    }
+                    Text(
+                        "${(zoom * 100).roundToInt()}%",
+                        color = Color(0xFF8B96A5),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                    ZoomButton("+") {
+                        val newZoom = (zoom * 1.4f).coerceIn(1f, MAX_ZOOM)
+                        zoom = newZoom
+                        offset = clampOffset(offset)
+                    }
+                    Spacer(Modifier.size(6.dp))
+                    Button(
+                        onClick = {
+                            zoom = 1f
+                            offset = Offset.Zero
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF151C25),
+                            contentColor = Color(0xFFEEF1F5)
+                        ),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = 14.dp,
+                            vertical = 10.dp
+                        )
+                    ) { Text("Centrar", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                }
+
+                Spacer(Modifier.height(10.dp))
 
                 // Botones: recorte real centrado sobre la foto transformada
                 Row(
@@ -206,7 +256,8 @@ fun PhotoCropDialog(
                             val cropped = buildCroppedBitmap(
                                 source = bitmap,
                                 viewSizePx = frameSizePx,
-                                scale = scale,
+                                coverScale = coverScale,
+                                zoom = zoom,
                                 offsetPx = offset
                             )
                             onConfirm(cropped)
@@ -216,7 +267,7 @@ fun PhotoCropDialog(
                     ) { Text("Guardar", fontWeight = FontWeight.ExtraBold) }
                 }
                 Text(
-                    "El recuadro circular se mantiene centrado",
+                    "El recuadro circular es lo que se guarda",
                     color = Color(0xFF6B6244),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -227,27 +278,47 @@ fun PhotoCropDialog(
     }
 }
 
+@Composable
+private fun ZoomButton(label: String, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.size(40.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color(0xFF151C25),
+            contentColor = Color(0xFFEEF1F5)
+        ),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+    ) { Text(label, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+}
+
 /**
- * Recorta el cuadrado centrado considerando zoom y desplazamiento.
- * La foto se dibuja con ContentScale.Fit dentro de [viewSizePx]; se reconstruye
- * la matriz equivalente para extraer exactamente esa región central.
+ * Recorta el cuadrado que ocupa el recuadro en la previsualización.
+ *
+ * Usa EXACTAMENTE la misma matriz que el Canvas:
+ *   escala = coverScale * zoom,  centro del contenido = centro + offset
  */
 private fun buildCroppedBitmap(
     source: Bitmap,
     viewSizePx: Float,
-    scale: Float,
+    coverScale: Float,
+    zoom: Float,
     offsetPx: Offset
 ): Bitmap {
     val bmpW = source.width.toFloat()
     val bmpH = source.height.toFloat()
-    val baseScale = max(viewSizePx / bmpW, viewSizePx / bmpH)
-    val imageScale = baseScale * scale.coerceIn(1f, 5f)
-    val side = min(viewSizePx / imageScale, min(bmpW, bmpH)).coerceAtLeast(1f)
+    val imageScale = coverScale * zoom.coerceIn(1f, MAX_ZOOM)
+
+    // Lado del cuadrado del recuadro expresado en píxeles de la imagen original
+    val side = (viewSizePx / imageScale).coerceIn(1f, min(bmpW, bmpH))
+
+    // Centro del recuadro en coordenadas de la imagen original
     val centerX = bmpW / 2f - offsetPx.x / imageScale
     val centerY = bmpH / 2f - offsetPx.y / imageScale
-    val x = (centerX - side / 2f).toInt().coerceIn(0, max(0, source.width - side.toInt()))
-    val y = (centerY - side / 2f).toInt().coerceIn(0, max(0, source.height - side.toInt()))
-    val pixelSide = side.toInt().coerceIn(1, min(source.width, source.height))
+
+    val pixelSide = side.roundToInt().coerceIn(1, min(source.width, source.height))
+    val x = (centerX - pixelSide / 2f).roundToInt().coerceIn(0, max(0, source.width - pixelSide))
+    val y = (centerY - pixelSide / 2f).roundToInt().coerceIn(0, max(0, source.height - pixelSide))
     return Bitmap.createBitmap(source, x, y, pixelSide, pixelSide)
 }
 

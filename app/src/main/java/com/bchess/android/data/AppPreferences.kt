@@ -147,7 +147,27 @@ class AppPreferences(context: Context) {
     }
     fun setProfileName(v: String) { val n = v.trim().ifBlank { "Jugador" }.take(20); _profileName = n; p.edit().putString("profile_name", n).apply() }
     fun completeProfile() { _profileConfigured = true; p.edit().putBoolean("profile_configured", true).apply() }
-    fun setProfilePhotoBase64(v: String) { _profilePhotoBase64 = v.take(60_000); p.edit().putString("profile_photo", _profilePhotoBase64).apply() }
+    fun setProfilePhotoBase64(v: String) {
+        val clean = v.trim()
+        // Nunca guardar un base64 truncado o incompleto: al decodificarlo
+        // produciria una foto rota o cortada. Si no es valido, se descarta.
+        val valid = clean.isBlank() || isDecodablePhoto(clean)
+        _profilePhotoBase64 = if (valid) clean.take(200_000) else ""
+        p.edit().putString("profile_photo", _profilePhotoBase64).apply()
+    }
+
+    /** Comprueba que el base64 sea una imagen completa y decodificable. */
+    private fun isDecodablePhoto(value: String): Boolean {
+        val raw = value.substringAfter("base64,", value)
+        if (raw.isBlank() || raw.length % 4 != 0) return false
+        return try {
+            val bytes = android.util.Base64.decode(raw, android.util.Base64.DEFAULT)
+            bytes.isNotEmpty() &&
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) != null
+        } catch (_: Exception) {
+            false
+        }
+    }
     fun setDefaultTime(timeMs: Long, incMs: Long) {
         _defaultTimeMs = timeMs.coerceAtLeast(0); _defaultIncrementMs = incMs.coerceIn(0, 60_000)
         p.edit().putLong("time_ms", _defaultTimeMs).putLong("inc_ms", _defaultIncrementMs).apply()
