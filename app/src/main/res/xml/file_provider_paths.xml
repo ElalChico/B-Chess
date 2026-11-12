@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Directorio de descargas de la app (getExternalFilesDir) -->
+    <!-- Descarga de actualizaciones: cache privado de la app (se borra solo) -->
+    <cache-path name="updates" path="updates/" />
+
+    <!-- Compatibilidad con descargas de versiones anteriores -->
     <files-path name="downloads" path="Download/" />
     <external-files-path name="downloads" path="Download/" />
-    <cache-path name="downloads" path="Download/" />
     <external-cache-path name="downloads" path="Download/" />
 </paths>
