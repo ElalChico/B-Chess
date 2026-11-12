@@ -20,9 +20,8 @@ jobs:
           java-version: '17'
 
       # Las licencias del SDK de Android deben aceptarse de forma NO interactiva.
-      # setup-android ejecuta "sdkmanager --licenses", que si no encuentra las
-      # licencias aceptadas se queda esperando el prompt "Accept? (y/N)" y el
-      # job termina fallando por timeout.
+      # Si no, "sdkmanager --licenses" se queda esperando el prompt "Accept? (y/N)"
+      # y el job termina fallando por timeout.
       - name: Accept Android SDK licenses
         shell: bash
         run: |
@@ -35,24 +34,28 @@ jobs:
             done
           fi
           # Respaldo: hashes de las licencias habituales, escritos a mano para
-          # garantizar que setup-android no tenga que preguntar nada.
+          # garantizar que nada tenga que preguntar nada.
           echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
           echo "84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_SDK_ROOT/licenses/android-sdk-preview-license"
           echo "859f317696f67ef3d7f30a50a5560e7834b43903" > "$ANDROID_SDK_ROOT/licenses/android-sdk-arm-dbt-license"
           echo "601085b94cd77f0b54ff86406957099ebe79c4d6" > "$ANDROID_SDK_ROOT/licenses/android-googletv-license"
           echo "d975f751698a77b662f1254ddbeed3901e976f5a" > "$ANDROID_SDK_ROOT/licenses/intel-android-extra-license"
 
-      - uses: android-actions/setup-android@v3
-
+      # No se usa android-actions/setup-android: intenta instalar el paquete
+      # "tools", que ya no existe en los repositorios de Google, y el job falla.
+      # El SDK se instala a mano con el sdkmanager del runner.
       - name: Install Android SDK packages
         shell: bash
         run: |
           set -e
           SDKMANAGER="$(ls -d "$ANDROID_SDK_ROOT"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -n 1)"
-          if [ -n "$SDKMANAGER" ]; then
-            yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
-            yes | "$SDKMANAGER" "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null 2>&1 || true
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found in $ANDROID_SDK_ROOT/cmdline-tools" >&2
+            exit 1
           fi
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          yes | "$SDKMANAGER" "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          echo "sdk.dir=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
 
       - name: Configure B-Chess release signing
         env:
