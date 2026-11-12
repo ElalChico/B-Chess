@@ -21,7 +21,7 @@ object GitHubProfile {
 
     /** Descripcion corta del desarrollador. */
     const val BIO =
-        "Desarrollador autodidacta | Hacking etico & software libre | " +
-            "Comprometido con la justicia, el antiespecismo y la tecnologia " +
-            "al servicio de la critica social."
+        "Desarrollador autodidacta | Hacking ético & software libre | " +
+            "Comprometido con la justicia, el antiespecismo y la tecnología " +
+            "al servicio de la crítica social."
 }

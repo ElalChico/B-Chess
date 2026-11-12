@@ -342,25 +342,25 @@ private fun DeveloperCard(
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = onAbout,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Line),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Text1),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                 ) {
-                    Text("Acerca de este desarrollador", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text("Acerca de este desarrollador", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 }
                 Button(
                     onClick = onProfile,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                 ) {
-                    Text("Mi perfil de GitHub", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text("Mi perfil de GitHub", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
             }
         }

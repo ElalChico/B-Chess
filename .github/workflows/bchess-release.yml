@@ -3,13 +3,18 @@ name: B-Chess Android release
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version a compilar (ej. 1.0.4)'
+        required: true
 
 permissions:
   contents: write
 
 jobs:
   build:
-    if: startsWith(github.event.release.tag_name, 'v')
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,8 +58,11 @@ jobs:
             echo "sdkmanager not found in $ANDROID_SDK_ROOT/cmdline-tools" >&2
             exit 1
           fi
-          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
-          yes | "$SDKMANAGER" "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          # Las licencias ya estan aceptadas en el paso anterior, asi que
+          # sdkmanager no debe preguntar nada. No se usa "yes |" porque al
+          # cerrar la entrada sdkmanager, yes muere con SIGPIPE y el step
+          # falla con "Broken pipe" bajo pipefail.
+          "$SDKMANAGER" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
           echo "sdk.dir=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
 
       - name: Configure B-Chess release signing
@@ -74,6 +82,9 @@ jobs:
         run: |
           chmod +x gradlew
           version="${GITHUB_REF_NAME#v}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ inputs.version }}"
+          fi
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Release tag must use semantic versioning, for example v1.0.1." >&2
             exit 1
@@ -87,7 +98,9 @@ jobs:
             https://github.com/official-stockfish/Stockfish/archive/refs/tags/sf_19.tar.gz \
             --output app/build/outputs/apk/release/Stockfish-sf_19-source.tar.gz
 
-      - uses: softprops/action-gh-release@v2
+      - name: Attach assets to the release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
         with:
           overwrite_files: true
           files: |
@@ -95,3 +108,16 @@ jobs:
             app/build/outputs/apk/release/Stockfish-sf_19-source.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload assets (manual run)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -e
+          version="${{ inputs.version }}"
+          gh release upload "v${version}" \
+            app/build/outputs/apk/release/B-Chess-${version}.apk \
+            app/build/outputs/apk/release/Stockfish-sf_19-source.tar.gz \
+            --clobber --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
