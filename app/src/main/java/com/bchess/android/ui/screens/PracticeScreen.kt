@@ -48,21 +48,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import com.bchess.android.core.ChessEngine
 import com.bchess.android.core.Color as ChessColor
 import com.bchess.android.core.GameEnd
 import com.bchess.android.core.GameEndReason
 import com.bchess.android.core.Move
 import com.bchess.android.core.PieceType
+import com.bchess.android.data.AppPreferences
 import com.bchess.android.data.ClockManager
 import com.bchess.android.data.ClockState
 import com.bchess.android.data.EngineInstallState
+import com.bchess.android.data.GameHistoryStore
+import com.bchess.android.data.GameRecord
 import com.bchess.android.data.PieceSet
 import com.bchess.android.data.PredefinedControls
 import com.bchess.android.data.StockfishEngineManager
 import com.bchess.android.data.BoardTheme
 import com.bchess.android.data.TimeControlOption
 import com.bchess.android.data.formatClock
+import com.bchess.android.data.buildOgn
 import com.bchess.android.ui.components.BoardSelection
 import com.bchess.android.ui.components.ChessBoard
 import kotlinx.coroutines.launch
@@ -88,7 +97,8 @@ fun PracticeScreen(
     initialTimeMs: Long = 300_000L,
     initialIncrementMs: Long = 0L,
     onBack: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    prefs: AppPreferences
 ) {
     val engine = remember { ChessEngine() }
     val coroutineScope = rememberCoroutineScope()
@@ -116,6 +126,10 @@ fun PracticeScreen(
     var gameEnd by remember { mutableStateOf<GameEnd?>(null) }
     var showSidePicker by remember { mutableStateOf(false) }
     var lastMove by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var showLastMoveReplay by remember { mutableStateOf(false) }
+    var ognSaved by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val playerName = prefs.profileName
     val clockManager = remember(coroutineScope) {
         ClockManager(
             scope = coroutineScope,
@@ -132,6 +146,37 @@ fun PracticeScreen(
         )
     }
     val clock by clockManager.state.collectAsState()
+    val saveOgnLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/x-chess-ogn")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val result = when (gameEnd?.winner) {
+                null -> "1/2-1/2"
+                playerColor -> "1-0"
+                else -> "0-1"
+            }
+            val localWon = gameEnd?.winner?.let { it == playerColor }
+            context.contentResolver.openOutputStream(uri).use { output ->
+                output?.write(buildOgn(
+                    GameRecord(
+                        opponent = "Stockfish",
+                        playerName = playerName,
+                        result = result,
+                        localWon = localWon,
+                        localColorWhite = playerColor == ChessColor.WHITE,
+                        timeLabel = timeControl.label,
+                        movesSan = moveHistory.toList(),
+                        pgn = "",
+                        finalFen = engine.toFEN(),
+                        uciMoves = moveHistory.toList()
+                    ),
+                    if (playerColor == ChessColor.WHITE) playerName else "Stockfish",
+                    if (playerColor == ChessColor.WHITE) "Stockfish" else playerName
+                ).toByteArray())
+            }
+            ognSaved = true
+        }
+    }
     DisposableEffect(engineManager, clockManager) {
         onDispose {
             clockManager.stop()
@@ -288,13 +333,14 @@ fun PracticeScreen(
                     PracticeBoard(
                         modifier = Modifier.weight(0.56f).fillMaxHeight(),
                         snapshot = snapshot,
-                        selection = selection,
-                        onSquareTap = ::onSquareTap,
+                        selection = if (showLastMoveReplay) BoardSelection(null, lastMove = lastMove) else selection,
+                        onSquareTap = if (showLastMoveReplay) { _ -> } else ::onSquareTap,
                         boardTheme = boardTheme,
                         pieceSet = pieceSet,
                         showCoordinates = showCoordinates,
                         playerColor = playerColor,
-                        moveIndicators = moveIndicators
+                        moveIndicators = moveIndicators,
+                        highlightLastMove = showLastMoveReplay
                     )
                 }
             } else {
@@ -311,13 +357,14 @@ fun PracticeScreen(
                     PracticeBoard(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                         snapshot = snapshot,
-                        selection = selection,
-                        onSquareTap = ::onSquareTap,
+                        selection = if (showLastMoveReplay) BoardSelection(null, lastMove = lastMove) else selection,
+                        onSquareTap = if (showLastMoveReplay) { _ -> } else ::onSquareTap,
                         boardTheme = boardTheme,
                         pieceSet = pieceSet,
                         showCoordinates = showCoordinates,
                         playerColor = playerColor,
-                        moveIndicators = moveIndicators
+                        moveIndicators = moveIndicators,
+                        highlightLastMove = showLastMoveReplay
                     )
                     PracticeGameStatus(
                         gameEnd = gameEnd,
@@ -334,7 +381,12 @@ fun PracticeScreen(
                     message = gameEnd?.message.orEmpty(),
                     onNewGame = { startNewGame(playerColor) },
                     onChooseSide = { showSidePicker = true },
-                    onOpenSettings = onOpenSettings
+                    onOpenSettings = onOpenSettings,
+                    onSaveOgn = { saveOgnLauncher.launch("b-chess-partida-vs-stockfish.ogn") },
+                    onClose = { showLastMoveReplay = false },
+                    onReplayLastMove = { showLastMoveReplay = true },
+                    ognSaved = ognSaved,
+                    showLastMoveReplay = showLastMoveReplay
                 )
             }
 
@@ -553,10 +605,15 @@ private fun PracticeEndDialog(
     message: String,
     onNewGame: () -> Unit,
     onChooseSide: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onSaveOgn: () -> Unit,
+    onClose: () -> Unit,
+    onReplayLastMove: () -> Unit,
+    ognSaved: Boolean,
+    showLastMoveReplay: Boolean
 ) {
     Dialog(
-        onDismissRequest = {},
+        onDismissRequest = onClose,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Column(
@@ -569,6 +626,9 @@ private fun PracticeEndDialog(
         ) {
             Text("Jaque mate", color = PracticeGold, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
             Text(message, color = PracticeMuted, fontSize = 13.sp)
+            if (showLastMoveReplay) {
+                Text("Última jugada resaltada en el tablero", color = PracticeGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
             Button(
                 onClick = onNewGame,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
@@ -582,6 +642,15 @@ private fun PracticeEndDialog(
             }
             OutlinedButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
                 Text("Ajustes del tablero", color = PracticeText)
+            }
+            OutlinedButton(onClick = onSaveOgn, modifier = Modifier.fillMaxWidth()) {
+                Text(if (ognSaved) "Guardado como OGN" else "Guardar como OGN", color = PracticeGreen)
+            }
+            OutlinedButton(onClick = onReplayLastMove, modifier = Modifier.fillMaxWidth()) {
+                Text("Ver última jugada", color = PracticeText)
+            }
+            OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
+                Text("Cerrar", color = PracticeMuted)
             }
         }
     }
@@ -669,7 +738,8 @@ private fun PracticeBoard(
     pieceSet: PieceSet,
     showCoordinates: Boolean,
     playerColor: ChessColor,
-    moveIndicators: Boolean
+    moveIndicators: Boolean,
+    highlightLastMove: Boolean = false
 ) {
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         ChessBoard(

@@ -156,10 +156,11 @@ class StockfishEngineManager(context: Context) {
 
         internal fun strengthForPercent(percent: Int): StockfishStrength {
             val normalized = percent.coerceIn(MIN_STRENGTH_PERCENT, MAX_STRENGTH_PERCENT)
-            val eloRange = UCI_MAX_ELO - UCI_MIN_ELO
+            // A partir del 50% usa la potencia real máxima del motor (Elo 3190, Skill 20).
+            val realStrength = normalized >= 50
             return StockfishStrength(
-                uciElo = UCI_MIN_ELO + (eloRange * normalized / MAX_STRENGTH_PERCENT),
-                skillLevel = MAX_SKILL_LEVEL * normalized / MAX_STRENGTH_PERCENT
+                uciElo = if (realStrength) UCI_MAX_ELO else UCI_MIN_ELO + (UCI_MAX_ELO - UCI_MIN_ELO) * normalized / MAX_STRENGTH_PERCENT,
+                skillLevel = if (realStrength) MAX_SKILL_LEVEL else MAX_SKILL_LEVEL * normalized / MAX_STRENGTH_PERCENT
             )
         }
     }

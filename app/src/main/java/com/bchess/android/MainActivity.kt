@@ -442,7 +442,8 @@ class MainActivity : ComponentActivity() {
                     onOpenSettings = {
                         returnToPracticeFromSettings = true
                         screen = Screen.SETTINGS
-                    }
+                    },
+                    prefs = prefs
                 )
             }
 

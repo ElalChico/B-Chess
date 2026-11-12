@@ -76,3 +76,37 @@ fun buildPgn(record: GameRecord, white: String, black: String): String {
 
 private fun escapePgnTag(value: String): String =
     value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\r", " ").replace("\n", " ")
+
+/** Genera notación OGN (Open Game Notation) para una partida contra Stockfish. */
+fun buildOgn(record: GameRecord, white: String, black: String): String {
+    val sb = StringBuilder()
+    sb.appendLine("[Event \"B-Chess\"]")
+    sb.appendLine("[Site \"Local\"]")
+    sb.appendLine("[Date \"${SimpleDateFormat("yyyy.MM.dd", Locale.US).format(Date(record.dateMs))}\"]")
+    sb.appendLine("[Round \"1\"]")
+    sb.appendLine("[White \"${escapePgnTag(white)}\"]")
+    sb.appendLine("[Black \"${escapePgnTag(black)}\"]")
+    sb.appendLine("[Result \"${record.result}\"]")
+    sb.appendLine("[TimeControl \"${escapePgnTag(record.timeLabel)}\"]")
+    if (record.uciMoves.isNotEmpty()) {
+        sb.appendLine("[UCI \"${record.uciMoves.joinToString(" ")}\"]")
+    }
+    sb.appendLine()
+    record.movesSan.forEachIndexed { i, san ->
+        if (i % 2 == 0) sb.append("${i / 2 + 1}. ")
+        sb.append("$san ")
+        val clock = record.moveClocks.getOrNull(i)
+        if (clock != null) sb.append("{ %clk ${formatClock(clock)} } ")
+    }
+    sb.append(record.result)
+    return sb.toString().trim()
+}
+
+/** Exporta una lista de partidas como OGN (una partida por bloque, separada por línea en blanco). */
+fun exportOgn(records: List<GameRecord>): String {
+    return records.joinToString("\n\n") { record ->
+        val white = if (record.localColorWhite) record.playerName else record.opponent
+        val black = if (record.localColorWhite) record.opponent else record.playerName
+        buildOgn(record, white, black)
+    }
+}
