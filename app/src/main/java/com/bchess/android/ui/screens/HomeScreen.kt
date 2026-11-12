@@ -140,15 +140,17 @@ fun HomeScreen(
                         .border(1.dp, Accent, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (githubAvatar != null) {
+                    // Prioridad: la foto que configuro el usuario. El avatar de
+                    // GitHub solo se usa como respaldo si no hay ninguna.
+                    if (avatar != null) {
+                        Image(avatar, contentDescription = "Foto de $profileName", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    } else if (githubAvatar != null) {
                         Image(
                             githubAvatar,
                             contentDescription = "Foto de perfil de GitHub de Elal Chico",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
-                    } else if (avatar != null) {
-                        Image(avatar, contentDescription = "Foto de $profileName", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     } else {
                         Text(profileName.firstOrNull()?.uppercaseChar()?.toString() ?: "J", color = Accent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     }
