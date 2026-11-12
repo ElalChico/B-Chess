@@ -19,6 +19,24 @@ motor propio.
 - **Practica contra Stockfish** (motor local incluido).
 - **Actualizaciones in-app** desde GitHub Releases (misma firma, datos conservados).
 
+## Proyecto relacionado
+
+**Chess-X** es el proyecto hermano: el mismo juego de ajedrez por Bluetooth,
+pero **sin Stockfish** y más ligero.
+
+[![Ver Chess-X en GitHub](https://img.shields.io/badge/Chess--X-Proyecto%20similar%20sin%20Stockfish-0078D4?style=for-the-badge&logo=github)](https://github.com/ElalChico/chess-x)
+
+[→ Ir a https://github.com/ElalChico/chess-x](https://github.com/ElalChico/chess-x)
+
+## El desarrollador
+
+Creado por **[Elal Chico](https://github.com/ElalChico)**.
+
+> Desarrollador autodidacta | Hacking ético & software libre | Comprometido con
+> la justicia, el antiespecismo y la tecnología al servicio de la crítica social.
+
+[![Perfil de GitHub](https://img.shields.io/badge/GitHub-ElalChico-181717?style=for-the-badge&logo=github)](https://github.com/ElalChico)
+
 ## Instalar
 
 Descarga el APK de la última versión desde **Releases** e instálalo en Android

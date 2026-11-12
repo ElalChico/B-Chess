@@ -1,6 +1,8 @@
 package com.bchess.android.ui.screens
 
+import android.content.Intent
 import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,14 +16,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.bchess.android.data.GitHubProfile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 private val Bg = Color(0xFF101416)
 private val Card = Color(0xFF1A2021)
@@ -52,6 +63,19 @@ fun HomeScreen(
             }
         } catch (_: Exception) {
             null
+        }
+    }
+
+    // Avatar de GitHub: se sincroniza siempre con el perfil publico
+    val githubAvatar = rememberGitHubAvatar()
+    val context = LocalContext.current
+    var showAboutDeveloper by remember { mutableStateOf(false) }
+    val openUrl: (String) -> Unit = { url ->
+        try {
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (_: Exception) {
         }
     }
 
@@ -116,7 +140,14 @@ fun HomeScreen(
                         .border(1.dp, Accent, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (avatar != null) {
+                    if (githubAvatar != null) {
+                        Image(
+                            githubAvatar,
+                            contentDescription = "Foto de perfil de GitHub de Elal Chico",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else if (avatar != null) {
                         Image(avatar, contentDescription = "Foto de $profileName", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     } else {
                         Text(profileName.firstOrNull()?.uppercaseChar()?.toString() ?: "J", color = Accent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
@@ -196,8 +227,22 @@ fun HomeScreen(
                 Text(if (inSession) "●" else clockSummary, color = if (inSession) Green else Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
+
+        // ============ FIRMA DEL DESARROLLADOR ============
+        DeveloperCard(
+            githubAvatar = githubAvatar,
+            onAbout = { showAboutDeveloper = true },
+            onProfile = { openUrl(GitHubProfile.PROFILE_URL) }
+        )
     }
 
+    if (showAboutDeveloper) {
+        AboutDeveloperDialog(
+            githubAvatar = githubAvatar,
+            onProfile = { openUrl(GitHubProfile.PROFILE_URL) },
+            onDismiss = { showAboutDeveloper = false }
+        )
+    }
 }
 
 @Composable
@@ -222,6 +267,181 @@ private fun HomeAction(
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Text(subtitle, color = if (primary) Color.White.copy(alpha = 0.85f) else Muted, fontSize = 11.sp)
+        }
+    }
+}
+
+/**
+ * Descarga el avatar publico de GitHub del desarrollador.
+ * Se sincroniza siempre (sin cache en el repo) para que la app y el perfil
+ * de GitHub muestren la misma imagen.
+ */
+@Composable
+private fun rememberGitHubAvatar(): ImageBitmap? {
+    var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(Unit) {
+        bitmap = withContext(Dispatchers.IO) {
+            runCatching {
+                val request = Request.Builder().url(GitHubProfile.AVATAR_URL).build()
+                OkHttpClient().newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        null
+                    } else {
+                        val bytes = response.body?.bytes()
+                        if (bytes == null) null
+                        else BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                    }
+                }
+            }.getOrNull()
+        }
+    }
+    return bitmap
+}
+
+/** Tarjeta con la firma del desarrollador y enlaces a GitHub. */
+@Composable
+private fun DeveloperCard(
+    githubAvatar: ImageBitmap?,
+    onAbout: () -> Unit,
+    onProfile: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Card,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    Modifier.size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF1A2430), CircleShape)
+                        .border(1.dp, Accent, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (githubAvatar != null) {
+                        Image(
+                            githubAvatar,
+                            contentDescription = "Foto de GitHub de Elal Chico",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text("EC", color = Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Creado por Elal Chico", color = Text1, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("Desarrollador autodidacta · Software libre", color = Muted, fontSize = 11.sp)
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onAbout,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Text1),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp)
+                ) {
+                    Text("Acerca de este desarrollador", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
+                Button(
+                    onClick = onProfile,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp)
+                ) {
+                    Text("Mi perfil de GitHub", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+/** Dialogo con la informacion del desarrollador. */
+@Composable
+private fun AboutDeveloperDialog(
+    githubAvatar: ImageBitmap?,
+    onProfile: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            shape = RoundedCornerShape(20.dp),
+            color = Card,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+        ) {
+            Column(
+                Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        Modifier.size(46.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1A2430), CircleShape)
+                            .border(1.dp, Accent, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (githubAvatar != null) {
+                            Image(
+                                githubAvatar,
+                                contentDescription = "Foto de GitHub de Elal Chico",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Text("EC", color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Elal Chico", color = Text1, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Text("Desarrollador de B-Chess", color = Muted, fontSize = 12.sp)
+                    }
+                    Text(
+                        "×",
+                        color = Muted,
+                        fontSize = 22.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(onClick = onDismiss)
+                            .padding(horizontal = 8.dp)
+                    )
+                }
+
+                Text(
+                    GitHubProfile.BIO,
+                    color = Text1,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
+                )
+
+                Button(
+                    onClick = onProfile,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White),
+                    contentPadding = PaddingValues(vertical = 13.dp)
+                ) {
+                    Text("Más detalles en GitHub", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
