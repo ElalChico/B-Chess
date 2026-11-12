@@ -132,10 +132,11 @@ fun PracticeScreen(
         )
     }
     val clock by clockManager.state.collectAsState()
-    DisposableEffect(engineManager) {
+    DisposableEffect(engineManager, clockManager) {
         onDispose {
             clockManager.stop()
-            engineManager.stop()
+            // engineManager es un singleton compartido: NO se detiene aquí
+            // para evitar corromper el estado de Stockfish al cambiar de pantalla
         }
     }
 

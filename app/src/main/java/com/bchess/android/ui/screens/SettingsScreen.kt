@@ -219,7 +219,7 @@ fun SettingsScreen(
                 isDownloading = downloading,
                 onCheckClick = { scope.launch { updateManager.checkForUpdate() } },
                 onDownloadClick = { downloading = true },
-                onOpenReleasesClick = { updateManager.openReleasesPage(activity!!) },
+                onOpenReleasesClick = { activity?.let { updateManager.openReleasesPage(it) } },
                 translate = { es, en -> t(es, en) },
                 scope = scope,
                 onResetFlags = { checking = false; downloading = false }
