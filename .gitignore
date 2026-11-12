@@ -11,6 +11,8 @@
 **/build/
 .kotlin/
 /captures
+# Resumen del proyecto (no se sube a GitHub)
+RESUMEN-B-Chess.pdf
 .externalNativeBuild
 .cxx
 local.properties
