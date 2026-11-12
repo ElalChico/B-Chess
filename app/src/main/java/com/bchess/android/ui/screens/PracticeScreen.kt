@@ -376,7 +376,7 @@ fun PracticeScreen(
                 }
             }
 
-            if (gameEnd?.reason == GameEndReason.CHECKMATE) {
+            if (gameEnd != null) {
                 PracticeEndDialog(
                     message = gameEnd?.message.orEmpty(),
                     onNewGame = { startNewGame(playerColor) },
