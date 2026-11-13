@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +33,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,8 +72,17 @@ fun InternetMatchScreen(
 ) {
     var mode by remember { mutableStateOf<String?>(null) } // null | "create" | "join"
     var joinCode by remember { mutableStateOf("") }
+    var copied by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
     val waiting = state == BtState.WAITING_HOST
     val connecting = state == BtState.CONNECTING
+
+    if (copied) {
+        LaunchedEffect(copied) {
+            kotlinx.coroutines.delay(2200)
+            copied = false
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().background(ScreenBg).padding(horizontal = 20.dp, vertical = 14.dp),
@@ -159,6 +171,24 @@ fun InternetMatchScreen(
                                 textAlign = TextAlign.Center,
                                 letterSpacing = 1.5.sp
                             )
+                            OutlinedButton(
+                                onClick = {
+                                    clipboard.setText(AnnotatedString(matchId!!))
+                                    copied = true
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (copied) ScreenAccent else ScreenLine),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = if (copied) ScreenAccent else ScreenText),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+                            ) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        if (copied) "¡Copiada!" else "Copiar código",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
                             if (waiting) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     CircularProgressIndicator(color = ScreenAccent, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)

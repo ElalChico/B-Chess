@@ -124,6 +124,7 @@ fun SettingsScreen(
             PieceSetGridSelector(
                 selected = prefs.pieceSet,
                 isEn = isEn,
+                boardTheme = prefs.boardTheme,
                 onSelect = { set -> prefs.setPieceSet(set) }
             )
             ToggleRow(

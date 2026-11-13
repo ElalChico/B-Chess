@@ -1,7 +1,7 @@
 /*
  * B-Chess · © Elal Chico
- * Vista previa de temas de tablero: mini-tablero 4x4 con casillas alternadas
- * sobre fondo neutro para que el usuario vea contraste y tonalidad antes de elegir.
+ * Selector de tema de tablero con vista previa estilo chess-bt-android:
+ * mini-tablero 3x2 (2 filas, 3 columnas) con las casillas del tema.
  */
 
 package com.bchess.android.ui.components
@@ -14,8 +14,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,21 +26,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bchess.android.data.BoardTheme
 
 private val Card = Color(0xFF151C25)
-private val CardSel = Color(0x26E2B94E)
+private val CardSel = Color(0x26C9B15A)
 private val Line = Color(0xFF232C38)
 private val LineSel = Color(0xFFC9B15A)
 private val Text1 = Color(0xFFEEF1F5)
 private val Gold = Color(0xFFC9B15A)
-private val TrackBg = Color(0xFF0F141B)
 
 /**
- * Grid de temas de tablero con vista previa 4x4. 3 columnas.
- * Las casillas claras/oscuras tienen always contraste alto respecto al fondo del panel.
+ * Grid de temas de tablero con vista previa 3x2 (estilo chess-bt-android).
+ * 3 columnas por fila.
  */
 @Composable
 fun BoardThemeGridSelector(
@@ -80,40 +80,41 @@ private fun BoardThemeCard(
 ) {
     Column(
         modifier = modifier
-            .background(if (selected) CardSel else Card, RoundedCornerShape(14.dp))
-            .border(if (selected) 1.5.dp else 1.dp, if (selected) LineSel else Line, RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected) CardSel else Card, RoundedCornerShape(12.dp))
+            .border(if (selected) 1.5.dp else 1.dp, if (selected) LineSel else Line, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .padding(8.dp),
+            .padding(vertical = 9.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text(
-            if (isEn) theme.labelEn else theme.labelEs,
-            color = if (selected) Gold else Text1,
-            fontSize = 10.5.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            minLines = 1
-        )
-        // Mini-tablero 4x4 sobre fondo oscuro del panel
+        // Mini-tablero 3x2 con las casillas del tema
         Column(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(TrackBg)
-                .border(1.dp, Color(0xFF2E3A45), RoundedCornerShape(8.dp))
+            Modifier
+                .size(width = 40.dp, height = 27.dp)
+                .clip(RoundedCornerShape(6.dp))
         ) {
-            for (row in 0 until 4) {
-                Row {
-                    for (col in 0 until 4) {
+            repeat(2) { row ->
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    repeat(3) { col ->
+                        val light = (row + col) % 2 == 0
                         Box(
-                            modifier = Modifier
-                                .size(22.dp)
-                                .background(if ((row + col) % 2 == 0) theme.lightSquare else theme.darkSquare)
+                            Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .background(if (light) theme.lightSquare else theme.darkSquare)
                         )
                     }
                 }
             }
         }
+        Text(
+            if (isEn) theme.labelEn else theme.labelEs,
+            color = if (selected) Gold else Text1,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }

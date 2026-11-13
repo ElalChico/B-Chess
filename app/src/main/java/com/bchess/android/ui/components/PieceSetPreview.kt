@@ -1,8 +1,8 @@
 /*
  * B-Chess · © Elal Chico
- * Selector de conjunto de piezas con vista previa de 12 piezas por set
- * (6 blancas arriba, 6 negras abajo) montadas sobre casillas claras/oscuras,
- * para que el usuario vea exactamente cómo se ve cada conjunto antes de elegirlo.
+ * Selector de conjunto de piezas con vista previa de tablero (estilo chess-bt-android):
+ * mini-tablero 2x1 (casilla clara + casilla oscura del tema actual) con los
+ * caballos blanco y negro del set seleccionado.
  */
 
 package com.bchess.android.ui.components
@@ -18,9 +18,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,34 +31,32 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.bchess.android.R
 import com.bchess.android.core.Piece
 import com.bchess.android.core.PieceType
 import com.bchess.android.core.Color as ChessColor
+import com.bchess.android.data.BoardTheme
 import com.bchess.android.data.PieceSet
 
 private val Card = Color(0xFF151C25)
-private val CardSel = Color(0x26E2B94E)
+private val CardSel = Color(0x26C9B15A)
 private val Line = Color(0xFF232C38)
 private val LineSel = Color(0xFFC9B15A)
 private val Text1 = Color(0xFFEEF1F5)
 private val Gold = Color(0xFFC9B15A)
-private val LightSquare = Color(0xFFB79C6D)
-private val DarkSquare = Color(0xFF5F4F35)
-private val TrackBg = Color(0xFF0F141B)
-private val VBorder = Color(0xFF2E3A45)
 
 /**
- * Grid de 17 conjuntos con vista previa de 12 piezas cada uno.
- * 3 columnas; cada celda muestra miniaturas de Torre, Caballo, Alfil, Dama, Rey, Peón
- * (fila superior blancas, inferior negras) con casillas claras/oscuras alternadas.
+ * Grid de 17 conjuntos con vista previa de tablero.
+ * Cada chip muestra un mini-tablero 2x1 (casilla clara + oscura del tema)
+ * con el caballo blanco y el caballo negro del set.
  */
 @Composable
 fun PieceSetGridSelector(
     selected: PieceSet,
     isEn: Boolean,
+    boardTheme: BoardTheme,
     onSelect: (PieceSet) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -73,6 +71,7 @@ fun PieceSetGridSelector(
                         set = set,
                         selected = set == selected,
                         isEn = isEn,
+                        theme = boardTheme,
                         modifier = Modifier.weight(1f),
                         onClick = { onSelect(set) }
                     )
@@ -88,97 +87,71 @@ private fun PieceSetCard(
     set: PieceSet,
     selected: Boolean,
     isEn: Boolean,
+    theme: BoardTheme,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val ctx = LocalContext.current
-    val pieces = listOf(
-        PieceType.ROOK,
-        PieceType.KNIGHT,
-        PieceType.BISHOP,
-        PieceType.QUEEN,
-        PieceType.KING,
-        PieceType.PAWN
-    )
     Column(
         modifier = modifier
-            .background(if (selected) CardSel else Card, RoundedCornerShape(14.dp))
-            .border(if (selected) 1.5.dp else 1.dp, if (selected) LineSel else Line, RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected) CardSel else Card, RoundedCornerShape(12.dp))
+            .border(if (selected) 1.5.dp else 1.dp, if (selected) LineSel else Line, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .padding(8.dp),
+            .padding(vertical = 9.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(5.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        // Mini-tablero 2x1: casilla clara con caballo blanco + casilla oscura con caballo negro
+        Row(
+            Modifier
+                .size(width = 40.dp, height = 27.dp)
+                .clip(RoundedCornerShape(6.dp))
+        ) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .background(theme.lightSquare),
+                contentAlignment = Alignment.Center
+            ) {
+                PreviewPiece(Piece(PieceType.KNIGHT, ChessColor.WHITE), set, Modifier.fillMaxSize().padding(1.dp), ctx)
+            }
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .background(theme.darkSquare),
+                contentAlignment = Alignment.Center
+            ) {
+                PreviewPiece(Piece(PieceType.KNIGHT, ChessColor.BLACK), set, Modifier.fillMaxSize().padding(1.dp), ctx)
+            }
+        }
         Text(
             if (isEn) set.labelEn else set.labelEs,
             color = if (selected) Gold else Text1,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
-            minLines = 1
-        )
-        // Fila superior: piezas blancas
-        MiniRow(
-            pieces = pieces,
-            colorType = ChessColor.WHITE,
-            set = set,
-            context = ctx,
-            rowIndex = 0
-        )
-        // Fila inferior: piezas negras
-        MiniRow(
-            pieces = pieces,
-            colorType = ChessColor.BLACK,
-            set = set,
-            context = ctx,
-            rowIndex = 1
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
 
 @Composable
-private fun MiniRow(
-    pieces: List<PieceType>,
-    colorType: ChessColor,
-    set: PieceSet,
-    context: android.content.Context,
-    rowIndex: Int
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .wrapContentHeight()
-            .clip(RoundedCornerShape(8.dp))
-            .background(TrackBg)
-            .border(1.dp, VBorder, RoundedCornerShape(8.dp))
-    ) {
-        pieces.forEachIndexed { index, type ->
-            val light = (index + rowIndex) % 2 == 0
-            Box(
-                modifier = Modifier
-                    .size(26.dp)
-                    .background(
-                        if (light) LightSquare else DarkSquare,
-                        RoundedCornerShape(3.dp)
-                    )
-                    .padding(1.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (set.resKey != null || set == PieceSet.LICHESS) {
-                    Image(
-                        painter = painterResource(id = pieceResource(context, Piece(type, colorType), set)),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    PieceIcon(
-                        piece = Piece(type, colorType),
-                        modifier = Modifier.fillMaxSize(),
-                        pieceSet = set
-                    )
-                }
-            }
-        }
+private fun PreviewPiece(piece: Piece, set: PieceSet, modifier: Modifier, context: android.content.Context) {
+    if (set.resKey != null || set == PieceSet.LICHESS) {
+        Image(
+            painter = painterResource(id = pieceResource(context, piece, set)),
+            contentDescription = null,
+            modifier = modifier,
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+        )
+    } else {
+        PieceIcon(
+            piece = piece,
+            modifier = modifier,
+            pieceSet = set
+        )
     }
 }
