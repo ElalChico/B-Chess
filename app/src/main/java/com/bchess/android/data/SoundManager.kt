@@ -82,6 +82,22 @@ class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEF
     fun getVolume(): Int = volumePercent
     fun setPack(pack: SoundPack) { soundPack = pack }
 
+    /**
+     * Vista previa de un paquete de sonidos para la pantalla de Ajustes:
+     * reproduce un movimiento con el paquete indicado sin alterar la
+     * configuración actual. Suena aunque los efectos estén desactivados
+     * (es sólo una demostración sonora).
+     */
+    fun playPreview(pack: SoundPack) {
+        val previous = soundPack
+        soundPack = pack
+        val id = moveId
+        if (id > 0 && pool != null) {
+            try { pool?.play(id, vol(), vol(), 1, 0, pitch()) } catch (_: Exception) { }
+        }
+        soundPack = previous
+    }
+
     private fun vol(): Float = (volumePercent / 100f).coerceIn(0f, 1f)
     private fun pitch(): Float = when (soundPack) {
         SoundPack.LICHESS -> 1f

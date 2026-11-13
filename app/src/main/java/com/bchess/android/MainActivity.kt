@@ -512,7 +512,8 @@ class MainActivity : ComponentActivity() {
                         }
                     } else {
                         null
-                    }
+                    },
+                    onPreviewSoundPack = { vm.sound.playPreview(it) }
                 )
 
                 Screen.PRACTICE -> PracticeScreen(
@@ -530,6 +531,7 @@ class MainActivity : ComponentActivity() {
                         screen = Screen.SETTINGS
                     },
                     prefs = prefs,
+                    sound = vm.sound,
                     onReplay = { record ->
                         replayRecord = record
                         screen = Screen.REPLAY

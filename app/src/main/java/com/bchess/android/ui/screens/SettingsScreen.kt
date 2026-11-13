@@ -21,6 +21,7 @@ import android.content.Context
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -70,7 +71,8 @@ fun SettingsScreen(
     onExit: () -> Unit = {},
     activity: Activity? = null,
     onBackToPractice: (() -> Unit)? = null,
-    onBackToGame: (() -> Unit)? = null
+    onBackToGame: (() -> Unit)? = null,
+    onPreviewSoundPack: (com.bchess.android.data.SoundPack) -> Unit = {}
 ) {
     val isEn = prefs.language == AppLanguage.EN
     fun t(es: String, en: String) = if (isEn) en else es
@@ -164,6 +166,62 @@ fun SettingsScreen(
                     valueRange = 0f..100f,
                     colors = SliderDefaults.colors(thumbColor = Gold, activeTrackColor = Gold, inactiveTrackColor = Line2)
                 )
+            }
+            // Paquete de sonidos con vista previa
+            Text(t("Paquete de sonidos", "Sound pack"), color = Text1, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                com.bchess.android.data.SoundPack.entries.forEach { pack ->
+                    val selected = prefs.soundPack == pack
+                    val packLabel = when (pack) {
+                        com.bchess.android.data.SoundPack.LICHESS -> t("Lichess", "Lichess")
+                        com.bchess.android.data.SoundPack.FREE -> t("Gratis · SFX", "Free · SFX")
+                        com.bchess.android.data.SoundPack.CLASSIC -> t("Clásico", "Classic")
+                    }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(if (selected) Color(0xFF26200F) else Card2, RoundedCornerShape(12.dp))
+                            .border(1.dp, if (selected) Gold else Line2, RoundedCornerShape(12.dp))
+                            .clickable { prefs.setSoundPack(pack) }
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            packLabel,
+                            color = if (selected) Gold else Text1,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            maxLines = 1
+                        )
+                        TextButton(
+                            onClick = { onPreviewSoundPack(pack) },
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 1.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.VolumeUp,
+                                    contentDescription = null,
+                                    tint = if (selected) Gold else Muted,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    t("Vista previa", "Preview"),
+                                    color = if (selected) Gold else Muted,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 

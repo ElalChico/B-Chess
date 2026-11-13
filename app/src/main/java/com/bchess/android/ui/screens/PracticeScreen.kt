@@ -70,6 +70,8 @@ import com.bchess.android.data.GAME_TYPE_PRACTICE
 import com.bchess.android.data.PieceSet
 import com.bchess.android.data.PredefinedControls
 import com.bchess.android.data.StockfishEngineManager
+import com.bchess.android.data.SoundManager
+import com.bchess.android.data.SoundType
 import com.bchess.android.data.BoardTheme
 import com.bchess.android.data.TimeControlOption
 import com.bchess.android.data.formatClock
@@ -101,7 +103,8 @@ fun PracticeScreen(
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
     prefs: AppPreferences,
-    onReplay: (GameRecord) -> Unit
+    onReplay: (GameRecord) -> Unit,
+    sound: SoundManager? = null
 ) {
     val engine = remember { ChessEngine() }
     val coroutineScope = rememberCoroutineScope()
@@ -145,6 +148,7 @@ fun PracticeScreen(
                     reason = GameEndReason.TIMEOUT,
                     message = if (loser == playerColor) "Te quedaste sin tiempo" else "Stockfish se quedó sin tiempo"
                 )
+                sound?.play(if (loser == playerColor) SoundType.LOSE else SoundType.WIN)
             }
         )
     }
@@ -202,6 +206,22 @@ fun PracticeScreen(
         if (gameEnd != null) clockManager.finish()
     }
 
+    // Sonido de jugada y de fin de partida: mismo espíritu sonoro que la partida PvP,
+    // también cuando se juega contra Stockfish.
+    fun playMoveSound(captured: Boolean) {
+        when {
+            gameEnd?.reason == GameEndReason.CHECKMATE -> sound?.play(SoundType.CHECKMATE)
+            gameEnd != null -> sound?.play(SoundType.DRAW)
+            engine.isInCheck(engine.sideToMove()) -> sound?.play(SoundType.CHECK)
+            captured -> sound?.play(SoundType.CAPTURE)
+            else -> sound?.play(SoundType.MOVE)
+        }
+        val winner = gameEnd?.winner
+        if (winner != null) {
+            sound?.play(if (winner == playerColor) SoundType.WIN else SoundType.LOSE)
+        }
+    }
+
     fun requestEngineMove() {
         if (gameEnd != null || !gameStarted) return
         thinking = true
@@ -213,10 +233,12 @@ fun PracticeScreen(
                 val move = engine.legalMoves().firstOrNull { it.uci() == response }
                     ?: throw IllegalStateException("Stockfish devolvió un movimiento no válido")
                 val mover = engine.sideToMove()
+                val captured = engine.pieceAt(move.to) != null
                 if (!engine.doMove(move)) throw IllegalStateException("No se pudo aplicar el movimiento del motor")
                 moveHistory.add(move.uci())
                 clockManager.onMovePlayed(mover)
                 refreshAfterMove(move)
+                playMoveSound(captured)
             } catch (e: Exception) {
                 error = e.message ?: "No se pudo obtener el movimiento del motor"
             } finally {
@@ -270,6 +292,7 @@ fun PracticeScreen(
                 legalTargets = engine.legalMovesFrom(square).map { it.to }.distinct(),
                 lastMove = lastMove
             )
+            sound?.play(SoundType.CLICK)
             error = null
             return
         }
@@ -281,6 +304,7 @@ fun PracticeScreen(
                 selection = BoardSelection(null, lastMove = lastMove)
                 return
             }
+            val captured = engine.pieceAt(move.to) != null
             if (!engine.doMove(move)) {
                 error = "No se pudo aplicar el movimiento"
                 return
@@ -288,8 +312,10 @@ fun PracticeScreen(
             moveHistory.add(move.uci())
             clockManager.onMovePlayed(playerColor)
             refreshAfterMove(move)
+            playMoveSound(captured)
             if (gameEnd == null) requestEngineMove()
         } else {
+            if (selected.from != null) sound?.play(SoundType.ILLEGAL)
             selection = BoardSelection(null, lastMove = lastMove)
         }
     }
