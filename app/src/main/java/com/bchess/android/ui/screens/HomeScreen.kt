@@ -296,7 +296,7 @@ fun HomeScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935), contentColor = Color.White),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 8.dp)
             ) {
-                Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                     Box(Modifier.size(16.dp).background(Color(0xFFFFA726), CircleShape))
                     Spacer(Modifier.width(8.dp))
                     Text("Finalizar conexión", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)

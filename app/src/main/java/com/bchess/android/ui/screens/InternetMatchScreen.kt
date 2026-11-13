@@ -3,6 +3,7 @@ package com.bchess.android.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -249,7 +250,7 @@ fun InternetMatchScreen(
                             )
                             TextButton(
                                 onClick = {
-                                    clipboard.getText?.let { joinCode = it.trimToEmpty() }
+                                    clipboard.getText()?.let { joinCode = it.toString().trim() }
                                 },
                                 enabled = joinCode.isNotBlank()
                             ) {
@@ -305,7 +306,7 @@ fun InternetMatchScreen(
                 Surface(
                     shape = RoundedCornerShape(14.dp),
                     color = Color(0xFF14241D),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2E7D32.copy(alpha = 0.6f)))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2E7D32).copy(alpha = 0.6f))
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(18.dp),
@@ -315,7 +316,7 @@ fun InternetMatchScreen(
                         Box(
                             modifier = Modifier
                                 .size(48.dp)
-                                .background(Color(0xFF4CAF50.copy(alpha = 0.2f)), CircleShape)
+                                .background(Color(0xFF4CAF50).copy(alpha = 0.2f), CircleShape)
                                 .border(2.dp, Color(0xFF4CAF50), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
@@ -357,7 +358,7 @@ fun InternetMatchScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935), contentColor = Color.White),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 8.dp)
                 ) {
-                    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                         Box(Modifier.size(16.dp).background(Color(0xFFFFA726), CircleShape))
                         Spacer(Modifier.width(8.dp))
                         Text("Finalizar conexión", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)

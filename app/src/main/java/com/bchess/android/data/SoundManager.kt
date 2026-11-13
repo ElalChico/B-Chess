@@ -22,7 +22,7 @@ class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEF
     private var volumePercent: Int = 80
     private var soundPack: SoundPack = pack
 
-    private val pool: SoundPool? = try {
+    private var pool: SoundPool? = try {
         val attrs = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_GAME)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -94,7 +94,7 @@ class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEF
         if (!enabled) return
 
         // Log each playback attempt for debugging
-        Log.d("SoundManager", "Attempting to play: ${type.name}, #pool: ${pool?.maxStreams}")
+        Log.d("SoundManager", "Attempting to play: ${type.name}, poolActive: ${pool != null}")
 
         val id = when (type) {
             SoundType.MOVE -> moveId

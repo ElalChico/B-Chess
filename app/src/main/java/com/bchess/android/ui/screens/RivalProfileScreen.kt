@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
@@ -21,12 +22,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import com.bchess.android.data.RemoteProfile
 import com.bchess.android.data.RemoteGame
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
-import android.content.Intent
-import android.net.Uri
 
 private val Bg = Color(0xFF0B0D10)
 private val Card = Color(0xFF171D25)
@@ -48,13 +49,12 @@ fun RivalProfileScreen(
     profile: RemoteProfile,
     prefs: com.bchess.android.data.AppPreferences,
     onBack: () -> Unit,
-    onReplayGame: (RemoteGame) -> Unit = {},
-    context: androidx.compose.ui.platform.LocalContext? = null
+    onReplayGame: (RemoteGame) -> Unit = {}
 ) {
     val ctx = LocalContext.current
 
     // Mostrar lo que el rival envió (la privacidad del rival ya se respetó al enviar su perfil)
-    val showPhoto = profile.photoBase64.isNotBlank()
+    val showPhoto = profile.photoBase64?.isNotBlank() == true
     val showHistory = profile.games.isNotEmpty()
     val showPgnButtons = profile.games.any { it.pgn.isNotBlank() }
 
@@ -119,9 +119,8 @@ fun RivalProfileScreen(
 
         // ==== SECCIÓN PRINCIPAL - FOTO Y NOMBRE ====
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Avatar grande y profesional
@@ -132,16 +131,17 @@ fun RivalProfileScreen(
                     .background(Color(0xFF1A2433))
                     .border(
                         3.dp,
-                        if (showPhoto && profile.photoBase64.isNotBlank()) Gold else Line,
+                        if (showPhoto && profile.photoBase64?.isNotBlank() == true) Gold else Line,
                         CircleShape
                     )
                     .shadow(8.dp, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 if (showPhoto) {
-                    val bmp = remember(profile.photoBase64) {
+                    val photoKey = profile.photoBase64
+                    val bmp = remember(photoKey) {
                         try {
-                            val raw = profile.photoBase64.substringAfter("base64,", profile.photoBase64)
+                            val raw = photoKey?.substringAfter("base64,", photoKey) ?: return@remember null
                             val bytes = android.util.Base64.decode(raw, android.util.Base64.DEFAULT)
                             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
                         } catch (_: Exception) {
@@ -168,19 +168,19 @@ fun RivalProfileScreen(
                         profile.name.firstOrNull()?.uppercaseChar()?.toString() ?: "R",
                         fontSize = 40.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (sharePhoto) Gold else Muted.copy(alpha = 0.6f)
+                        color = Gold
                     )
-                    if (!sharePhoto) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .size(20.dp)
-                                .background(Color(0xFF0B0D10), CircleShape)
-                                .border(2.dp, Line, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("🔒", fontSize = 10.sp)
-                        }
+                }
+                if (!showPhoto) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(20.dp)
+                            .background(Color(0xFF0B0D10), CircleShape)
+                            .border(2.dp, Line, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🔒", fontSize = 10.sp)
                     }
                 }
             }
@@ -348,7 +348,7 @@ fun RivalProfileScreen(
                     }
                 }
             }
-        } else if (!shareHistory) {
+        } else if (!showHistory) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -452,7 +452,7 @@ private fun ProgressRow(label: String, percent: Float, color: Color) {
             modifier = Modifier.width(60.dp)
         )
         Spacer(Modifier.width(8.dp))
-        Row(
+        Box(
             modifier = Modifier
                 .weight(1f)
                 .height(8.dp)
@@ -460,7 +460,7 @@ private fun ProgressRow(label: String, percent: Float, color: Color) {
         ) {
             Box(
                 modifier = Modifier
-                    .width(percent.coerceIn(0f, 100f) / 100f)
+                    .fillMaxWidth(percent / 100f)
                     .fillMaxHeight()
                     .background(color, RoundedCornerShape(4.dp))
             )

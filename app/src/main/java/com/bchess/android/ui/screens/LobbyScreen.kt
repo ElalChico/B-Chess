@@ -9,6 +9,7 @@ import android.net.Uri
 import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,7 +26,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -641,19 +647,28 @@ private fun LineChart(points: List<ChartPoint>, modifier: Modifier = Modifier) {
 
             // Etiqueta del eje X (fecha)
             if (i % 5 == 0 || i == points.lastIndex) {
-                drawText(
-                    text = p.label,
-                    top = Offset(px - 15f, padding + plotHeight + 4f),
-                    fontSize = 8f,
-                    color = Muted
-                )
+                drawIntoCanvas { canvas ->
+                    val native = canvas.nativeCanvas
+                    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Muted.toArgb()
+                        textSize = 8f
+                        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                    }
+                    native.drawText(p.label, px - 15f, padding + plotHeight + 4f, paint)
+                }
             }
         }
 
         // Etiquetas del eje Y
-        drawText(text = "G", top = Offset(4f, padding - 6f), fontSize = 10f, color = Green)
-        drawText(text = "E", top = Offset(4f, padding + plotHeight / 2 - 6f), fontSize = 10f, color = Gold)
-        drawText(text = "P", top = Offset(4f, padding + plotHeight - 4f), fontSize = 10f, color = Color(0xFFFF6B6B))
+        drawIntoCanvas { canvas ->
+            val native = canvas.nativeCanvas
+            val paintG = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Green.toArgb(); textSize = 10f }
+            val paintE = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Gold.toArgb(); textSize = 10f }
+            val paintP = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color(0xFFFF6B6B).toArgb(); textSize = 10f }
+            native.drawText("G", 4f, padding - 6f, paintG)
+            native.drawText("E", 4f, padding + plotHeight / 2 - 6f, paintE)
+            native.drawText("P", 4f, padding + plotHeight - 4f, paintP)
+        }
     }
 }
 
@@ -735,11 +750,11 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
             }
             Text(
                 "${rec.movesSan.size} jugadas · tiempo prom. ${avgTime} · ${if (rec.localColorWhite) "Blancas" else "Negras"}" +
-                (if (rec.gameType == GameHistoryStore.GAME_TYPE_PRACTICE) " · Stockfish" else ""),
+                (if (rec.gameType == "practice") " · Stockfish" else ""),
                 fontSize = 10.sp, color = Muted, maxLines = 2
             )
         }
-        Column(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Button(
                 onClick = onReplay,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F0F0F), contentColor = Gold),
