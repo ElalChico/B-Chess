@@ -56,6 +56,10 @@ private val Text1 = Color(0xFFEEF1F5)
 private val Muted = Color(0xFF8B96A5)
 private val Gold = Color(0xFFC9B15A)
 private val Green = Color(0xFF3DDC97)
+private val UpdateAccent = Color(0xFF2DD4BF)
+private val UpdateAccentLight = Color(0xFF5EEAD4)
+private val UpdatePanel = Color(0xFF12262E)
+private val UpdatePanelDeep = Color(0xFF0F242C)
 
 @Composable
 fun SettingsScreen(
@@ -383,12 +387,12 @@ private fun UpdateSection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(translate("Versión actual", "Current version"), color = Muted, fontSize = 12.sp)
-            Text(currentVersion.versionName, color = Gold, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+            Text(currentVersion.versionName, color = UpdateAccentLight, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
         }
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(translate("Última versión", "Latest version"), color = Muted, fontSize = 12.sp)
-            Text(latestVersion, color = Gold, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+            Text(latestVersion, color = UpdateAccentLight, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
         }
         
         Divider(color = Line, thickness = 1.dp)
@@ -405,10 +409,10 @@ private fun UpdateSection(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(translate("Buscar actualizaciones", "Check for updates"), color = Gold, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(translate("Buscar actualizaciones", "Check for updates"), color = UpdateAccentLight, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         Text(translate("Comprueba GitHub Releases por nueva versión", "Checks GitHub Releases for new version"), color = Muted, fontSize = 11.sp)
                     }
-                    Text("→", color = Gold, fontWeight = FontWeight.ExtraBold)
+                    Text("→", color = UpdateAccentLight, fontWeight = FontWeight.ExtraBold)
                 }
             }
             is UpdateState.Checking -> {
@@ -416,16 +420,16 @@ private fun UpdateSection(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Card2, RoundedCornerShape(12.dp))
-                        .border(1.dp, Gold, RoundedCornerShape(12.dp))
+                        .border(1.dp, UpdateAccent, RoundedCornerShape(12.dp))
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(translate("Buscando actualización…", "Checking for update…"), color = Gold, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(translate("Buscando actualización…", "Checking for update…"), color = UpdateAccentLight, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         Text(translate("Consultando GitHub Releases…", "Querying GitHub Releases…"), color = Muted, fontSize = 11.sp)
                     }
                     androidx.compose.material3.CircularProgressIndicator(
-                        color = Gold,
+                        color = UpdateAccent,
                         strokeWidth = 2.dp,
                         modifier = Modifier.size(24.dp)
                     )
@@ -454,13 +458,13 @@ private fun UpdateSection(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF26200F), RoundedCornerShape(12.dp))
-                            .border(1.dp, Gold, RoundedCornerShape(12.dp))
+                            .background(UpdatePanel, RoundedCornerShape(12.dp))
+                            .border(1.dp, UpdateAccent, RoundedCornerShape(12.dp))
                             .padding(12.dp)
                     ) {
                         Row(horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(translate("Actualización disponible", "Update available"), color = Gold, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
-                            Text(result.remoteVersion.versionName, color = Gold, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                            Text(translate("Actualización disponible", "Update available"), color = UpdateAccentLight, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                            Text(result.remoteVersion.versionName, color = UpdateAccentLight, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
                         }
                         Spacer(Modifier.height(4.dp))
                         Text(result.releaseName, color = Text1, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
@@ -476,14 +480,14 @@ private fun UpdateSection(
                             }
                         }
                     }
-                    
+
                     // Botones de acción
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = { onDownloadClick(); scope.launch { updateManager.downloadAndInstall(result.apkUrl!!) { p -> } } },
                             modifier = Modifier.weight(1f).padding(bottom = 4.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1A14), contentColor = Gold),
-                            border = androidx.compose.foundation.BorderStroke(1.5.dp, Gold),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F766E), contentColor = Color(0xFFF0FDFB)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, UpdateAccent),
                             shape = RoundedCornerShape(12.dp),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
                         ) {
@@ -491,7 +495,7 @@ private fun UpdateSection(
                                 androidx.compose.material3.Icon(
                                     imageVector = androidx.compose.material.icons.Icons.Default.SystemUpdate,
                                     contentDescription = null,
-                                    tint = Gold
+                                    tint = Color(0xFFF0FDFB)
                                 )
                                 Text(translate("Descargar e instalar", "Download & install"), fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
                             }
@@ -514,19 +518,19 @@ private fun UpdateSection(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF26200F), RoundedCornerShape(12.dp))
-                        .border(1.dp, Gold, RoundedCornerShape(12.dp))
+                        .background(UpdatePanel, RoundedCornerShape(12.dp))
+                        .border(1.dp, UpdateAccent, RoundedCornerShape(12.dp))
                         .padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(translate("Descargando actualización…", "Downloading update…"), color = Gold, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Text("${(progress * 100).toInt()}%", color = Gold, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                        Text(translate("Descargando actualización…", "Downloading update…"), color = UpdateAccentLight, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("${(progress * 100).toInt()}%", color = UpdateAccentLight, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
                     }
                     androidx.compose.material3.LinearProgressIndicator(
                         progress = progress,
-                        color = Gold,
-                        trackColor = Color(0xFF3A3524),
+                        color = UpdateAccent,
+                        trackColor = UpdatePanelDeep,
                         modifier = Modifier.fillMaxWidth().height(6.dp)
                     )
                 }
@@ -549,15 +553,15 @@ private fun UpdateSection(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF26200F), RoundedCornerShape(12.dp))
-                        .border(1.dp, Gold, RoundedCornerShape(12.dp))
+                        .background(UpdatePanel, RoundedCornerShape(12.dp))
+                        .border(1.dp, UpdateAccent, RoundedCornerShape(12.dp))
                         .padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(translate("Instalando…", "Installing…"), color = Gold, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(translate("Instalando…", "Installing…"), color = UpdateAccentLight, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     Text(translate("La app se cerrará y reiniciará con la nueva versión", "App will close and restart with new version"), color = Muted, fontSize = 11.sp)
                     androidx.compose.material3.CircularProgressIndicator(
-                        color = Gold,
+                        color = UpdateAccent,
                         strokeWidth = 2.dp,
                         modifier = Modifier.fillMaxWidth().wrapContentSize(Alignment.Center).size(32.dp)
                     )

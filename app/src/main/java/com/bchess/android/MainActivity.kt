@@ -10,6 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -640,28 +641,43 @@ private fun UpdateFooter(
         }
     }
     Column(
-        Modifier.fillMaxWidth().background(Color(0xFF111820)).padding(horizontal = 12.dp, vertical = 6.dp),
+        Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF0E242C))
+            .border(1.dp, if (available != null) Color(0xFF2DD4BF) else Color(0xFF1E2A34))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(if (isEn) "Current ${currentVersion.versionName}" else "Actual ${currentVersion.versionName}", color = NavMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-            Text("$status · ${latest.versionName}", color = if (available != null) NavGold else NavMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(if (isEn) "Current ${currentVersion.versionName}" else "Actual ${currentVersion.versionName}", color = Color(0xFF8AA7AD), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                "$status · ${latest.versionName}",
+                color = if (available != null) Color(0xFF5EEAD4) else Color(0xFF8AA7AD),
+                fontSize = 10.sp,
+                fontWeight = if (available != null) FontWeight.ExtraBold else FontWeight.Bold
+            )
         }
         if (available != null) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     if (isDeferred) {
                         if (isEn) "Postponed" else "Pospuesta"
                     } else {
                         available.releaseName
                     },
-                    modifier = Modifier.weight(1f), color = Color(0xFFD8DEE7), fontSize = 10.sp, maxLines = 1
+                    modifier = Modifier.weight(1f), color = Color(0xFFD6F3EE), fontSize = 10.sp, maxLines = 1
                 )
-                TextButton(onClick = { onUpdate(available) }, enabled = available.apkUrl != null) {
-                    Text(if (isEn) "Update" else "Actualizar", color = NavGold, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                Button(
+                    onClick = { onUpdate(available) },
+                    enabled = available.apkUrl != null,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F766E), contentColor = Color(0xFFEDEEF0)),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                ) {
+                    Text(if (isEn) "Update" else "Actualizar", color = Color(0xFFF0FDFB), fontWeight = FontWeight.ExtraBold, fontSize = 10.sp)
                 }
                 TextButton(onClick = { onDefer(available) }) {
-                    Text(if (isEn) "Not now" else "Ahora no", color = NavMuted, fontSize = 10.sp)
+                    Text(if (isEn) "Not now" else "Ahora no", color = Color(0xFF8AA7AD), fontSize = 10.sp)
                 }
             }
         }

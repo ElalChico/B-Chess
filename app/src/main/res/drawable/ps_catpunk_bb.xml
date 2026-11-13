@@ -9,7 +9,7 @@
         android:pathData="M100 462 L412 462 L412 416 C412 384 336 372 256 372 C176 372 100 384 100 416 Z M116 372 C116 240 200 170 256 70 C312 170 396 240 396 372 Z"
         android:fillColor="#2B2725"
         android:strokeColor="#FF385C"
-        android:strokeWidth="24"
+        android:strokeWidth="9"
         android:strokeLineJoin="round"/>
     <path
         android:pathData="M244 140 L268 140 L256 250 Z"

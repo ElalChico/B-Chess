@@ -9,7 +9,7 @@
         android:pathData="M100 462 L412 462 L412 416 C412 384 336 372 256 372 C176 372 100 384 100 416 Z M164 336 L348 336 L348 284 L164 284 Z M186 216 L138 96 L258 160 Z M326 216 L374 96 L254 160 Z M246 132 L256 24 L268 132 Z M204 142 L214 56 L244 140 Z M276 140 L306 56 L312 140 Z M182 216 C182 128 330 128 330 216 C330 278 288 296 256 296 C224 296 182 278 182 216 Z"
         android:fillColor="#F5F1E6"
         android:strokeColor="#101820"
-        android:strokeWidth="38"
+        android:strokeWidth="13"
         android:strokeLineJoin="round"/>
     <path
         android:pathData="M198 204 L250 224 L250 238 L198 218 Z M314 204 L262 224 L262 238 L314 218 Z"
@@ -20,6 +20,6 @@
     <path
         android:pathData="M144 262 L96 246 M148 288 L94 282"
         android:strokeColor="#101820"
-        android:strokeWidth="14"
+        android:strokeWidth="6"
         android:strokeLineCap="round"/>
 </vector>
