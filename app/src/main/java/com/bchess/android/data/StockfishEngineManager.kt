@@ -155,7 +155,10 @@ class StockfishEngineManager(context: Context) {
             }
 
         internal fun strengthForPercent(percent: Int): StockfishStrength {
-            val normalized = percent.coerceIn(MIN_STRENGTH_PERCENT, MAX_STRENGTH_PERCENT)
+            // Reducción mínima de dificultad: el 10% máximo de fuerza real,
+            // el resto se mapea a niveles de habilidad más bajos
+            val effectivePercent = if (percent > 10) 10 else percent
+            val normalized = effectivePercent.coerceIn(MIN_STRENGTH_PERCENT, MAX_STRENGTH_PERCENT)
             // A partir del 50% usa la potencia real máxima del motor (Elo 3190, Skill 20).
             val realStrength = normalized >= 50
             return StockfishStrength(
