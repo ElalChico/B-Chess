@@ -115,7 +115,7 @@ fun GameEndDialog(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF0F1219), RoundedCornerShape(24.dp))
+                .background(Color(0xFF0F1219).copy(alpha = 0.93f), RoundedCornerShape(24.dp))
                 .border(2.dp, Color(0xFF1F2430), RoundedCornerShape(24.dp))
                 .shadow(4.dp, CircleShape)
                 .padding(24.dp),

@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.PlayArrow
 import com.bchess.android.data.RemoteProfile
 import com.bchess.android.data.RemoteGame
 import android.graphics.BitmapFactory
@@ -331,20 +332,29 @@ fun RivalProfileScreen(
                 }
                 Spacer(Modifier.height(8.dp))
 
-                Column(
+                // Contenedor con altura limitada y scroll propio: el historial
+                // no se extiende demasiado abajo dentro del perfil.
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState())
+                        .border(1.dp, Line, RoundedCornerShape(14.dp))
+                        .background(Color(0x12000000), RoundedCornerShape(14.dp))
+                        .padding(8.dp)
                 ) {
-                    profile.games.take(15).forEachIndexed { index, g ->
-                        HistoryGameCard(
-                            game = g,
-                            showPgn = showPgnButtons && g.pgn.isNotBlank(),
-                            showReplay = g.uciMoves.isNotEmpty(),
-                            onReplay = { onReplayGame(g) },
-                            onTogglePgn = { /* se maneja internamente */ }
-                        )
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        profile.games.take(15).forEachIndexed { index, g ->
+                            HistoryGameCard(
+                                game = g,
+                                showPgn = showPgnButtons && g.pgn.isNotBlank(),
+                                showReplay = g.uciMoves.isNotEmpty(),
+                                onReplay = { onReplayGame(g) },
+                                onTogglePgn = { /* se maneja internamente */ }
+                            )
+                        }
                     }
                 }
             }
@@ -581,6 +591,26 @@ private fun HistoryGameCard(
         else -> "Empate"
     }
 
+    // Names + score, chess.com style: who won and who lost
+    val me = game.playerName.ifBlank { "Rival" }
+    val rival = game.opponent.ifBlank { "Rival" }
+    val (whiteName, blackName) = if (game.localColorWhite) me to rival else rival to me
+    val (scoreText, whiteTextColor, blackTextColor) = when (game.result) {
+        "1-0" -> Triple("1 - 0", Green, Red)
+        "0-1" -> Triple("0 - 1", Red, Green)
+        else -> Triple("½ - ½", Gold, Gold)
+    }
+    val winnerName = when (game.result) {
+        "1-0" -> whiteName
+        "0-1" -> blackName
+        else -> null
+    }
+    val outcomeLabel = when (game.result) {
+        "1-0" -> "Ganó $winnerName"
+        "0-1" -> "Ganó $winnerName"
+        else -> "Empate · sin ganador"
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -592,6 +622,47 @@ private fun HistoryGameCard(
         Column(Modifier.weight(1f)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    whiteName,
+                    color = whiteTextColor,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    scoreText,
+                    color = Text1,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.wrapContentWidth()
+                )
+                Text(
+                    blackName,
+                    color = blackTextColor,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Text(
+                outcomeLabel,
+                color = resultColor,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Spacer(Modifier.height(2.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -599,14 +670,14 @@ private fun HistoryGameCard(
                     Text(
                         game.dateLabel(),
                         color = Text1,
-                        fontSize = 13.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
                     )
                     Text(
                         "${game.moves} jugadas · ${game.timeLabel.ifBlank { "—" }}",
                         color = Muted,
-                        fontSize = 11.sp
+                        fontSize = 10.sp
                     )
                 }
                 Row(
@@ -632,11 +703,11 @@ private fun HistoryGameCard(
                             onClick = { onReplay() },
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text(
-                                "▶",
-                                color = Gold,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Reproducir partida",
+                                tint = Gold,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }

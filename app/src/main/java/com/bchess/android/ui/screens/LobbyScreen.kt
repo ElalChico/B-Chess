@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
@@ -690,11 +691,11 @@ private fun SectionLabel(text: String) {
 private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> Unit) {
     // Determine white and black player names based on who played white
     val (whiteName, blackName) = if (rec.localColorWhite) {
-        rec.playerName to rec.opponent
+        (rec.playerName.ifBlank { "Tú" }) to rec.opponent
     } else {
-        rec.opponent to rec.playerName
+        rec.opponent to (rec.playerName.ifBlank { "Tú" })
     }
-    
+
     // Resultado del juego
     val resultColor = when {
         rec.localWon == true -> Green
@@ -705,6 +706,24 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
         rec.localWon == true -> "VICTORIA"
         rec.localWon == false -> "DERROTA"
         else -> "TABLAS"
+    }
+    // Puntuación de la partida (estilo chess.com): blancas – negras
+    val (scoreText, whiteTextColor, blackTextColor) = when (rec.result) {
+        "1-0" -> Triple("1 - 0", Green, Color(0xFFFF6B6B))
+        "0-1" -> Triple("0 - 1", Color(0xFFFF6B6B), Green)
+        else -> Triple("½ - ½", Gold, Gold)
+    }
+
+    // Quién ganó y quién perdió (visible tanto en torneos como en partidas sueltas)
+    val winnerName = when (rec.result) {
+        "1-0" -> whiteName
+        "0-1" -> blackName
+        else -> null
+    }
+    val outcomeLabel = when (rec.result) {
+        "1-0" -> "Ganó $winnerName · por blancas"
+        "0-1" -> "Ganó $winnerName · por negras"
+        else -> "Empate · sin ganador"
     }
 
     // Tiempo promedio por jugada
@@ -725,7 +744,34 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text("$whiteName vs $blackName", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Text1, maxLines = 1)
+            // Resultado estilo chess.com: nombre, marcador y nombre con colores
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    whiteName,
+                    fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = whiteTextColor,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    textAlign = TextAlign.End, modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "  $scoreText  ",
+                    fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Text1,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    blackName,
+                    fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = blackTextColor,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Start, modifier = Modifier.weight(1f)
+                )
+            }
+            Text(
+                outcomeLabel,
+                fontSize = 9.sp, fontWeight = FontWeight.Bold, color = resultColor,
+                maxLines = 1, modifier = Modifier.padding(top = 1.dp)
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

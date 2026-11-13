@@ -50,30 +50,29 @@ class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEF
     private var countdown1Id = 0
 
     init {
-        loadSound(R.raw.move, 1)
-        loadSound(R.raw.capture, 1)
-        loadSound(R.raw.check, 1)
-        loadSound(R.raw.checkmate, 1)
-        loadSound(R.raw.error, 1)
-        loadSound(R.raw.select, 1)
-        loadSound(R.raw.victory, 1)
-        loadSound(R.raw.defeat, 1)
-        loadSound(R.raw.draw, 1)
-        loadSound(R.raw.confirmation, 1)
-        loadSound(R.raw.lowtime, 1)
-        loadSound(R.raw.countdown3, 1)
-        loadSound(R.raw.countdown2, 1)
-        loadSound(R.raw.countdown1, 1)
+        moveId = loadSound(R.raw.move)
+        captureId = loadSound(R.raw.capture)
+        checkId = loadSound(R.raw.check)
+        checkmateId = loadSound(R.raw.checkmate)
+        illegalId = loadSound(R.raw.error)
+        selectId = loadSound(R.raw.select)
+        winId = loadSound(R.raw.victory)
+        loseId = loadSound(R.raw.defeat)
+        drawId = loadSound(R.raw.draw)
+        confirmId = loadSound(R.raw.confirmation)
+        lowTimeId = loadSound(R.raw.lowtime)
+        countdown3Id = loadSound(R.raw.countdown3)
+        countdown2Id = loadSound(R.raw.countdown2)
+        countdown1Id = loadSound(R.raw.countdown1)
         pauseId = moveId // pausa: sonido suave, no alarma
     }
 
-    private fun loadSound(resourceId: Int, streamId: Int): Boolean {
+    private fun loadSound(resourceId: Int): Int {
         return try {
-            val loadedId = pool?.load(context, resourceId, streamId) ?: 0
-            loadedId > 0
+            pool?.load(context, resourceId, 1) ?: 0
         } catch (e: Exception) {
             Log.e("SoundManager", "Failed to load sound $resourceId", e)
-            false
+            0
         }
     }
 
@@ -93,9 +92,6 @@ class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEF
     fun play(type: SoundType) {
         if (!enabled) return
 
-        // Log each playback attempt for debugging
-        Log.d("SoundManager", "Attempting to play: ${type.name}, poolActive: ${pool != null}")
-
         val id = when (type) {
             SoundType.MOVE -> moveId
             SoundType.CAPTURE -> captureId
@@ -113,52 +109,13 @@ class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEF
             SoundType.COUNTDOWN1 -> countdown1Id
         }
 
-        if (id <= 0) {
-            Log.w("SoundManager", "Failed to play $type: Invalid sound ID ($id)")
-            return
-        }
-
-        // Check if pool exists and initialize if needed
-        pool ?: run {
-            Log.w("SoundManager", "SoundPool is null, attempting to create...")
-            try {
-                val attrs = AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_GAME)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-                val newPool = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attrs).build()
-                pool = newPool
-                // Reinitialize all sound IDs
-                pool?.load(context, R.raw.move, 1)?.let { moveId = it }
-                pool?.load(context, R.raw.capture, 1)?.let { captureId = it }
-                pool?.load(context, R.raw.check, 1)?.let { checkId = it }
-                pool?.load(context, R.raw.checkmate, 1)?.let { checkmateId = it }
-                pool?.load(context, R.raw.error, 1)?.let { illegalId = it }
-                pool?.load(context, R.raw.select, 1)?.let { selectId = it }
-                pool?.load(context, R.raw.victory, 1)?.let { winId = it }
-                pool?.load(context, R.raw.defeat, 1)?.let { loseId = it }
-                pool?.load(context, R.raw.draw, 1)?.let { drawId = it }
-                pool?.load(context, R.raw.confirmation, 1)?.let { confirmId = it }
-                pool?.load(context, R.raw.lowtime, 1)?.let { lowTimeId = it }
-                pool?.load(context, R.raw.countdown3, 1)?.let { countdown3Id = it }
-                pool?.load(context, R.raw.countdown2, 1)?.let { countdown2Id = it }
-                pool?.load(context, R.raw.countdown1, 1)?.let { countdown1Id = it }
-                pauseId = moveId
-            } catch (e: Exception) {
-                Log.e("SoundManager", "Failed to create SoundPool", e)
-                return
-            }
-        }
-
-        // Check if sound was loaded
-        if (id == 0) {
-            Log.w("SoundManager", "Failed to play $type: Sound not loaded")
+        if (id <= 0 || pool == null) {
+            // El motor de audio no está disponible o el sonido no cargó: no-op silencioso.
             return
         }
 
         try {
             pool?.play(id, vol(), vol(), 1, 0, pitch())
-            Log.d("SoundManager", "Successfully played: $type")
         } catch (e: Exception) {
             Log.e("SoundManager", "Failed to play $type", e)
         }

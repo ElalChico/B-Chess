@@ -54,6 +54,10 @@ private val GoldHl = Color(0xFFC9B15A)
 private val GreenDot = Color(0xFF3DDC97)
 private val RedKing = Color(0xFFFF6B6B)
 
+/** Cache de IDs de drawables para los conjuntos ps_*: getIdentifier es muy caro
+ *  y se ejecuta en cada recomposición de cada casilla (jank/"glitch" en pantalla). */
+private val identifierCache = HashMap<String, Int>()
+
 /** Recurso drawable para cada pieza del conjunto dado. */
 internal fun pieceResource(context: Context, piece: Piece, pieceSet: PieceSet = PieceSet.DEFAULT): Int = when (pieceSet) {
     PieceSet.LICHESS, PieceSet.CHESS_COM, PieceSet.OPEN_SOURCE -> when (piece.color) {
@@ -86,7 +90,10 @@ internal fun pieceResource(context: Context, piece: Piece, pieceSet: PieceSet = 
                 PieceType.ROOK -> "br"; PieceType.QUEEN -> "bq"; PieceType.KING -> "bk"
             }
         }
-        context.resources.getIdentifier("ps_${resKey}_$suffix", "drawable", context.packageName)
+        val name = "ps_${resKey}_$suffix"
+        identifierCache.getOrPut(name) {
+            context.resources.getIdentifier(name, "drawable", context.packageName)
+        }
     }
 }
 
@@ -276,8 +283,8 @@ fun PieceIcon(piece: Piece, modifier: Modifier = Modifier, pieceSet: PieceSet = 
                 drawPath(p, fill)
                 drawPath(p, outline, style = stroke)
             }
-            drawRoundRect(fill, topLeft = Offset(14f, 83f), size = Size(72f, 9f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f))
-            drawRoundRect(outline, topLeft = Offset(14f, 83f), size = Size(72f, 9f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f), style = stroke)
+            drawRoundRect(fill, topLeft = Offset(14f, 79f), size = Size(72f, 11f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f))
+            drawRoundRect(outline, topLeft = Offset(14f, 79f), size = Size(72f, 11f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f), style = stroke)
             when (piece.type) {
                 PieceType.PAWN -> {
                     silhouette(listOf(Offset(24f, 79f), Offset(31f, 62f), Offset(39f, 54f), Offset(32f, 48f), Offset(34f, 43f), Offset(66f, 43f), Offset(68f, 48f), Offset(61f, 54f), Offset(69f, 62f), Offset(76f, 79f)))

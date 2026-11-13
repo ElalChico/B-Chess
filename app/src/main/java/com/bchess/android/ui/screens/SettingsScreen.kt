@@ -134,6 +134,11 @@ fun SettingsScreen(
                 prefs.moveIndicators
             ) { prefs.setMoveIndicators(it) }
             ToggleRow(
+                t("Coordenadas del tablero", "Board coordinates"),
+                t("Letras y números en los bordes (a-h, 1-8)", "Letters and numbers on the edges (a-h, 1-8)"),
+                prefs.showCoordinates
+            ) { prefs.setShowCoordinates(it) }
+            ToggleRow(
                 t("Señal de jaque (rey en rojo)", "Check signal (red king)"),
                 t("Solo en jaque o jaque mate", "Only on check or checkmate"),
                 prefs.checkSignal

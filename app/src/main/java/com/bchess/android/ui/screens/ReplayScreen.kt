@@ -1,12 +1,10 @@
 package com.bchess.android.ui.screens
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,9 +12,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
 import com.bchess.android.core.BoardSnapshot
 import com.bchess.android.core.ChessEngine
 import com.bchess.android.core.Color as ChessColor
@@ -91,8 +96,21 @@ fun ReplayScreen(record: GameRecord, showCoordinates: Boolean = true, onBack: ()
         modifier = Modifier.fillMaxSize().background(Bg2).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        TextButton(onClick = onBack) {
-            Text("< Volver al historial", color = Muted3, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onBack() }
+                .padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = androidx.compose.material.icons.Icons.Default.ArrowBack,
+                contentDescription = "Volver al historial",
+                tint = Muted3,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text("Volver al historial", color = Muted3, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -120,88 +138,87 @@ fun ReplayScreen(record: GameRecord, showCoordinates: Boolean = true, onBack: ()
         }
         HudBar(localName, true, localClock, record)
 
-        // ==== CONTROLES DE REPRODUCCIÓN - CUADRO PROPIO ====
+        // ==== CONTROLES DE REPRODUCCIÓN - BARRA COMPACTA ====
         Surface(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
             shape = RoundedCornerShape(16.dp),
             color = Color(0xFF121922),
             border = androidx.compose.foundation.BorderStroke(1.5.dp, Gold3.copy(alpha = 0.4f))
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    "CONTROLES DE REPRODUCCIÓN",
-                    color = Gold3,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.5.sp
-                )
-                
-                // Auto-play controls
+                // Fila superior: jugada actual y controles de velocidad
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Play/Pause/Stop buttons
-                    if (!autoPlay) {
-                        BarBtn("▶ Reproducir", enabled = idx < total) {
-                            autoPlay = true
-                        }
-                    } else {
-                        BarBtn("⏸ Pausar") {
-                            autoPlay = false
-                        }
-                    }
-                    if (idx > 0 || autoPlay) {
-                        BarBtn("⏹ Detener") {
-                            autoPlay = false
-                            idx = 0
-                        }
-                    }
-                    
-                    Spacer(Modifier.width(8.dp))
-                    Text("Velocidad:", color = Muted3, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        (san?.let { "Jugada $it" } ?: "Posición inicial") + "  ·  $idx/$total",
+                        fontSize = 12.sp,
+                        color = Muted3,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f)
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         listOf(1.0, 2.0, 3.0).forEach { speed ->
                             val selected = playSpeed == speed
-                            if (selected) {
-                                Box(
-                                    modifier = Modifier
-                                        .background(Gold3, RoundedCornerShape(12.dp))
-                                        .border(1.dp, Gold3, RoundedCornerShape(12.dp))
-                                        .clickable { playSpeed = speed }
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("${speed.toInt()}x", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                                }
-                            } else {
-                                BarBtn("${speed.toInt()}x") { playSpeed = speed }
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        if (selected) Gold3 else Color(0xFF1A212B),
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .border(1.dp, if (selected) Gold3 else Line3, RoundedCornerShape(10.dp))
+                                    .clickable { playSpeed = speed }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "${speed.toInt()}x",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selected) Color(0xFF17130A) else Text13
+                                )
                             }
                         }
                     }
                 }
-                
-                Spacer(Modifier.height(4.dp))
-                
-                // Navigation controls
+
+                // Fila de transporte: iconos profesionales, sin emojis
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    BarBtn("⏮ Inicio") { autoPlay = false; idx = 0 }
-                    BarBtn("⏪ Atrás", enabled = idx > 0) { autoPlay = false; if (idx > 0) idx-- }
-                    Text(
-                        "$idx/$total" + (san?.let { " · $it" } ?: ""),
-                        fontSize = 12.sp, color = Muted3, modifier = Modifier.weight(1f), textAlign = TextAlign.Center
-                    )
-                    BarBtn("Adelante ⏩", enabled = idx < total) { autoPlay = false; if (idx < total) idx++ }
-                    BarBtn("Final ⏭") { autoPlay = false; idx = total }
+                    ControlIcon(Icons.Default.SkipPrevious, "Ir al inicio", enabled = idx > 0) {
+                        autoPlay = false; idx = 0
+                    }
+                    ControlIcon(Icons.Default.FastRewind, "Jugada anterior", enabled = idx > 0) {
+                        autoPlay = false; if (idx > 0) idx--
+                    }
+                    ControlIcon(
+                        if (autoPlay) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        if (autoPlay) "Pausar" else "Reproducir",
+                        enabled = idx < total || autoPlay,
+                        accent = true
+                    ) {
+                        if (autoPlay) {
+                            autoPlay = false
+                        } else {
+                            if (idx >= total) idx = 0
+                            autoPlay = true
+                        }
+                    }
+                    ControlIcon(Icons.Default.FastForward, "Jugada siguiente", enabled = idx < total) {
+                        autoPlay = false; if (idx < total) idx++
+                    }
+                    ControlIcon(Icons.Default.SkipNext, "Ir al final", enabled = idx < total) {
+                        autoPlay = false; idx = total
+                    }
                 }
             }
         }
@@ -209,15 +226,37 @@ fun ReplayScreen(record: GameRecord, showCoordinates: Boolean = true, onBack: ()
 }
 
 @Composable
-private fun BarBtn(label: String, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun ControlIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    enabled: Boolean = true,
+    accent: Boolean = false,
+    onClick: () -> Unit
+) {
+    val size = if (accent) 54.dp else 44.dp
+    val bg = when {
+        accent -> Color(0xFFC9B15A)
+        enabled -> Color(0xFF1A212B)
+        else -> Color(0xFF14181F)
+    }
     Box(
-        modifier = modifier
-            .background(if (enabled) Color(0xFF1A212B) else Color(0xFF14181F), RoundedCornerShape(12.dp))
-            .border(1.dp, Line3, RoundedCornerShape(12.dp))
-            .clickable(enabled = enabled) { onClick() }.padding(horizontal = 12.dp, vertical = 10.dp),
+        modifier = Modifier
+            .size(size)
+            .background(bg, CircleShape)
+            .border(1.dp, if (accent) Color(0xFFF3D478) else Line3, CircleShape)
+            .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (enabled) Text13 else Muted3)
+        Icon(
+            imageVector = icon,
+            contentDescription = description,
+            tint = when {
+                accent -> Color(0xFF17130A)
+                enabled -> Color(0xFFEEF1F5)
+                else -> Color(0xFF8B96A5)
+            },
+            modifier = Modifier.size(if (accent) 30.dp else 22.dp)
+        )
     }
 }
 
@@ -252,18 +291,5 @@ private fun HudBar(name: String, isYou: Boolean, clockMs: Long, record: GameReco
         Spacer(Modifier.width(10.dp))
         Text(name, color = Text13, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
         Text(formatClock(clockMs), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = Text13)
-    }
-}
-
-@Composable
-private fun BarBtn(label: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .background(if (enabled) Color(0xFF1A212B) else Color(0xFF14181F), RoundedCornerShape(12.dp))
-            .border(1.dp, Line3, RoundedCornerShape(12.dp))
-            .clickable(enabled = enabled) { onClick() }.padding(horizontal = 12.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (enabled) Text13 else Muted3)
     }
 }
