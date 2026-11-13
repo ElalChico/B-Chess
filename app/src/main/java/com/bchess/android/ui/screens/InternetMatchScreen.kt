@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -24,6 +25,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -73,14 +75,23 @@ fun InternetMatchScreen(
     var mode by remember { mutableStateOf<String?>(null) } // null | "create" | "join"
     var joinCode by remember { mutableStateOf("") }
     var copied by remember { mutableStateOf(false) }
+    var showConnectionSuccess by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
     val waiting = state == BtState.WAITING_HOST
     val connecting = state == BtState.CONNECTING
+    val connected = state == BtState.CONNECTED
 
     if (copied) {
         LaunchedEffect(copied) {
             kotlinx.coroutines.delay(2200)
             copied = false
+        }
+    }
+
+    // Mostrar mensaje de éxito de conexión cuando se conecta
+    LaunchedEffect(connected) {
+        if (connected) {
+            showConnectionSuccess = true
         }
     }
 
@@ -212,33 +223,53 @@ fun InternetMatchScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text("CÓDIGO DEL ANFITRIÓN", color = ScreenMuted, fontSize = 11.sp, letterSpacing = 2.sp)
-                        OutlinedTextField(
-                            value = joinCode,
-                            onValueChange = { joinCode = it.trim() },
+                        Text("Pega aquí el código completo que te envió el anfitrión", color = ScreenMuted, fontSize = 12.sp)
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ScreenAccent,
-                                unfocusedBorderColor = ScreenLine,
-                                focusedTextColor = ScreenText,
-                                unfocusedTextColor = ScreenText
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = joinCode,
+                                onValueChange = { joinCode = it.trim() },
+                                modifier = Modifier.weight(1f),
+                                singleLine = false,
+                                maxLines = 4,
+                                shape = RoundedCornerShape(10.dp),
+                                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = ScreenAccent,
+                                    unfocusedBorderColor = ScreenLine,
+                                    focusedTextColor = ScreenText,
+                                    unfocusedTextColor = ScreenText
+                                ),
+                                placeholder = {
+                                    Text("Pega el código del anfitrión aquí...", color = ScreenMuted.copy(alpha = 0.7f), fontSize = 13.sp)
+                                }
                             )
-                        )
+                            TextButton(
+                                onClick = {
+                                    clipboard.getText?.let { joinCode = it.trimToEmpty() }
+                                },
+                                enabled = joinCode.isNotBlank()
+                            ) {
+                                Text("Pegar", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                        }
                         Button(
                             onClick = { onJoinMatch(joinCode) },
-                            enabled = joinCode.length >= 10,
-                            modifier = Modifier.fillMaxWidth(),
+                            enabled = joinCode.length >= 10 && !connecting,
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
                             shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = ScreenGold, contentColor = Color(0xFF17130A))
+                            colors = ButtonDefaults.buttonColors(containerColor = ScreenGold, contentColor = Color(0xFF17130A)),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 8.dp)
                         ) {
-                            if (connecting) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                if (connecting) {
                                     CircularProgressIndicator(color = Color(0xFF17130A), modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                                     Text("Conectando…", fontWeight = FontWeight.Bold)
+                                } else {
+                                    Text("Conectar", fontWeight = FontWeight.Bold)
                                 }
-                            } else {
-                                Text("Conectar", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -266,6 +297,72 @@ fun InternetMatchScreen(
                     modifier = Modifier.fillMaxWidth().padding(14.dp),
                     lineHeight = 17.sp
                 )
+            }
+
+            // ==== MENSAJE DE ÉXITO DE CONEXIÓN ====
+            if (connected && showConnectionSuccess) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF14241D),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2E7D32.copy(alpha = 0.6f)))
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(Color(0xFF4CAF50.copy(alpha = 0.2f)), CircleShape)
+                                .border(2.dp, Color(0xFF4CAF50), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("✓", color = Color(0xFF4CAF50), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+                        }
+                        Text(
+                            "¡Conexión exitosa!",
+                            color = ScreenText,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            "Estás conectado con tu rival. Los movimientos viajarán directamente de dispositivo a dispositivo.",
+                            color = ScreenMuted,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 18.sp
+                        )
+                        Button(
+                            onClick = { showConnectionSuccess = false },
+                            modifier = Modifier.fillMaxWidth().height(44.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = ScreenAccent, contentColor = Color.White)
+                        ) {
+                            Text("Entendido", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // ==== BOTÓN DE FINALIZAR CONEXIÓN ====
+            if (connected) {
+                Button(
+                    onClick = onBack,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935), contentColor = Color.White),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 8.dp)
+                ) {
+                    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                        Box(Modifier.size(16.dp).background(Color(0xFFFFA726), CircleShape))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Finalizar conexión", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
             }
         }
     }

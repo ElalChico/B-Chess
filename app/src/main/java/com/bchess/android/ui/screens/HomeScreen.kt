@@ -59,7 +59,9 @@ fun HomeScreen(
     onSearch: () -> Unit,
     onPractice: () -> Unit,
     onPlayOnline: () -> Unit = {},
-    onTournament: () -> Unit = {}
+    onTournament: () -> Unit = {},
+    onFinishConnection: () -> Unit = {},
+    versionUpToDate: Boolean = true
 ) {
     val avatar = remember(profilePhotoBase64) {
         try {
@@ -284,6 +286,54 @@ fun HomeScreen(
                 Text(if (inSession) "●" else clockSummary, color = if (inSession) Green else Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
+
+        // ==== BOTÓN DE FINALIZAR CONEXIÓN (solo cuando hay sesión activa) ====
+        if (inSession) {
+            Button(
+                onClick = onFinishConnection,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935), contentColor = Color.White),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 8.dp)
+            ) {
+                Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                    Box(Modifier.size(16.dp).background(Color(0xFFFFA726), CircleShape))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Finalizar conexión", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // ==== BADGE DE VERSIÓN (solo en Home y Configuraciones) ====
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                Modifier
+                    .size(24.dp)
+                    .background(if (versionUpToDate) Color(0xFF14241D) else Color(0xFF241414), CircleShape)
+                    .border(1.dp, if (versionUpToDate) Color(0xFF4CAF50) else Color(0xFFE53935), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    if (versionUpToDate) "✓" else "✗",
+                    color = if (versionUpToDate) Color(0xFF4CAF50) else Color(0xFFE53935),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
+            Text(
+                if (versionUpToDate) "Versión al día" else "Actualización disponible",
+                color = if (versionUpToDate) Color(0xFF4CAF50) else Color(0xFFE53935),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(12.dp))
 
         // ============ FIRMA DEL DESARROLLADOR ============
         DeveloperCard(

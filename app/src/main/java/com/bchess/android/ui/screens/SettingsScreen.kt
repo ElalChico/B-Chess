@@ -263,6 +263,36 @@ fun SettingsScreen(
                 color = Muted, fontSize = 10.sp
             )
         }
+
+        // ==== BADGE DE VERSIÓN (configuración) ====
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val versionUpToDate = updateState is UpdateState.UpToDate
+            Box(
+                Modifier
+                    .size(24.dp)
+                    .background(if (versionUpToDate) Color(0xFF14241D) else Color(0xFF241414), CircleShape)
+                    .border(1.dp, if (versionUpToDate) Color(0xFF4CAF50) else Color(0xFFE53935), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    if (versionUpToDate) "✓" else "✗",
+                    color = if (versionUpToDate) Color(0xFF4CAF50) else Color(0xFFE53935),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
+            Text(
+                if (versionUpToDate) "Versión al día" else "Actualización disponible",
+                color = if (versionUpToDate) Color(0xFF4CAF50) else Color(0xFFE53935),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.weight(1f))
+        }
         Spacer(Modifier.height(12.dp))
     }
 }

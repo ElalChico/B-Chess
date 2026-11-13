@@ -119,68 +119,91 @@ fun ReplayScreen(record: GameRecord, showCoordinates: Boolean = true, onBack: ()
             )
         }
         HudBar(localName, true, localClock, record)
-        
-        // Auto-play controls
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+
+        // ==== CONTROLES DE REPRODUCCIÓN - CUADRO PROPIO ====
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF121922),
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, Gold3.copy(alpha = 0.4f))
         ) {
-            // Play/Pause/Stop buttons
-            if (!autoPlay) {
-                BarBtn("Reproducir", enabled = idx < total) {
-                    autoPlay = true
-                }
-            } else {
-                BarBtn("Pausar") {
-                    autoPlay = false
-                }
-            }
-            if (idx > 0 || autoPlay) {
-                BarBtn("Detener") {
-                    autoPlay = false
-                    idx = 0
-                }
-            }
-            
-            // Speed selector
-            Spacer(Modifier.width(8.dp))
-            Text("Velocidad:", color = Muted3, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                listOf(1.0, 2.0, 3.0).forEach { speed ->
-                    val selected = playSpeed == speed
-                    if (selected) {
-                        Box(
-                            modifier = Modifier
-                                .background(Gold3, RoundedCornerShape(12.dp))
-                                .border(1.dp, Gold3, RoundedCornerShape(12.dp))
-                                .clickable { playSpeed = speed }
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("${speed.toInt()}x", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "CONTROLES DE REPRODUCCIÓN",
+                    color = Gold3,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.5.sp
+                )
+                
+                // Auto-play controls
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Play/Pause/Stop buttons
+                    if (!autoPlay) {
+                        BarBtn("▶ Reproducir", enabled = idx < total) {
+                            autoPlay = true
                         }
                     } else {
-                        BarBtn("${speed.toInt()}x") { playSpeed = speed }
+                        BarBtn("⏸ Pausar") {
+                            autoPlay = false
+                        }
+                    }
+                    if (idx > 0 || autoPlay) {
+                        BarBtn("⏹ Detener") {
+                            autoPlay = false
+                            idx = 0
+                        }
+                    }
+                    
+                    Spacer(Modifier.width(8.dp))
+                    Text("Velocidad:", color = Muted3, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf(1.0, 2.0, 3.0).forEach { speed ->
+                            val selected = playSpeed == speed
+                            if (selected) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(Gold3, RoundedCornerShape(12.dp))
+                                        .border(1.dp, Gold3, RoundedCornerShape(12.dp))
+                                        .clickable { playSpeed = speed }
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("${speed.toInt()}x", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                }
+                            } else {
+                                BarBtn("${speed.toInt()}x") { playSpeed = speed }
+                            }
+                        }
                     }
                 }
+                
+                Spacer(Modifier.height(4.dp))
+                
+                // Navigation controls
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BarBtn("⏮ Inicio") { autoPlay = false; idx = 0 }
+                    BarBtn("⏪ Atrás", enabled = idx > 0) { autoPlay = false; if (idx > 0) idx-- }
+                    Text(
+                        "$idx/$total" + (san?.let { " · $it" } ?: ""),
+                        fontSize = 12.sp, color = Muted3, modifier = Modifier.weight(1f), textAlign = TextAlign.Center
+                    )
+                    BarBtn("Adelante ⏩", enabled = idx < total) { autoPlay = false; if (idx < total) idx++ }
+                    BarBtn("Final ⏭") { autoPlay = false; idx = total }
+                }
             }
-        }
-        
-        // Navigation controls
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            BarBtn("Inicio") { autoPlay = false; idx = 0 }
-            BarBtn("Atrás", enabled = idx > 0) { autoPlay = false; if (idx > 0) idx-- }
-            Text(
-                "$idx/$total" + (san?.let { " · $it" } ?: ""),
-                fontSize = 12.sp, color = Muted3, modifier = Modifier.weight(1f), textAlign = TextAlign.Center
-            )
-            BarBtn("Adelante", enabled = idx < total) { autoPlay = false; if (idx < total) idx++ }
-            BarBtn("Final") { autoPlay = false; idx = total }
         }
     }
 }

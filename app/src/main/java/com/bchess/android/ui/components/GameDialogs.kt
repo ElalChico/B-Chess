@@ -85,6 +85,27 @@ fun GameEndDialog(
         else -> null
     }
 
+    val resultIcon = when (resultColorStr) {
+        "white" -> "🏆"
+        "black" -> "🏆"
+        else -> "🤝"
+    }
+    val resultBgColor = when (resultColorStr) {
+        "white" -> Color(0xFF2E1B1B)
+        "black" -> Color(0xFF1B2E4E)
+        else -> Color(0xFF1B2E2E)
+    }
+    val resultBorderColor = when (resultColorStr) {
+        "white" -> Color(0xFFFF6B6B)
+        "black" -> Color(0xFF5B9DF9)
+        else -> Color(0xFF3DDC97)
+    }
+    val resultTitleColor = when (resultColorStr) {
+        "white" -> Color(0xFFFF6B6B)
+        "black" -> Color(0xFF5B9DF9)
+        else -> Color(0xFF3DDC97)
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
@@ -92,82 +113,78 @@ fun GameEndDialog(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF12141A), RoundedCornerShape(20.dp))
-                .border(2.dp, Color(0xFF3A3524), RoundedCornerShape(20.dp))
-                .padding(20.dp),
+                .background(Color(0xFF0F1219), RoundedCornerShape(24.dp))
+                .border(2.dp, Color(0xFF1F2430), RoundedCornerShape(24.dp))
+                .shadow(4.dp, CircleShape)
+                .padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Winner announcement with photo
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Winner photo
-                    if (winnerPhoto != null) {
-                        val bmp = remember(winnerPhoto) { decodePhoto(winnerPhoto) }
+                // Winner announcement card
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(resultBgColor, RoundedCornerShape(20.dp))
+                        .border(2.dp, resultBorderColor, RoundedCornerShape(20.dp))
+                        .padding(20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        // Result icon
                         Box(
                             modifier = Modifier
-                                .size(72.dp)
+                                .size(80.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF15251D), CircleShape)
-                                .border(3.dp, Color(0xFFC9B15A), CircleShape),
+                                .background(resultBorderColor.copy(alpha = 0.15f), CircleShape)
+                                .border(2.dp, resultBorderColor, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (bmp != null) {
-                                Image(
-                                    bitmap = bmp.asImageBitmap(),
-                                    contentDescription = winnerDisplayName,
-                                    modifier = Modifier.fillMaxSize().clip(CircleShape)
-                                )
-                            } else {
-                                Text(
-                                    winnerDisplayName.firstOrNull()?.uppercaseChar().toString() ?: "?",
-                                    fontSize = 28.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFFC9B15A)
-                                )
-                            }
+                            Text(resultIcon, fontSize = 36.sp)
                         }
-                    }
-                    
-                    Text(
-                        text = when (resultColorStr) {
-                            "white" -> "¡BLANCAS GANAN!"
-                            "black" -> "¡NEGRAS GANAN!"
-                            else -> "¡TABLAS!"
-                        },
-                        fontSize = 21.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = when (resultColorStr) {
-                            "white" -> Color(0xFFFF6B6B)
-                            "black" -> Color(0xFF5B9DF9)
-                            else -> Color(0xFF3DDC97)
-                        },
-                        textAlign = TextAlign.Center
-                    )
-                    
-                    if (resultColorStr != "draw") {
+                        
                         Text(
-                            text = winnerDisplayName,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFC9B15A),
+                            text = when (resultColorStr) {
+                                "white" -> "¡BLANCAS GANAN!"
+                                "black" -> "¡NEGRAS GANAN!"
+                                else -> "¡TABLAS!"
+                            },
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = resultTitleColor,
                             textAlign = TextAlign.Center
                         )
+                        
+                        if (resultColorStr != "draw") {
+                            Text(
+                                text = winnerDisplayName,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFE8EAF0),
+                                textAlign = TextAlign.Center
+                            )
+                        } else {
+                            Text(
+                                text = "Ambos jugadores empataron",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF8B96A5),
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
 
                 Text(
                     text = end.message.ifBlank { "Partida finalizada" },
-                    fontSize = 12.5.sp,
+                    fontSize = 13.sp,
                     color = Color(0xFF8B96A5),
                     fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center
                 )
-
-                Spacer(Modifier.height(2.dp))
 
                 if (tournamentActive && !tournamentFinished) {
                     Box(
@@ -186,12 +203,12 @@ fun GameEndDialog(
                             textAlign = TextAlign.Center
                         )
                     }
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(4.dp))
                 }
 
                 EndGameOption(
                     title = "Repetir partida",
-                    subtitle = "Mismo color · misma cuenta 3-2-1",
+                    subtitle = "Mismo color · misma cuenta",
                     enabled = true,
                     highlight = false,
                     onClick = onNewGameSame
@@ -228,14 +245,18 @@ fun GameEndDialog(
                     onClick = onBackToRoom
                 )
 
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(8.dp))
                 Button(
                     onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0B0D10))
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF161A23), contentColor = Color(0xFFEEF1F5))
                 ) {
-                    Text("Cerrar · ver tablero", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3DDC97))
+                    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Cerrar", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3DDC97))
+                        Spacer(Modifier.width(4.dp))
+                        Text("→", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF3DDC97))
+                    }
                 }
             }
         }
@@ -247,22 +268,30 @@ private fun EndGameOption(title: String, subtitle: String, enabled: Boolean, hig
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (enabled) Color(0xFF151C25) else Color(0xFF12141A), RoundedCornerShape(13.dp))
-            .border(1.dp, if (highlight) Color(0xFFC9B15A) else Color(0xFF232C38), RoundedCornerShape(13.dp))
+            .background(if (enabled) Color(0xFF1B222C) else Color(0xFF12141A), RoundedCornerShape(16.dp))
+            .border(1.dp, if (highlight) Color(0xFFC9B15A) else Color(0xFF2A3440), RoundedCornerShape(16.dp))
             .clickable(enabled = enabled) { onClick() }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
                 title,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.ExtraBold,
                 color = if (enabled) Color(0xFFEEF1F5) else Color(0xFF6B6244)
             )
-            Text(subtitle, fontSize = 11.sp, color = Color(0xFF8B96A5))
+            Text(subtitle, fontSize = 12.sp, color = Color(0xFF8B96A5))
         }
-        Text("→", color = if (highlight) Color(0xFFC9B15A) else Color(0xFF232C38), fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .background(if (highlight) Color(0xFF2E3A26) else Color(0xFF1E2A36), CircleShape)
+                .border(1.dp, if (highlight) Color(0xFFC9B15A) else Color(0xFF2A3440), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("→", color = if (highlight) Color(0xFFC9B15A) else Color(0xFF8B96A5), fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+        }
     }
 }
 

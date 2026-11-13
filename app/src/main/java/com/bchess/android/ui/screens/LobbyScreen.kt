@@ -23,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -35,6 +36,7 @@ import com.bchess.android.data.GameRecord
 import com.bchess.android.data.GameHistoryStore
 import com.bchess.android.data.LobbyState
 import com.bchess.android.data.PgnArchive
+import com.bchess.android.data.formatClock
 import com.bchess.android.ui.components.PhotoCropDialog
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -513,25 +515,34 @@ private fun StatsHud(records: List<GameRecord>, tournamentTab: Boolean) {
             Text("Win rate $winRate% · Racha $streak", color = accent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
             Text("Última: ${records.firstOrNull()?.dateLabel().orEmpty()}", color = Muted, fontSize = 10.sp)
         }
-        // Mini-gráfico de barras: estado y volumen de las 15 últimas partidas
-        Text("Últimas partidas", color = Muted, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-        Row(
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-            verticalAlignment = Alignment.Bottom
-        ) {
-            records.take(15).reversed().forEach { r ->
-                val barColor = when (r.localWon) {
-                    true -> Green; null -> Gold; false -> Color(0xFFFF6B6B)
-                }
-                val barHeight = (12 + (r.movesSan.size * 2).coerceAtMost(36)).dp
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(barHeight)
-                        .background(barColor.copy(alpha = 0.9f), RoundedCornerShape(3.dp))
+        // ==== GRÁFICO LINEAL DE DOS EJES - RESULTADOS DE ÚLTIMAS PARTIDAS ====
+        Text("Historial de resultados", color = Muted, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+        LineChart(
+            points = records.takeLast(20).reversed().mapIndexed { i, r ->
+                ChartPoint(
+                    x = i.toFloat(),
+                    y = when (r.localWon) {
+                        true -> 2f   // Victoria
+                        null -> 1f   // Empate
+                        false -> 0f  // Derrota
+                    },
+                    color = when (r.localWon) {
+                        true -> Green
+                        null -> Gold
+                        false -> Color(0xFFFF6B6B)
+                    },
+                    label = r.dateLabel().take(5)
                 )
-            }
+            },
+            modifier = Modifier.fillMaxWidth().height(120.dp)
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 4.dp)) {
+            Box(modifier = Modifier.size(10.dp).background(Green, RoundedCornerShape(2.dp)))
+            Text("Victoria", color = Green, fontSize = 10.sp)
+            Box(modifier = Modifier.size(10.dp).background(Gold, RoundedCornerShape(2.dp)))
+            Text("Empate", color = Gold, fontSize = 10.sp)
+            Box(modifier = Modifier.size(10.dp).background(Color(0xFFFF6B6B), RoundedCornerShape(2.dp)))
+            Text("Derrota", color = Color(0xFFFF6B6B), fontSize = 10.sp)
         }
     }
 }
@@ -562,6 +573,90 @@ private fun downscale(src: Bitmap?, maxDim: Int): Bitmap? {
     return out
 }
 
+/** Punto de datos para el gráfico lineal de resultados. */
+data class ChartPoint(val x: Float, val y: Float, val color: Color, val label: String = "")
+
+/** Gráfico lineal de dos ejes para mostrar historial de resultados de partidas. */
+@Composable
+private fun LineChart(points: List<ChartPoint>, modifier: Modifier = Modifier) {
+    if (points.isEmpty()) return
+    Canvas(modifier = modifier) {
+        val size = size
+        val width = size.width
+        val height = size.height
+        val padding = 16f
+        val plotWidth = width - padding * 2
+        val plotHeight = height - padding * 2
+
+        if (points.size < 2) return@Canvas
+
+        val minX = points.firstOrNull()?.x ?: 0f
+        val maxX = points.lastOrNull()?.x ?: 0f
+        val rangeX = if (maxX > minX) maxX - minX else 1f
+
+        // Ejes
+        drawLine(
+            color = Line,
+            start = Offset(padding, padding),
+            end = Offset(padding, padding + plotHeight),
+            strokeWidth = 1f
+        )
+        drawLine(
+            color = Line,
+            start = Offset(padding, padding + plotHeight),
+            end = Offset(padding + plotWidth, padding + plotHeight),
+            strokeWidth = 1f
+        )
+
+        // Dibujar puntos y línea
+        for (i in points.indices) {
+            val p = points[i]
+            val px = padding + ((p.x - minX) / rangeX) * plotWidth
+            val py = padding + plotHeight - (p.y / 2f) * plotHeight
+
+            // Línea entre puntos
+            if (i > 0) {
+                val prev = points[i - 1]
+                val prevX = padding + ((prev.x - minX) / rangeX) * plotWidth
+                val prevY = padding + plotHeight - (prev.y / 2f) * plotHeight
+                drawLine(
+                    color = p.color.copy(alpha = 0.7f),
+                    start = Offset(prevX, prevY),
+                    end = Offset(px, py),
+                    strokeWidth = 2f
+                )
+            }
+
+            // Punto
+            drawCircle(
+                color = p.color,
+                center = Offset(px, py),
+                radius = 4f
+            )
+            drawCircle(
+                color = Color.White,
+                center = Offset(px, py),
+                radius = 2f
+            )
+
+            // Etiqueta del eje X (fecha)
+            if (i % 5 == 0 || i == points.lastIndex) {
+                drawText(
+                    text = p.label,
+                    top = Offset(px - 15f, padding + plotHeight + 4f),
+                    fontSize = 8f,
+                    color = Muted
+                )
+            }
+        }
+
+        // Etiquetas del eje Y
+        drawText(text = "G", top = Offset(4f, padding - 6f), fontSize = 10f, color = Green)
+        drawText(text = "E", top = Offset(4f, padding + plotHeight / 2 - 6f), fontSize = 10f, color = Gold)
+        drawText(text = "P", top = Offset(4f, padding + plotHeight - 4f), fontSize = 10f, color = Color(0xFFFF6B6B))
+    }
+}
+
 fun decodePhoto(base64: String?): Bitmap? {
     if (base64.isNullOrBlank()) return null
     val raw = base64.substringAfter("base64,", base64)
@@ -585,6 +680,27 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
         rec.opponent to rec.playerName
     }
     
+    // Resultado del juego
+    val resultColor = when {
+        rec.localWon == true -> Green
+        rec.localWon == false -> Color(0xFFFF6B6B)
+        else -> Gold
+    }
+    val resultText = when {
+        rec.localWon == true -> "VICTORIA"
+        rec.localWon == false -> "DERROTA"
+        else -> "TABLAS"
+    }
+
+    // Tiempo promedio por jugada
+    val avgTime = if (rec.moveClocks.isNotEmpty()) {
+        val totalTime = rec.moveClocks.sum().toDouble()
+        val msPerMove = totalTime / rec.moveClocks.size
+        formatClock(msPerMove.toLong())
+    } else {
+        "--"
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -595,27 +711,51 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
     ) {
         Column(Modifier.weight(1f)) {
             Text("$whiteName vs $blackName", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Text1, maxLines = 1)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "${rec.dateLabel()} · ${rec.timeLabel}",
+                    fontSize = 10.sp, color = Muted, maxLines = 1
+                )
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .background(resultColor, CircleShape)
+                )
+                Text(
+                    resultText,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = resultColor,
+                    maxLines = 1
+                )
+            }
             Text(
-                "${rec.dateLabel()} · ${rec.result} · ${rec.movesSan.size} jugadas · ${rec.timeLabel}" +
-                    if (rec.localColorWhite) " · Juegas blancas" else " · Juegas negras",
-                fontSize = 11.sp, color = Muted, maxLines = 2
+                "${rec.movesSan.size} jugadas · tiempo prom. ${avgTime} · ${if (rec.localColorWhite) "Blancas" else "Negras"}" +
+                (if (rec.gameType == GameHistoryStore.GAME_TYPE_PRACTICE) " · Stockfish" else ""),
+                fontSize = 10.sp, color = Muted, maxLines = 2
             )
         }
-        Button(
-            onClick = onReplay,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F0F0F), contentColor = Gold),
-            shape = RoundedCornerShape(10.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3A3524)),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-        ) { Text("Reproducir", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
-        Spacer(Modifier.width(6.dp))
-        OutlinedButton(
-            onClick = onDelete,
-            shape = RoundedCornerShape(10.dp),
-            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4A2626)),
-            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF3A2222), contentColor = Color(0xFFFF9B9B))
-        ) { Text("Eliminar", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+        Column(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Button(
+                onClick = onReplay,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F0F0F), contentColor = Gold),
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3A3524)),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+            ) { Text("Reproducir", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+            Spacer(Modifier.height(4.dp))
+            OutlinedButton(
+                onClick = onDelete,
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4A2626)),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF3A2222), contentColor = Color(0xFFFF9B9B))
+            ) { Text("Eliminar", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+        }
     }
 }
 

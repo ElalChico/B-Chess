@@ -159,22 +159,45 @@ fun GameScreen(
 
         Spacer(Modifier.height(6.dp))
 
+        // Update the PlayerBar for both local and remote player with better clock colors
+        val localClockMs = if (ui.localColor == ChessColor.WHITE) ui.clock.whiteMs else ui.clock.blackMs
+        val localIsLowTime = ui.lobby.timeMs > 0 && localClockMs < 30000 // 30 seconds threshold
+        val remoteClockMs = if (ui.remoteColor == ChessColor.WHITE) ui.clock.whiteMs else ui.clock.blackMs
+        val remoteIsLowTime = ui.lobby.timeMs > 0 && remoteClockMs < 30000
+
         if (!isFullscreen) {
             PlayerBar(
                 name = ui.localName.ifBlank { "Jugador" },
                 isYou = true,
                 isTurn = ui.snapshot.sideToMove == ui.localColor,
-                clockMs = if (ui.localColor == ChessColor.WHITE) ui.clock.whiteMs else ui.clock.blackMs,
+                clockMs = localClockMs,
                 totalMs = ui.lobby.timeMs,
                 showClock = ui.lobby.timeMs > 0,
                 inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.localColor,
                 sideLabel = if (ui.localColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
-                photoBase64 = localPhotoBase64
+                photoBase64 = localPhotoBase64,
+                isLowTime = localIsLowTime
             )
 
             ui.lastError?.let {
                 Text(it, color = Red, fontSize = 12.5.sp, modifier = Modifier.padding(top = 4.dp, start = 4.dp))
             }
+        }
+
+        if (!isFullscreen) {
+            PlayerBar(
+                name = ui.remoteName.ifBlank { remoteProfile?.name ?: "Rival" },
+                isYou = false,
+                isTurn = ui.snapshot.sideToMove == ui.remoteColor,
+                clockMs = remoteClockMs,
+                totalMs = ui.lobby.timeMs,
+                showClock = ui.lobby.timeMs > 0,
+                inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.remoteColor,
+                sideLabel = if (ui.remoteColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
+                remotePhoto = remoteProfile?.photoBase64,
+                onRivalTap = onViewRivalProfile,
+                isLowTime = remoteIsLowTime
+            )
         }
 
         Spacer(Modifier.height(8.dp))
@@ -203,7 +226,12 @@ fun GameScreen(
                 ) { onTogglePause() }
 
                 if (!isFullscreen) {
-                    ActionBtn("Tablas", weak = false, modifier = Modifier.weight(1f)) { onOfferDraw() }
+                    ActionBtn(
+                        label = if (ui.lastError?.contains("ofrece tablas") == true) "Aceptar Tablas" else "Solicitar Tablas",
+                        color = Color(0xFF4FB3AC),
+                        weak = false,
+                        modifier = Modifier.weight(1f)
+                    ) { if (ui.lastError?.contains("ofrece tablas") == true) onAcceptDraw() else onOfferDraw() }
                 }
 
                 ActionBtn("Abandonar", weak = true, modifier = Modifier.weight(1f)) { onResign() }
@@ -432,7 +460,7 @@ private fun HudClock(ms: Long, active: Boolean, visible: Boolean) {
 }
 
 @Composable
-private fun ActionBtn(label: String, weak: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun ActionBtn(label: String, weak: Boolean, modifier: Modifier = Modifier, color: Color = if (weak) Text1 else Gold, onClick: () -> Unit) {
     Box(
         modifier = modifier
             .height(46.dp)
@@ -449,7 +477,7 @@ private fun ActionBtn(label: String, weak: Boolean, modifier: Modifier = Modifie
             label,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-            color = if (weak) Text1 else Gold,
+            color = color,
             maxLines = 1
         )
     }
@@ -467,9 +495,16 @@ private fun PlayerBar(
     sideLabel: String,
     photoBase64: String = "",
     remotePhoto: String? = null,
-    onRivalTap: (() -> Unit)? = null
+    onRivalTap: (() -> Unit)? = null,
+    isLowTime: Boolean = false
 ) {
     val accentColor = if (isTurn) Gold else Color(0xFF2B3542)
+    val clockColor = when {
+        isLowTime && isTurn -> Red
+        isLowTime -> Color(0xFFFF8A8A)
+        isTurn -> Color(0xFFC9B15A)
+        else -> Color(0xFF8B96A5)
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -583,7 +618,12 @@ private fun PlayerBar(
                         )
                         .border(
                             1.dp,
-                            if (isTurn) Color(0xFF2FA37E) else Color(0xFF2A3341),
+                            when {
+                                isLowTime && isTurn -> Color(0xFF8A2E2E)
+                                isLowTime -> Color(0xFF4A2626)
+                                isTurn -> Color(0xFF2FA37E)
+                                else -> Color(0xFF2A3341)
+                            },
                             RoundedCornerShape(10.dp)
                         )
                         .padding(horizontal = 10.dp, vertical = 5.dp),
@@ -591,8 +631,13 @@ private fun PlayerBar(
                 ) {
                     Text(
                         text = formatClock(clockMs),
-                        color = if (isTurn) Color(0xFF06231A) else if (clockMs < 30_000) Red else Color(0xFFDCE3EC),
-                        modifier = Modifier.alpha(LowTimeBlink(clockMs < 30_000)),
+                        color = when {
+                            isTurn -> Color(0xFF06231A)
+                            isLowTime && isTurn -> Color(0xFFFF0000)
+                            isLowTime -> Color(0xFFFF8A8A)
+                            else -> Color(0xFFDCE3EC)
+                        },
+                        modifier = Modifier.alpha(LowTimeBlink(isLowTime)),
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 19.sp
                     )
@@ -605,12 +650,17 @@ private fun PlayerBar(
                         .background(Color(0xFF202834), RoundedCornerShape(2.dp))
                 ) {
                     val fraction = if (totalMs > 0) (clockMs.toFloat() / totalMs).coerceIn(0f, 1f) else 1f
+                    val fractionColor = if (isTurn) when {
+                        isLowTime -> Red
+                        else -> Green
+                    } else Color(0xFF202834)
                     Box(
                         Modifier
                             .fillMaxWidth(fraction)
                             .fillMaxHeight()
                             .background(
-                                if (isTurn) Brush.horizontalGradient(listOf(Green, Color(0xFF7AF0BC)))
+                                if (isTurn && !isLowTime) Brush.horizontalGradient(listOf(Green, Color(0xFF7AF0BC)))
+                                else if (isLowTime && isTurn) Brush.horizontalGradient(listOf(Red, Color(0xFFFF5C5C)))
                                 else Brush.horizontalGradient(listOf(Color(0xFF202834), Color(0xFF202834))),
                                 RoundedCornerShape(2.dp)
                             )
