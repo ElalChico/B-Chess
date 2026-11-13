@@ -232,9 +232,10 @@ fun GameEndDialog(
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0B0D10))
                 ) {
-                    Text("Cancelar", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFF6B6B))
+                    Text("Cerrar · ver tablero", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3DDC97))
                 }
             }
         }

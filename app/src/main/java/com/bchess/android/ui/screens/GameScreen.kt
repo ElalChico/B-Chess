@@ -75,7 +75,9 @@ fun GameScreen(
     onBackToRoom: () -> Unit = {},
     onGameEndDismiss: () -> Unit = {},
     onNewTournament: () -> Unit = {},
-    onReplayPgn: () -> Unit = {}
+    onReplayPgn: () -> Unit = {},
+    showEndDialog: Boolean = true,
+    onViewEndResult: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -177,6 +179,18 @@ fun GameScreen(
 
         Spacer(Modifier.height(8.dp))
 
+        if (ui.gameEnd != null && !showEndDialog) {
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = onViewEndResult,
+                modifier = Modifier.fillMaxWidth().height(46.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Color(0xFF17130A))
+            ) {
+                Text("Ver resultado de la partida", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+            }
+        }
+
         if (ui.gameEnd == null) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -260,51 +274,53 @@ fun GameScreen(
             }
         }
 
-        ui.gameEnd?.let { end ->
-            // Determine winner name and photo
-            val resultColorStr = if (end.winner == null) "draw" else
-                (if (end.winner == ChessColor.WHITE) "white" else "black")
-            val winnerName = when (resultColorStr) {
-                "white" -> ui.localName
-                "black" -> ui.remoteName
-                else -> null
-            }
-            val winnerPhoto = when (resultColorStr) {
-                "white" -> localPhotoBase64
-                "black" -> remoteProfile?.photoBase64
-                else -> null
-            }
-            
-            GameEndDialog(
-                end = end,
-                isHost = ui.lobby.isHost,
-                tournamentActive = ui.tournament.active && !ui.tournament.finished,
-                tournamentFinished = ui.tournament.finished,
-                localName = ui.localName,
-                remoteName = ui.remoteName,
-                localPhotoBase64 = localPhotoBase64,
-                remotePhotoBase64 = remoteProfile?.photoBase64,
-                winnerName = winnerName,
-                onNewGameSame = onNewGameSame,
-                onNewGameRandom = onNewGameRandom,
-                onTournamentNext = onTournamentNext,
-                onBackToRoom = onBackToRoom,
-                onReplayPgn = { /* handled in MainActivity */ },
-                onDismiss = onGameEndDismiss
-            )
-        }
+        if (showEndDialog) {
+            ui.gameEnd?.let { end ->
+                // Determine winner name and photo
+                val resultColorStr = if (end.winner == null) "draw" else
+                    (if (end.winner == ChessColor.WHITE) "white" else "black")
+                val winnerName = when (resultColorStr) {
+                    "white" -> ui.localName
+                    "black" -> ui.remoteName
+                    else -> null
+                }
+                val winnerPhoto = when (resultColorStr) {
+                    "white" -> localPhotoBase64
+                    "black" -> remoteProfile?.photoBase64
+                    else -> null
+                }
 
-        if (ui.tournament.finished && !ui.tournament.active) {
-            TournamentEndDialog(
-                totalGames = ui.tournament.totalGames,
-                localWins = ui.tournament.localWins,
-                remoteWins = ui.tournament.remoteWins,
-                draws = ui.tournament.draws,
-                timeControl = if (ui.tournament.config.timeMs == 0L) "Ilimitado" else "${ui.tournament.config.timeMs / 60000} + ${ui.tournament.config.incrementMs / 1000}",
-                onNewTournament = onNewTournament,
-                onBackToRoom = onBackToRoom,
-                onDismiss = onGameEndDismiss
-            )
+                GameEndDialog(
+                    end = end,
+                    isHost = ui.lobby.isHost,
+                    tournamentActive = ui.tournament.active && !ui.tournament.finished,
+                    tournamentFinished = ui.tournament.finished,
+                    localName = ui.localName,
+                    remoteName = ui.remoteName,
+                    localPhotoBase64 = localPhotoBase64,
+                    remotePhotoBase64 = remoteProfile?.photoBase64,
+                    winnerName = winnerName,
+                    onNewGameSame = onNewGameSame,
+                    onNewGameRandom = onNewGameRandom,
+                    onTournamentNext = onTournamentNext,
+                    onBackToRoom = onBackToRoom,
+                    onReplayPgn = onReplayPgn,
+                    onDismiss = onGameEndDismiss
+                )
+            }
+
+            if (ui.tournament.finished && !ui.tournament.active) {
+                TournamentEndDialog(
+                    totalGames = ui.tournament.totalGames,
+                    localWins = ui.tournament.localWins,
+                    remoteWins = ui.tournament.remoteWins,
+                    draws = ui.tournament.draws,
+                    timeControl = if (ui.tournament.config.timeMs == 0L) "Ilimitado" else "${ui.tournament.config.timeMs / 60000} + ${ui.tournament.config.incrementMs / 1000}",
+                    onNewTournament = onNewTournament,
+                    onBackToRoom = onBackToRoom,
+                    onDismiss = onGameEndDismiss
+                )
+            }
         }
     }
 }

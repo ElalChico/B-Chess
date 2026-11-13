@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -128,6 +129,7 @@ fun PracticeScreen(
     var showSidePicker by remember { mutableStateOf(false) }
     var lastMove by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var ognSaved by remember { mutableStateOf(false) }
+    var endDialogDismissed by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val playerName = prefs.profileName
     val clockManager = remember(coroutineScope) {
@@ -222,6 +224,7 @@ fun PracticeScreen(
     }
 
     fun resetGame() {
+        endDialogDismissed = false
         clockManager.stop()
         clockManager.configure(timeControl.timeMs, timeControl.incrementMs)
         engine.reset()
@@ -322,6 +325,9 @@ fun PracticeScreen(
                         )
                         PracticeClockBar(clock, timeControl, engine.sideToMove())
                         Spacer(Modifier.weight(1f))
+                        if (gameEnd != null && endDialogDismissed) {
+                            PracticeReopenResultButton { endDialogDismissed = false }
+                        }
                         PracticeGameStatus(
                             gameEnd = gameEnd,
                             thinking = thinking,
@@ -364,6 +370,9 @@ fun PracticeScreen(
                         playerColor = playerColor,
                         moveIndicators = moveIndicators
                     )
+                    if (gameEnd != null && endDialogDismissed) {
+                        PracticeReopenResultButton { endDialogDismissed = false }
+                    }
                     PracticeGameStatus(
                         gameEnd = gameEnd,
                         thinking = thinking,
@@ -374,7 +383,7 @@ fun PracticeScreen(
                 }
             }
 
-            if (gameEnd != null) {
+            if (gameEnd != null && !endDialogDismissed) {
                 val end = gameEnd!!
                 val result = when (end.winner) {
                     null -> "1/2-1/2"
@@ -400,6 +409,7 @@ fun PracticeScreen(
                     onChooseSide = { showSidePicker = true },
                     onOpenSettings = onOpenSettings,
                     onSaveOgn = { saveOgnLauncher.launch("b-chess-partida-vs-stockfish.ogn") },
+                    onClose = { endDialogDismissed = true },
                     onReplay = {
                         GameHistoryStore.append(context, record)
                         onReplay(record)
@@ -624,10 +634,11 @@ private fun PracticeEndDialog(
     onChooseSide: () -> Unit,
     onOpenSettings: () -> Unit,
     onSaveOgn: () -> Unit,
-    onReplay: () -> Unit
+    onReplay: () -> Unit,
+    onClose: () -> Unit
 ) {
     Dialog(
-        onDismissRequest = onReplay,
+        onDismissRequest = onClose,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Column(
@@ -660,7 +671,22 @@ private fun PracticeEndDialog(
             OutlinedButton(onClick = onReplay, modifier = Modifier.fillMaxWidth()) {
                 Text("Reproducir partida", color = PracticeText)
             }
+            OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
+                Text("Cerrar · ver tablero", color = PracticeGreen)
+            }
         }
+    }
+}
+
+@Composable
+private fun PracticeReopenResultButton(onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(46.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = PracticeGold, contentColor = Color(0xFF17130A))
+    ) {
+        Text("Ver resultado de la partida", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
     }
 }
 

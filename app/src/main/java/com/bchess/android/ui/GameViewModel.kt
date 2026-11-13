@@ -151,6 +151,16 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         observeInternet()
     }
 
+    /** Oculta el diálogo de fin de partida para ver el tablero con la partida jugada. */
+    fun dismissEndDialog() {
+        _showGameEndDialog.value = false
+    }
+
+    /** Vuelve a mostrar el diálogo de fin de partida. */
+    fun showEndDialog() {
+        _showGameEndDialog.value = true
+    }
+
     /** Selecciona el transporte de red para la próxima partida. */
     fun setNetworkMode(mode: NetworkMode) {
         networkMode = mode

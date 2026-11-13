@@ -179,6 +179,7 @@ class MainActivity : ComponentActivity() {
         val internetMatchId by vm.internet.currentMatchId.collectAsState()
         val internetError by vm.internet.lastError.collectAsState()
         val netConnected = btState == BtState.CONNECTED || internetState == BtState.CONNECTED
+        val showEndDialog by vm.showGameEndDialog.collectAsState()
         val remoteProfile by vm.remoteProfile.collectAsState()
         val isEn = prefs.language == AppLanguage.EN
         val startHostListening: () -> Unit = {
@@ -440,7 +441,9 @@ class MainActivity : ComponentActivity() {
                     onNewGameRandom = { vm.requestNewGame("random") },
                     onTournamentNext = { vm.requestNewGame("tournament") },
                     onBackToRoom = { vm.backToRoom() },
-                    onGameEndDismiss = { },
+                    onGameEndDismiss = { vm.dismissEndDialog() },
+                    showEndDialog = showEndDialog,
+                    onViewEndResult = { vm.showEndDialog() },
                     onNewTournament = { screen = Screen.ROOM },
                     onReplayPgn = {
                         // Get the last finished game record for replay
