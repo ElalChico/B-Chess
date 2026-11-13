@@ -70,7 +70,8 @@ fun InternetMatchScreen(
     error: String?,
     onCreateMatch: () -> Unit,
     onJoinMatch: (String) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onFinishConnection: () -> Unit = {}
 ) {
     var mode by remember { mutableStateOf<String?>(null) } // null | "create" | "join"
     var joinCode by remember { mutableStateOf("") }
@@ -350,7 +351,7 @@ fun InternetMatchScreen(
             // ==== BOTÓN DE FINALIZAR CONEXIÓN ====
             if (connected) {
                 Button(
-                    onClick = onBack,
+                    onClick = onFinishConnection,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935), contentColor = Color.White),

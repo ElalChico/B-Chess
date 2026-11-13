@@ -179,6 +179,12 @@ data class ErrorMessage(val code: String, val text: String) : BtMessage {
         .put("v", 2).put("type", type).put("code", code).put("text", text).toString()
 }
 
+data class DisconnectMessage(val byName: String, val reason: String = "user_disconnect") : BtMessage {
+    override val type = "DISCONNECT"
+    override fun toJsonLine(): String = JSONObject()
+        .put("v", 2).put("type", type).put("by", byName).put("reason", reason).toString()
+}
+
 object MessageParser {
     fun parse(line: String): BtMessage? {
         return try {
@@ -240,6 +246,7 @@ object MessageParser {
                     o.optBoolean("hostColorWhite", true)
                 )
                 "ERROR" -> ErrorMessage(o.optString("code"), o.optString("text").take(256))
+                "DISCONNECT" -> DisconnectMessage(o.optString("by").take(32), o.optString("reason", "user_disconnect"))
                 else -> null
             }
         } catch (_: Exception) {

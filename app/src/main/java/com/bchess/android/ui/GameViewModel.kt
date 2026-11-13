@@ -801,7 +801,20 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             is TournamentStartMessage -> onTournamentStarted(msg)
             is PongMessage -> { /* latency could be measured here */ }
             is ErrorMessage -> showError(msg.text)
+            is DisconnectMessage -> {
+                // El rival se desconectó: notificar y volver a inicio
+                showError("${msg.byName} ha finalizado la conexión")
+                disconnect()
+            }
         }
+    }
+
+    /** Envía mensaje de desconexión al rival antes de cortar la conexión local. */
+    fun sendDisconnect() {
+        try {
+            netSend(DisconnectMessage(localName, "user_disconnect"))
+        } catch (_: Exception) {}
+        disconnect()
     }
 
     private fun saveGameRecord(end: GameEnd) {

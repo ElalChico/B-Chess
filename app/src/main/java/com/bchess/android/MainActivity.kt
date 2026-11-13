@@ -66,7 +66,7 @@ import com.bchess.android.ui.screens.InternetMatchScreen
 import com.bchess.android.ui.screens.LobbyScreen
 import com.bchess.android.ui.screens.PracticeScreen
 import com.bchess.android.ui.screens.ReplayScreen
-import com.bchess.android.ui.screens.RivalProfileDialog
+import com.bchess.android.ui.screens.RivalProfileScreen
 import com.bchess.android.ui.screens.RoomScreen
 import com.bchess.android.ui.screens.SettingsScreen
 import kotlinx.coroutines.CoroutineScope
@@ -75,7 +75,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class Screen { HOME, CONNECT, PROFILE, GAME, SETTINGS, REPLAY, ROOM, PRACTICE, INTERNET }
+enum class Screen { HOME, CONNECT, PROFILE, GAME, SETTINGS, REPLAY, ROOM, PRACTICE, INTERNET, RIVAL_PROFILE }
 
 private val NavGold = Color(0xFFC9B15A)
 private val NavMuted = Color(0xFF8B96A5)
@@ -167,7 +167,7 @@ class MainActivity : ComponentActivity() {
         var roomTournament by remember { mutableStateOf(false) }
         var history by remember { mutableStateOf(GameHistoryStore.load(activity)) }
         var replayRecord by remember { mutableStateOf<GameRecord?>(null) }
-        var showRivalProfile by remember { mutableStateOf(false) }
+        var rivalProfileFromScreen by remember { mutableStateOf<Screen?>(null) }
         var returnToPracticeFromSettings by remember { mutableStateOf(false) }
         val updateScope = remember { CoroutineScope(Dispatchers.IO + SupervisorJob()) }
 
@@ -325,6 +325,10 @@ class MainActivity : ComponentActivity() {
                             screen = Screen.PROFILE
                         }
                     },
+                    onFinishConnection = {
+                        vm.sendDisconnect()
+                        screen = Screen.HOME
+                    },
                 )
 
                 Screen.CONNECT -> ConnectionFlowScreen(
@@ -355,7 +359,11 @@ class MainActivity : ComponentActivity() {
                         vm.setIsHost(false)
                         vm.internet.joinMatch(code)
                     },
-                    onBack = { vm.disconnect(); screen = Screen.HOME }
+                    onBack = { vm.disconnect(); screen = Screen.HOME },
+                    onFinishConnection = {
+                        vm.sendDisconnect()
+                        screen = Screen.HOME
+                    }
                 )
 
                 Screen.PROFILE -> LobbyScreen(
@@ -364,7 +372,7 @@ class MainActivity : ComponentActivity() {
                     profileSetupRequired = !prefs.profileConfigured,
                     remoteProfile = remoteProfile,
                     connected = netConnected,
-                    onViewRivalProfile = { showRivalProfile = true },
+                    onViewRivalProfile = { rivalProfileFromScreen = screen; screen = Screen.RIVAL_PROFILE },
                     continueLabel = when (profileNextScreen) {
                         Screen.HOME -> if (!prefs.profileConfigured) "Guardar perfil y comenzar" else "Guardar cambios"
                         Screen.CONNECT -> "Guardar perfil y conectar"
@@ -392,7 +400,7 @@ class MainActivity : ComponentActivity() {
                     lobby = ui.lobby, localName = ui.localName, remoteName = ui.remoteName,
                     localPhotoBase64 = prefs.profilePhotoBase64,
                     remoteProfile = remoteProfile,
-                    onViewRivalProfile = { showRivalProfile = true },
+                    onViewRivalProfile = { rivalProfileFromScreen = screen; screen = Screen.RIVAL_PROFILE },
                     onTimePick = { timeMs, inc -> vm.setTimeControl(timeMs, inc); if (ui.lobby.isHost) vm.sendLobbyConfig() },
                     onColorPick = { color -> vm.setLocalColor(color) },
                     onRandomColor = { vm.setRandomColor() },
@@ -427,7 +435,7 @@ class MainActivity : ComponentActivity() {
                         photoBase64 = prefs.profilePhotoBase64, history = history,
                         remoteProfile = remoteProfile,
                         connected = netConnected,
-                        onViewRivalProfile = { showRivalProfile = true },
+                        onViewRivalProfile = { rivalProfileFromScreen = screen; screen = Screen.RIVAL_PROFILE },
                         continueLabel = "Volver al perfil",
                         onContinue = { screen = Screen.PROFILE },
                         onNameChange = { prefs.setProfileName(it); vm.setLocalName(it); vm.sendHello(); vm.sendProfile() },
@@ -451,7 +459,7 @@ class MainActivity : ComponentActivity() {
                     showCoordinates = prefs.showCoordinates,
                     localPhotoBase64 = prefs.profilePhotoBase64,
                     remoteProfile = remoteProfile,
-                    onViewRivalProfile = { showRivalProfile = true },
+                    onViewRivalProfile = { rivalProfileFromScreen = screen; screen = Screen.RIVAL_PROFILE },
                     onToggleFullscreen = { fullscreen = !fullscreen },
                     onSquareTap = vm::onSquareTap,
                     onTogglePause = vm::togglePause,
@@ -527,6 +535,33 @@ class MainActivity : ComponentActivity() {
                         screen = Screen.REPLAY
                     }
                 )
+
+                Screen.RIVAL_PROFILE -> RivalProfileScreen(
+                    profile = remoteProfile?.takeUnless { it.name.isBlank() }
+                        ?: com.bchess.android.data.RemoteProfile(name = ui.remoteName.ifBlank { "Rival" }),
+                    prefs = prefs,
+                    onBack = {
+                        screen = rivalProfileFromScreen ?: Screen.HOME
+                        rivalProfileFromScreen = null
+                    },
+                    onReplayGame = { game ->
+                        replayRecord = GameRecord(
+                            id = "remote-${game.dateMs}-${game.moves}",
+                            dateMs = game.dateMs,
+                            opponent = game.opponent,
+                            result = game.result,
+                            localWon = game.won,
+                            localColorWhite = game.localColorWhite,
+                            timeLabel = game.timeLabel,
+                            movesSan = game.movesSan,
+                            pgn = game.pgn,
+                            finalFen = "",
+                            playerName = game.playerName,
+                            uciMoves = game.uciMoves
+                        )
+                        screen = Screen.REPLAY
+                    }
+                )
             }
 
             }
@@ -591,31 +626,6 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        if (showRivalProfile) {
-            RivalProfileDialog(
-                profile = remoteProfile?.takeUnless { it.name.isBlank() }
-                    ?: com.bchess.android.data.RemoteProfile(name = ui.remoteName.ifBlank { "Rival" }),
-                onDismiss = { showRivalProfile = false },
-                onReplay = { game ->
-                    replayRecord = GameRecord(
-                        id = "remote-${game.dateMs}-${game.moves}",
-                        dateMs = game.dateMs,
-                        opponent = game.opponent,
-                        result = game.result,
-                        localWon = game.won,
-                        localColorWhite = game.localColorWhite,
-                        timeLabel = game.timeLabel,
-                        movesSan = game.movesSan,
-                        pgn = game.pgn,
-                        finalFen = "",
-                        playerName = game.playerName,
-                        uciMoves = game.uciMoves
-                    )
-                    showRivalProfile = false
-                    screen = Screen.REPLAY
-                }
-            )
-        }
     }
 }
 
