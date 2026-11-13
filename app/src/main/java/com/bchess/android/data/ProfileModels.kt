@@ -5,6 +5,12 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
+/** Modo de la partida: práctica contra Stockfish, Bluetooth, Internet o torneo. */
+const val GAME_TYPE_PRACTICE = "practice"
+const val GAME_TYPE_BT = "bt"
+const val GAME_TYPE_INTERNET = "internet"
+const val GAME_TYPE_TOURNAMENT = "tournament"
+
 data class GameRecord(
     val id: String = UUID.randomUUID().toString(),
     val dateMs: Long = System.currentTimeMillis(),
@@ -19,7 +25,8 @@ data class GameRecord(
     val playerName: String = "Jugador",
     val uciMoves: List<String> = emptyList(),
     val moveClocks: List<Long> = emptyList(), // remaining ms of the mover after each move
-    val opponentPhotoBase64: String? = null // foto del rival para historial/replay
+    val opponentPhotoBase64: String? = null, // foto del rival para historial/replay
+    val gameType: String = GAME_TYPE_PRACTICE // practice | bt | internet | tournament
 ) {
     fun dateLabel(): String = SimpleDateFormat("dd/MM/yy HH:mm", Locale.getDefault()).format(Date(dateMs))
 }

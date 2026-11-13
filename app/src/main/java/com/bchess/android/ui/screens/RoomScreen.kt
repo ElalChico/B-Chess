@@ -57,15 +57,16 @@ fun RoomScreen(
     onConnect: () -> Unit,
     onStartGame: () -> Unit,
     onStartTournament: (Int) -> Unit = {},
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    startInTournamentMode: Boolean = false
 ) {
     val isHost = lobby.isHost
     val rivalOk = remoteName.isNotBlank() && lobby.connected
     val clockLabel = if (lobby.timeMs == 0L) "Sin límite" else "${lobby.timeMs / 60000} + ${lobby.incrementMs / 1000}"
     val colorLabel = if (lobby.colorRandom) "Aleatorio" else if (lobby.localColor == ChessColor.WHITE) "Blancas" else "Negras"
-    var tournamentMode by remember { mutableStateOf(false) }
+    var tournamentMode by remember(startInTournamentMode) { mutableStateOf(startInTournamentMode) }
     var tournamentGames by remember { mutableIntStateOf(4) }
-    var modeSelected by remember { mutableStateOf(false) }
+    var modeSelected by remember(startInTournamentMode) { mutableStateOf(startInTournamentMode) }
     var clockSelected by remember { mutableStateOf(false) }
     var showConnectedDialog by remember { mutableStateOf(false) }
     var lastDialogOpponent by remember { mutableStateOf<String?>(null) }

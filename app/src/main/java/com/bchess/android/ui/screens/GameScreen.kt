@@ -122,7 +122,7 @@ fun GameScreen(
                 inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.remoteColor,
                 sideLabel = if (ui.remoteColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
                 remotePhoto = remoteProfile?.photoBase64,
-                onRivalTap = if (remoteProfile != null) onViewRivalProfile else null
+                onRivalTap = onViewRivalProfile
             )
             Spacer(Modifier.height(6.dp))
         } else {

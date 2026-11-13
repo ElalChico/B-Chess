@@ -381,6 +381,25 @@ fun LobbyScreen(
             }
         }
         if (!profileSetupRequired) {
+            // Pestañas: historial clásico y torneo (aparte, como pidió el usuario)
+            var tournamentTab by remember { mutableStateOf(false) }
+            val tournamentCount = history.count { it.gameType == "tournament" }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HistoryTab(
+                    label = "Historial",
+                    selected = !tournamentTab,
+                    modifier = Modifier.weight(1f)
+                ) { tournamentTab = false }
+                HistoryTab(
+                    label = "Torneos${if (tournamentCount > 0) " ($tournamentCount)" else ""}",
+                    selected = tournamentTab,
+                    modifier = Modifier.weight(1f),
+                    accent = true
+                ) { tournamentTab = true }
+            }
+            val visibleHistory = history.filter { if (tournamentTab) it.gameType == "tournament" else true }
+            // Estadísticas + mini gráfico del conjunto visible
+            StatsHud(visibleHistory, tournamentTab)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = { importPgn.launch(arrayOf("application/x-chess-pgn", "text/plain", "application/octet-stream")) },
@@ -393,9 +412,9 @@ fun LobbyScreen(
                     Text("Cargar PGN", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
                 OutlinedButton(
-                    onClick = { exportPgn.launch("chess-x-partidas.pgn") },
+                    onClick = { exportPgn.launch(if (tournamentTab) "b-chess-torneos.pgn" else "chess-x-partidas.pgn") },
                     modifier = Modifier.weight(1f),
-                    enabled = history.isNotEmpty(),
+                    enabled = visibleHistory.isNotEmpty(),
                     shape = RoundedCornerShape(10.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Line2),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Text1),
@@ -404,17 +423,116 @@ fun LobbyScreen(
                     Text("Guardar PGN", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
-            Text("${history.size}/${GameHistoryStore.MAX_RECORDS} partidas guardadas. Se reemplazan automáticamente las más antiguas.", color = Muted, fontSize = 11.sp)
+            Text("${visibleHistory.size}/${GameHistoryStore.MAX_RECORDS} partidas mostradas. Se reemplazan automáticamente las más antiguas.", color = Muted, fontSize = 11.sp)
             pgnMessage?.let { Text(it, color = if (it.startsWith("Error:")) Color(0xFFFF9B9B) else Green, fontSize = 11.sp) }
-            if (history.isEmpty()) {
-                Text("Sin partidas guardadas. Al terminar una por Bluetooth aparecerá aquí.", color = Muted, fontSize = 12.sp)
+            if (visibleHistory.isEmpty()) {
+                Text(
+                    if (tournamentTab) "Sin partidas de torneo guardadas. En un torneo por Bluetooth o Internet aparecerán aquí."
+                    else "Sin partidas guardadas. Al terminar una por Bluetooth, Internet o contra Stockfish aparecerá aquí.",
+                    color = Muted,
+                    fontSize = 12.sp
+                )
             } else {
-                history.forEach { rec ->
+                visibleHistory.forEach { rec ->
                     HistoryItem(rec = rec, onReplay = { onReplay(rec) }, onDelete = { onDeleteGame(rec) })
                 }
             }
         }
         Spacer(Modifier.height(6.dp))
+    }
+}
+
+@Composable
+private fun HistoryTab(label: String, selected: Boolean, modifier: Modifier = Modifier, accent: Boolean = false, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .background(
+                if (selected) (if (accent) Color(0x26E2B94E) else Color(0xFF1F2820)) else Card2,
+                RoundedCornerShape(12.dp)
+            )
+            .border(1.dp, if (selected) (if (accent) Gold else Line2) else Line2, RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(vertical = 11.dp, horizontal = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            color = if (selected) (if (accent) Gold else Text1) else Muted,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun StatPill(label: String, value: String, valueColor: Color, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .background(Card, RoundedCornerShape(10.dp))
+            .border(1.dp, Line, RoundedCornerShape(10.dp))
+            .padding(vertical = 9.dp, horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(value, color = valueColor, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+        Text(label, color = Muted, fontSize = 10.sp, maxLines = 1)
+    }
+}
+
+@Composable
+private fun StatsHud(records: List<GameRecord>, tournamentTab: Boolean) {
+    if (records.isEmpty()) return
+    val total = records.size
+    val wins = records.count { it.localWon == true }
+    val draws = records.count { it.localWon == null }
+    val losses = total - wins - draws
+    val winRate = if (total > 0) (wins * 100) / total else 0
+    val streak = records.takeWhile { it.localWon == true }.count()
+    val accent = if (tournamentTab) Gold else Green
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Card2, RoundedCornerShape(14.dp))
+            .border(1.dp, Line, RoundedCornerShape(14.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatPill("Partidas", total.toString(), Text1, Modifier.weight(1f))
+            StatPill("Ganadas", wins.toString(), Green, Modifier.weight(1f))
+            StatPill("Empates", draws.toString(), Gold, Modifier.weight(1f))
+            StatPill("Perdidas", losses.toString(), Color(0xFFFF9B9B), Modifier.weight(1f))
+        }
+        // Balance W/D/L en una sola barra proporcional (gráfico visual)
+        Row(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(8.dp)).background(Card)) {
+            if (wins > 0) Box(Modifier.weight(wins.toFloat()).fillMaxHeight().background(Green))
+            if (draws > 0) Box(Modifier.weight(draws.toFloat()).fillMaxHeight().background(Gold))
+            if (losses > 0) Box(Modifier.weight(losses.toFloat()).fillMaxHeight().background(Color(0xFFFF6B6B)))
+        }
+        Row(horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Win rate $winRate% · Racha $streak", color = accent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            Text("Última: ${records.firstOrNull()?.dateLabel().orEmpty()}", color = Muted, fontSize = 10.sp)
+        }
+        // Mini-gráfico de barras: estado y volumen de las 15 últimas partidas
+        Text("Últimas partidas", color = Muted, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            records.take(15).reversed().forEach { r ->
+                val barColor = when (r.localWon) {
+                    true -> Green; null -> Gold; false -> Color(0xFFFF6B6B)
+                }
+                val barHeight = (12 + (r.movesSan.size * 2).coerceAtMost(36)).dp
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(barHeight)
+                        .background(barColor.copy(alpha = 0.9f), RoundedCornerShape(3.dp))
+                )
+            }
+        }
     }
 }
 

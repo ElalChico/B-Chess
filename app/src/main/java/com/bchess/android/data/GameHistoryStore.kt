@@ -46,7 +46,12 @@ object GameHistoryStore {
                         playerName = o.optString("me", "Jugador"),
                         uciMoves = ucis,
                         moveClocks = times,
-                        opponentPhotoBase64 = o.optString("oppPhoto", "").takeIf { it.isNotBlank() }
+                        opponentPhotoBase64 = o.optString("oppPhoto", "").takeIf { it.isNotBlank() },
+                        // Historial antiguo sin gameType: se infiere (Stockfish => práctica, resto => BT)
+                        gameType = o.optString(
+                            "gameType",
+                            if (o.optString("opp", "").equals("Stockfish", ignoreCase = true)) GAME_TYPE_PRACTICE else GAME_TYPE_BT
+                        )
                     )
                 )
             }
@@ -130,6 +135,7 @@ object GameHistoryStore {
             o.put("san", JSONArray(r.movesSan))
             o.put("uci", JSONArray(r.uciMoves))
             o.put("clocks", JSONArray(r.moveClocks))
+            o.put("gameType", r.gameType)
             if (r.opponentPhotoBase64 != null) o.put("oppPhoto", r.opponentPhotoBase64)
             arr.put(o)
         }

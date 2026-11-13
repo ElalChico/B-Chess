@@ -823,6 +823,12 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             val remoteProfile = _remoteProfile.value
             val opponentPhoto = remoteProfile?.photoBase64
             
+            val gameType = when {
+                _ui.value.tournament.active -> GAME_TYPE_TOURNAMENT
+                networkMode == NetworkMode.INTERNET -> GAME_TYPE_INTERNET
+                else -> GAME_TYPE_BT
+            }
+
             val base = GameRecord(
                 opponent = opp,
                 playerName = localName,
@@ -835,7 +841,8 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                 finalFen = engine.toFEN(),
                 uciMoves = uciHistory.toList(),
                 moveClocks = moveClockHistory.toList(),
-                opponentPhotoBase64 = opponentPhoto
+                opponentPhotoBase64 = opponentPhoto,
+                gameType = gameType
             )
             GameHistoryStore.append(appContext, base.copy(pgn = buildPgn(base, whiteName, blackName)))
         } catch (_: Exception) { }

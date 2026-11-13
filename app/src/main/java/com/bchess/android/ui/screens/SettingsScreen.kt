@@ -40,6 +40,7 @@ import com.bchess.android.core.ChessEngine
 import com.bchess.android.core.Color as ChessColor
 import com.bchess.android.ui.components.BoardSelection
 import com.bchess.android.ui.components.ChessBoard
+import com.bchess.android.ui.components.PieceSetGridSelector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -62,7 +63,8 @@ fun SettingsScreen(
     onOpenBtSettings: () -> Unit = {},
     onExit: () -> Unit = {},
     activity: Activity? = null,
-    onBackToPractice: (() -> Unit)? = null
+    onBackToPractice: (() -> Unit)? = null,
+    onBackToGame: (() -> Unit)? = null
 ) {
     val isEn = prefs.language == AppLanguage.EN
     fun t(es: String, en: String) = if (isEn) en else es
@@ -90,11 +92,6 @@ fun SettingsScreen(
                 color = Text1,
                 modifier = Modifier.weight(1f)
             )
-            if (onBackToPractice != null) {
-                TextButton(onClick = onBackToPractice) {
-                    Text(t("Volver a practicar", "Back to practice"), color = Gold)
-                }
-            }
         }
         Text(t("Todo se guarda al instante en este móvil.", "Everything saves instantly on this phone."), color = Muted, fontSize = 11.5.sp)
 
@@ -120,17 +117,11 @@ fun SettingsScreen(
                 }
             }
             Text(t("Conjunto de piezas", "Piece set"), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                PieceSet.entries.chunked(3).forEach { rowSets ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        rowSets.forEach { set ->
-                            val sel = prefs.pieceSet == set
-                            Chip(if (isEn) set.labelEn else set.labelEs, sel, Modifier.weight(1f)) { prefs.setPieceSet(set) }
-                        }
-                        repeat(3 - rowSets.size) { Spacer(Modifier.weight(1f)) }
-                    }
-                }
-            }
+            PieceSetGridSelector(
+                selected = prefs.pieceSet,
+                isEn = isEn,
+                onSelect = { set -> prefs.setPieceSet(set) }
+            )
             ToggleRow(
                 t("Indicadores de movimiento", "Move indicators"),
                 t("Puntos y anillos con las jugadas legales", "Dots and rings with legal moves"),
@@ -242,6 +233,20 @@ fun SettingsScreen(
         // ============ APLICACIÓN ============
         Section(t("APLICACIÓN", "APP"))
         SectionBody {
+            if (onBackToGame != null) {
+                ActionRow(
+                    title = t("Volver a la partida", "Back to game"),
+                    subtitle = t("Reanuda la partida en curso contra el rival", "Resume the ongoing game with your opponent"),
+                    onClick = onBackToGame
+                )
+            }
+            if (onBackToPractice != null) {
+                ActionRow(
+                    title = t("Volver a practicar", "Back to practice"),
+                    subtitle = t("Reanuda la partida contra Stockfish", "Resume the game against Stockfish"),
+                    onClick = onBackToPractice
+                )
+            }
             ActionRow(
                 title = t("Cerrar aplicación", "Exit app"),
                 subtitle = t("Termina la sesión y cierra B-Chess", "Ends the session and closes B-Chess"),

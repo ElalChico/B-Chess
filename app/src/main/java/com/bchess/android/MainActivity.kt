@@ -163,6 +163,7 @@ class MainActivity : ComponentActivity() {
         var profileNextScreen by remember { mutableStateOf(Screen.HOME) }
         var connectReturnScreen by remember { mutableStateOf(Screen.HOME) }
         var fullscreen by remember { mutableStateOf(false) }
+        var roomTournament by remember { mutableStateOf(false) }
         var history by remember { mutableStateOf(GameHistoryStore.load(activity)) }
         var replayRecord by remember { mutableStateOf<GameRecord?>(null) }
         var showRivalProfile by remember { mutableStateOf(false) }
@@ -310,6 +311,19 @@ class MainActivity : ComponentActivity() {
                         vm.setNetworkMode(NetworkMode.INTERNET)
                         screen = Screen.INTERNET
                     },
+                    onTournament = {
+                        roomTournament = true
+                        vm.setNetworkMode(NetworkMode.BT)
+                        isHostMode = true
+                        vm.setIsHost(true)
+                        if (prefs.profileConfigured) {
+                            screen = Screen.CONNECT
+                            startHostListening()
+                        } else {
+                            profileNextScreen = Screen.CONNECT
+                            screen = Screen.PROFILE
+                        }
+                    },
                 )
 
                 Screen.CONNECT -> ConnectionFlowScreen(
@@ -381,6 +395,7 @@ class MainActivity : ComponentActivity() {
                     onTimePick = { timeMs, inc -> vm.setTimeControl(timeMs, inc); if (ui.lobby.isHost) vm.sendLobbyConfig() },
                     onColorPick = { color -> vm.setLocalColor(color) },
                     onRandomColor = { vm.setRandomColor() },
+                    startInTournamentMode = roomTournament,
                     onConnect = {
                         if (vm.networkMode != NetworkMode.INTERNET) {
                             isHostMode = true
@@ -390,12 +405,22 @@ class MainActivity : ComponentActivity() {
                     },
                     onStartGame = vm::startGameAsHost,
                     onStartTournament = { games -> vm.startTournament(games, ui.lobby.timeMs, ui.lobby.incrementMs) },
-                    onBack = { screen = Screen.HOME; vm.disconnect() }
+                    onBack = { screen = Screen.HOME; vm.disconnect(); roomTournament = false }
                 )
 
                 Screen.REPLAY -> {
                     val rec = replayRecord
-                    if (rec != null) ReplayScreen(rec, showCoordinates = prefs.showCoordinates, onBack = { screen = Screen.PROFILE })
+                    if (rec != null) ReplayScreen(
+                        rec,
+                        showCoordinates = prefs.showCoordinates,
+                        onBack = {
+                            screen = if (rec.gameType == com.bchess.android.data.GAME_TYPE_PRACTICE || rec.opponent.equals("Stockfish", true)) {
+                                Screen.PRACTICE
+                            } else {
+                                Screen.PROFILE
+                            }
+                        }
+                    )
                     else LobbyScreen(
                         lobby = ui.lobby, localName = ui.localName, remoteName = ui.remoteName,
                         photoBase64 = prefs.profilePhotoBase64, history = history,
@@ -467,6 +492,14 @@ class MainActivity : ComponentActivity() {
                         {
                             returnToPracticeFromSettings = false
                             screen = Screen.PRACTICE
+                        }
+                    } else {
+                        null
+                    },
+                    onBackToGame = if (ui.lobby.gameStarted && ui.gameEnd == null && netConnected) {
+                        {
+                            fullscreen = true
+                            screen = Screen.GAME
                         }
                     } else {
                         null
@@ -557,9 +590,10 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        if (showRivalProfile && remoteProfile != null) {
+        if (showRivalProfile) {
             RivalProfileDialog(
-                profile = remoteProfile!!,
+                profile = remoteProfile?.takeUnless { it.name.isBlank() }
+                    ?: com.bchess.android.data.RemoteProfile(name = ui.remoteName.ifBlank { "Rival" }),
                 onDismiss = { showRivalProfile = false },
                 onReplay = { game ->
                     replayRecord = GameRecord(

@@ -66,6 +66,7 @@ import com.bchess.android.data.ClockState
 import com.bchess.android.data.EngineInstallState
 import com.bchess.android.data.GameHistoryStore
 import com.bchess.android.data.GameRecord
+import com.bchess.android.data.GAME_TYPE_PRACTICE
 import com.bchess.android.data.PieceSet
 import com.bchess.android.data.PredefinedControls
 import com.bchess.android.data.StockfishEngineManager
@@ -170,7 +171,8 @@ fun PracticeScreen(
                         movesSan = moveHistory.toList(),
                         pgn = "",
                         finalFen = engine.toFEN(),
-                        uciMoves = moveHistory.toList()
+                        uciMoves = moveHistory.toList(),
+                        gameType = GAME_TYPE_PRACTICE
                     ),
                     if (playerColor == ChessColor.WHITE) playerName else "Stockfish",
                     if (playerColor == ChessColor.WHITE) "Stockfish" else playerName
@@ -401,7 +403,8 @@ fun PracticeScreen(
                     movesSan = moveHistory.toList(),
                     pgn = "",
                     finalFen = engine.toFEN(),
-                    uciMoves = moveHistory.toList()
+                    uciMoves = moveHistory.toList(),
+                    gameType = GAME_TYPE_PRACTICE
                 )
                 PracticeEndDialog(
                     message = end.message,

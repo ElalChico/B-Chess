@@ -41,6 +41,7 @@ private val Text1 = Color(0xFFF0F3F1)
 private val Muted = Color(0xFFAAB5B1)
 private val Accent = Color(0xFF789889)
 private val Green = Color(0xFF81B39A)
+private val Gold = Color(0xFFE2B94E)
 
 @Composable
 fun HomeScreen(
@@ -54,7 +55,8 @@ fun HomeScreen(
     onCreate: () -> Unit,
     onSearch: () -> Unit,
     onPractice: () -> Unit,
-    onPlayOnline: () -> Unit = {}
+    onPlayOnline: () -> Unit = {},
+    onTournament: () -> Unit = {}
 ) {
     val avatar = remember(profilePhotoBase64) {
         try {
@@ -193,6 +195,23 @@ fun HomeScreen(
                 modifier = Modifier.weight(1f),
                 onClick = onSearch
             )
+        }
+
+        OutlinedButton(
+            onClick = onTournament,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Gold),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Gold),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("Torneo", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("Partidas múltiples · gana la serie", color = Muted, fontSize = 11.sp)
+                }
+                Text("»", color = Gold, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+            }
         }
 
         OutlinedButton(
