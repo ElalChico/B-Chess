@@ -19,7 +19,7 @@ import java.io.File
 import java.io.OutputStreamWriter
 import java.nio.charset.StandardCharsets
 
-internal data class StockfishStrength(val uciElo: Int, val skillLevel: Int)
+internal data class StockfishStrength(val uciElo: Int, val skillLevel: Int, val searchDepth: Int)
 
 sealed interface EngineInstallState {
     object Idle : EngineInstallState
@@ -68,7 +68,13 @@ class StockfishEngineManager(context: Context) {
             awaitLine { it == "readyok" }
             send("ucinewgame")
             send(if (moves.isEmpty()) "position startpos" else "position startpos moves ${moves.joinToString(" ")}")
-            send("go movetime $MOVE_TIME_MS")
+            if (strength.searchDepth > 0) {
+                // Búsqueda deliberadamente limitada: la única forma fiable de
+                // que Stockfish se equivoque (UCI_Elo por sí solo no basta).
+                send("go depth ${strength.searchDepth}")
+            } else {
+                send("go movetime $MOVE_TIME_MS")
+            }
 
             var bestMove = ""
             while (true) {
@@ -155,16 +161,17 @@ class StockfishEngineManager(context: Context) {
             }
 
         internal fun strengthForPercent(percent: Int): StockfishStrength {
-            // Reducción mínima de dificultad: el 10% máximo de fuerza real,
-            // el resto se mapea a niveles de habilidad más bajos
-            val effectivePercent = if (percent > 10) 10 else percent
-            val normalized = effectivePercent.coerceIn(MIN_STRENGTH_PERCENT, MAX_STRENGTH_PERCENT)
-            // A partir del 50% usa la potencia real máxima del motor (Elo 3190, Skill 20).
-            val realStrength = normalized >= 50
-            return StockfishStrength(
-                uciElo = if (realStrength) UCI_MAX_ELO else UCI_MIN_ELO + (UCI_MAX_ELO - UCI_MIN_ELO) * normalized / MAX_STRENGTH_PERCENT,
-                skillLevel = if (realStrength) MAX_SKILL_LEVEL else MAX_SKILL_LEVEL * normalized / MAX_STRENGTH_PERCENT
-            )
+            val normalized = percent.coerceIn(MIN_STRENGTH_PERCENT, MAX_STRENGTH_PERCENT)
+            // Los niveles bajos usan búsqueda limitada en profundidad: la única
+            // forma fiable de que Stockfish se equivoque (UCI_Elo no basta).
+            // Antes la dificultad apenas se notaba en la práctica.
+            return when {
+                normalized <= 10 -> StockfishStrength(UCI_MIN_ELO, 0, searchDepth = 2)
+                normalized <= 24 -> StockfishStrength(UCI_MIN_ELO, 1, searchDepth = 4)
+                normalized <= 39 -> StockfishStrength(1400, 2, searchDepth = 6)
+                normalized <= 49 -> StockfishStrength(1600, 4, searchDepth = 8)
+                else -> StockfishStrength(UCI_MAX_ELO, MAX_SKILL_LEVEL, searchDepth = 0)
+            }
         }
     }
 }

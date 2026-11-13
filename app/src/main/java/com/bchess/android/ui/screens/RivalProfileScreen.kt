@@ -591,25 +591,16 @@ private fun HistoryGameCard(
         else -> "Empate"
     }
 
-    // Names + score, chess.com style: who won and who lost
+    // Names + score: el ganador resaltado en verde, el perdedor atenuado
     val me = game.playerName.ifBlank { "Rival" }
     val rival = game.opponent.ifBlank { "Rival" }
     val (whiteName, blackName) = if (game.localColorWhite) me to rival else rival to me
-    val (scoreText, whiteTextColor, blackTextColor) = when (game.result) {
-        "1-0" -> Triple("1 - 0", Green, Red)
-        "0-1" -> Triple("0 - 1", Red, Green)
-        else -> Triple("½ - ½", Gold, Gold)
-    }
-    val winnerName = when (game.result) {
-        "1-0" -> whiteName
-        "0-1" -> blackName
-        else -> null
-    }
-    val outcomeLabel = when (game.result) {
-        "1-0" -> "Ganó $winnerName"
-        "0-1" -> "Ganó $winnerName"
-        else -> "Empate · sin ganador"
-    }
+    val whiteWon = game.result == "1-0"
+    val blackWon = game.result == "0-1"
+    val isDraw = !whiteWon && !blackWon
+    val scoreText = when { whiteWon -> "1 - 0"; blackWon -> "0 - 1"; else -> "½ - ½" }
+    val whiteColor = when { whiteWon -> Green; isDraw -> Gold; else -> Muted }
+    val blackColor = when { blackWon -> Green; isDraw -> Gold; else -> Muted }
 
     Row(
         modifier = Modifier
@@ -621,15 +612,15 @@ private fun HistoryGameCard(
     ) {
         Column(Modifier.weight(1f)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     whiteName,
-                    color = whiteTextColor,
+                    color = whiteColor,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = if (whiteWon) FontWeight.ExtraBold else FontWeight.Medium,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     textAlign = TextAlign.End,
@@ -639,14 +630,13 @@ private fun HistoryGameCard(
                     scoreText,
                     color = Text1,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.wrapContentWidth()
+                    fontWeight = FontWeight.ExtraBold
                 )
                 Text(
                     blackName,
-                    color = blackTextColor,
+                    color = blackColor,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = if (blackWon) FontWeight.ExtraBold else FontWeight.Medium,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     textAlign = TextAlign.Start,
@@ -654,32 +644,35 @@ private fun HistoryGameCard(
                 )
             }
             Text(
-                outcomeLabel,
+                when {
+                    isDraw -> "Empate"
+                    game.won == true -> "Victoria"
+                    game.won == false -> "Derrota"
+                    else -> "Partida"
+                },
                 color = resultColor,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1
             )
             Spacer(Modifier.height(2.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        game.dateLabel(),
-                        color = Text1,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                    Text(
-                        "${game.moves} jugadas · ${game.timeLabel.ifBlank { "—" }}",
-                        color = Muted,
-                        fontSize = 10.sp
-                    )
-                }
+                Text(
+                    game.dateLabel(),
+                    color = Muted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+                Text(
+                    "· ${game.moves} jugadas · ${game.timeLabel.ifBlank { "—" }}",
+                    color = Muted,
+                    fontSize = 10.sp
+                )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically

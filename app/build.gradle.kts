@@ -152,9 +152,16 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
+            // Producción sólo para teléfonos Android ARM: x86/x86_64 son
+            // emuladores (y no llevan Stockfish) — no van en el APK de producción.
+            excludes += "**/x86/**"
+            excludes += "**/x86_64/**"
         }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // Basura de build / tooling que no se usa en runtime: la quitamos del APK.
+            excludes += "/DebugProbesKt.bin"
+            excludes += "META-INF/*.version"
         }
     }
     sourceSets.getByName("main").jniLibs.srcDir(stockfishJniLibsDir)

@@ -703,28 +703,17 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
         else -> Gold
     }
     val resultText = when {
-        rec.localWon == true -> "VICTORIA"
-        rec.localWon == false -> "DERROTA"
-        else -> "TABLAS"
+        rec.localWon == true -> "Victoria"
+        rec.localWon == false -> "Derrota"
+        else -> "Empate"
     }
-    // Puntuación de la partida (estilo chess.com): blancas – negras
-    val (scoreText, whiteTextColor, blackTextColor) = when (rec.result) {
-        "1-0" -> Triple("1 - 0", Green, Color(0xFFFF6B6B))
-        "0-1" -> Triple("0 - 1", Color(0xFFFF6B6B), Green)
-        else -> Triple("½ - ½", Gold, Gold)
-    }
-
-    // Quién ganó y quién perdió (visible tanto en torneos como en partidas sueltas)
-    val winnerName = when (rec.result) {
-        "1-0" -> whiteName
-        "0-1" -> blackName
-        else -> null
-    }
-    val outcomeLabel = when (rec.result) {
-        "1-0" -> "Ganó $winnerName · por blancas"
-        "0-1" -> "Ganó $winnerName · por negras"
-        else -> "Empate · sin ganador"
-    }
+    // Marcador estilo lichess: el ganador resaltado en verde, el perdedor atenuado
+    val whiteWon = rec.result == "1-0"
+    val blackWon = rec.result == "0-1"
+    val isDraw = !whiteWon && !blackWon
+    val scoreText = when { whiteWon -> "1 - 0"; blackWon -> "0 - 1"; else -> "½ - ½" }
+    val whiteColor = when { whiteWon -> Green; isDraw -> Gold; else -> Muted }
+    val blackColor = when { blackWon -> Green; isDraw -> Gold; else -> Muted }
 
     // Tiempo promedio por jugada
     val avgTime = if (rec.moveClocks.isNotEmpty()) {
@@ -744,54 +733,56 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            // Resultado estilo chess.com: nombre, marcador y nombre con colores
+            // Nombres con el ganador en verde y el perdedor atenuado
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     whiteName,
-                    fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = whiteTextColor,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    fontWeight = if (whiteWon) FontWeight.ExtraBold else FontWeight.Medium,
+                    color = whiteColor,
                     textAlign = TextAlign.End, modifier = Modifier.weight(1f)
                 )
                 Text(
-                    "  $scoreText  ",
-                    fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = Text1,
+                    " $scoreText ",
+                    fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Text1,
                     textAlign = TextAlign.Center
                 )
                 Text(
                     blackName,
-                    fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = blackTextColor,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    fontWeight = if (blackWon) FontWeight.ExtraBold else FontWeight.Medium,
+                    color = blackColor,
                     textAlign = TextAlign.Start, modifier = Modifier.weight(1f)
                 )
             }
-            Text(
-                outcomeLabel,
-                fontSize = 9.sp, fontWeight = FontWeight.Bold, color = resultColor,
-                maxLines = 1, modifier = Modifier.padding(top = 1.dp)
-            )
+            // Resultado con fecha y hora
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "${rec.dateLabel()} · ${rec.timeLabel}",
-                    fontSize = 10.sp, color = Muted, maxLines = 1
+                    resultText,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = resultColor,
+                    maxLines = 1
                 )
                 Box(
                     modifier = Modifier
-                        .size(10.dp)
+                        .size(8.dp)
                         .background(resultColor, CircleShape)
                 )
                 Text(
-                    resultText,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = resultColor,
-                    maxLines = 1
+                    "${rec.dateLabel()} · ${rec.timeLabel}",
+                    fontSize = 10.sp, color = Muted, maxLines = 1
                 )
             }
             Text(
