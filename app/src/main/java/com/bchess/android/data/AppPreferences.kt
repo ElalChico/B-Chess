@@ -35,10 +35,28 @@ enum class BoardTheme(
     )
 }
 
-enum class PieceSet(val labelEs: String, val labelEn: String) {
+enum class PieceSet(
+    val labelEs: String,
+    val labelEn: String,
+    val resKey: String? = null, // clave para drawables ps_<resKey>_<w|b><pieza> (PIEZAS); null = drawables piece_* existentes
+) {
     LICHESS("Lichess · Vector", "Lichess · Vector"),
     CHESS_COM("Moderno", "Modern"),
-    OPEN_SOURCE("Trazo abierto", "Open line");
+    OPEN_SOURCE("Trazo abierto", "Open line"),
+
+    // --- 12 nuevos conjuntos desde PIEZAS ---
+    ALPHA("Alpha", "Alpha", "alpha"),
+    ANARCANDY("Anarcandy", "Anarcandy", "anarcandy"),
+    CBURNETT("Lichess · Clásico", "Lichess · Classic", "cburnett"),
+    COMPANION("Cómplice", "Companion", "companion"),
+    HORSEY("Horsey", "Horsey", "horsey"),
+    ICPIECES("ICPieces", "ICPieces", "icpieces"),
+    LEIPZIG("Leipzig", "Leipzig", "leipzig"),
+    MERIDA("Merida", "Merida", "merida"),
+    PIXEL("Pixel", "Pixel", "pixel"),
+    RIOHACHA("Riohacha", "Riohacha", "riohacha"),
+    STAUNTY("Staunty", "Staunty", "staunty"),
+    TATIANA("Tatiana", "Tatiana", "tatiana");
 
     companion object {
         val DEFAULT = LICHESS

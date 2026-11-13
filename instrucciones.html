@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Especificación Técnica: Modo Internet P2P para B-Chess</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --accent-color: #4caf50;
+            --code-bg: #1e1e1e;
+            --border-color: #333;
+        }
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 2rem;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        h1, h2, h3 {
+            color: var(--accent-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+        h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+        h2 { font-size: 1.5rem; margin-top: 2rem; }
+        h3 { font-size: 1.2rem; margin-top: 1.5rem; color: #81c784; }
+        p, li { font-size: 1rem; }
+        ul { padding-left: 1.5rem; }
+        li { margin-bottom: 0.5rem; }
+        .highlight { background-color: rgba(76, 175, 80, 0.1); padding: 0.2rem 0.4rem; border-radius: 4px; font-weight: bold; }
+        pre {
+            background-color: var(--code-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1rem;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9rem;
+        }
+        code { font-family: 'Consolas', 'Monaco', monospace; color: #a5d6a7; }
+        .note {
+            border-left: 4px solid var(--accent-color);
+            background-color: rgba(76, 175, 80, 0.05);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .step { font-weight: bold; color: #fff; }
+    </style>
+</head>
+<body>
+
+    <h1>Especificación Técnica: Modo Internet P2P para B-Chess</h1>
+    
+    <div class="note">
+        <strong>Objetivo:</strong> Implementar un modo de juego por internet en B-Chess donde el creador de la partida actúe como anfitrión lógico, utilizando una conexión Peer-to-Peer (P2P) directa para garantizar la máxima velocidad y estabilidad, sin depender de servidores centrales para el flujo de la partida.
+    </div>
+
+    <h2>1. Visión y Arquitectura del Sistema</h2>
+    <p>Para lograr una conexión directa entre dos dispositivos a través de internet (superando las restricciones de NAT de las redes móviles y domésticas), se utilizará la siguiente arquitectura:</p>
+    <ul>
+        <li><span class="highlight">WebRTC DataChannel</span>: Establece un túnel de comunicación directo, confiable y ordenado (protocolo SCTP) entre el dispositivo Anfitrión y el Invitado. Los movimientos de ajedrez viajan directamente de un teléfono al otro.</li>
+        <li><span class="highlight">Firebase Realtime Database (Señalización)</span>: Se utiliza <em>exclusivamente</em> para el "apretón de manos" inicial. Permite intercambiar los metadatos de conexión (SDP Offer/Answer y candidatos ICE). Una vez establecida la conexión P2P, Firebase deja de intervenir en la partida, eliminando latencia y costos de servidor.</li>
+        <li><span class="highlight">Capa de Abstracción de Red</span>: Una interfaz unificada que aísla la lógica del juego de la implementación de red subyacente, permitiendo que el motor de ajedrez funcione idéntico tanto en Bluetooth como en WebRTC.</li>
+    </ul>
+
+    <h2>2. Hoja de Ruta de Implementación</h2>
+    <ol>
+        <li><span class="step">Paso 1:</span> Agregar las dependencias de WebRTC y Firebase al módulo <code>app</code>.</li>
+        <li><span class="step">Paso 2:</span> Crear la interfaz de abstracción <code>ChessNetwork</code> para desacoplar la lógica del juego.</li>
+        <li><span class="step">Paso 3:</span> Implementar el <code>SignalingManager</code> para manejar el intercambio de datos en Firebase.</li>
+        <li><span class="step">Paso 4:</span> Implementar el <code>WebRTCNetworkManager</code> que orquesta la conexión P2P y el DataChannel.</li>
+        <li><span class="step">Paso 5:</span> Integrar la nueva capa de red en la pantalla de creación/unión de partidas, reutilizando la UI existente donde sea posible.</li>
+    </ol>
+
+    <h2>3. Código Base y Estructura de Archivos</h2>
+
+    <h3>3.1. Dependencias (<code>app/build.gradle.kts</code>)</h3>
+    <pre><code>dependencies {
+    // ... dependencias existentes ...
+
+    // WebRTC oficial para Android
+    implementation("org.webrtc:google-webrtc:1.0.32006")
+
+    // Firebase Realtime Database (para señalización)
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    implementation("com.google.firebase:firebase-database-ktx")
+}</code></pre>
+
+    <h3>3.2. Capa de Abstracción (<code>network/ChessNetwork.kt</code>)</h3>
+    <p>Esta interfaz garantiza que el controlador del juego no necesite saber si la conexión es Bluetooth o Internet.</p>
+    <pre><code>package com.bchess.android.network
+
+interface ChessNetwork {
+    interface Listener {
+        fun onConnected()
+        fun onMoveReceived(move: String)
+        fun onDisconnected(reason: String)
+        fun onError(error: String)
+    }
+
+    fun setListener(listener: Listener)
+    
+    // Rol de Anfitrión: Crea la partida y genera la oferta
+    fun createMatch(onMatchIdGenerated: (String) -> Unit)
+    
+    // Rol de Invitado: Se une a una partida existente
+    fun joinMatch(matchId: String)
+    
+    // Envío de datos (ej: "e2e4" o notación FEN)
+    fun sendMove(move: String)
+    
+    // Limpieza de recursos
+    fun disconnect()
+}</code></pre>
+
+    <h3>3.3. Gestor de Señalización (<code>network/SignalingManager.kt</code>)</h3>
+    <p>Maneja la escritura y lectura en Firebase Realtime Database. Usa nodos efímeros para evitar acumulación de datos.</p>
+    <pre><code>package com.bchess.android.network
+
+import com.google.firebase.database.*
+
+class SignalingManager(private val database: FirebaseDatabase) {
+
+    private val matchesRef = database.getReference("matches")
+
+    fun createMatchId(): String = matchesRef.push().key ?: throw IllegalStateException("No se pudo generar ID")
+
+    fun saveOffer(matchId: String, sdp: String, onComplete: () -> Unit) {
+        matchesRef.child(matchId).child("offer").setValue(sdp).addOnCompleteListener { onComplete() }
+    }
+
+    fun saveAnswer(matchId: String, sdp: String, onComplete: () -> Unit) {
+        matchesRef.child(matchId).child("answer").setValue(sdp).addOnCompleteListener { onComplete() }
+    }
+
+    fun saveIceCandidate(matchId: String, role: String, candidate: String) {
+        matchesRef.child(matchId).child("iceCandidates").child(role).push().setValue(candidate)
+    }
+
+    fun listenForOffer(matchId: String, onOfferReceived: (String) -> Unit) {
+        matchesRef.child(matchId).child("offer").addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                snapshot.getValue(String::class.java)?.let { onOfferReceived(it) }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
+    }
+
+    fun listenForAnswer(matchId: String, onAnswerReceived: (String) -> Unit) {
+        matchesRef.child(matchId).child("answer").addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                snapshot.getValue(String::class.java)?.let { onAnswerReceived(it) }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
+    }
+
+    fun listenForIceCandidates(matchId: String, role: String, onCandidateReceived: (String) -> Unit) {
+        matchesRef.child(matchId).child("iceCandidates").child(role)
+            .addChildEventListener(object : ChildEventListener {
+                override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                    snapshot.getValue(String::class.java)?.let { onCandidateReceived(it) }
+                }
+                override fun onCancelled(error: DatabaseError) {}
+                override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
+                override fun onChildRemoved(snapshot: DataSnapshot) {}
+                override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
+            })
+    }
+    
+    fun cleanupMatch(matchId: String) {
+        matchesRef.child(matchId).removeValue()
+    }
+}</code></pre>
+
+    <h3>3.4. Implementación WebRTC (<code>network/WebRTCNetworkManager.kt</code>)</h3>
+    <p>Este es el núcleo del sistema. Configura el <code>PeerConnection</code> y el <code>DataChannel</code> en modo confiable y ordenado.</p>
+    <pre><code>package com.bchess.android.network
+
+import android.content.Context
+import org.webrtc.*
+import org.json.JSONObject
+
+class WebRTCNetworkManager(context: Context, private val signaling: SignalingManager) : ChessNetwork {
+
+    private var listener: ChessNetwork.Listener? = null
+    private var peerConnectionFactory: PeerConnectionFactory? = null
+    private var peerConnection: PeerConnection? = null
+    private var dataChannel: DataChannel? = null
+    private var matchId: String = ""
+    private var role: String = "" // "host" o "guest"
+
+    init {
+        initializePeerConnectionFactory(context)
+    }
+
+    override fun setListener(listener: ChessNetwork.Listener) {
+        this.listener = listener
+    }
+
+    private fun initializePeerConnectionFactory(context: Context) {
+        PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(context).createInitializationOptions())
+        val options = PeerConnectionFactory.Options()
+        peerConnectionFactory = PeerConnectionFactory.builder()
+            .setOptions(options)
+            .createPeerConnectionFactory()
+    }
+
+    private fun createPeerConnection(iceServers: List<PeerConnection.IceServer>): PeerConnection? {
+        val rtcConfig = PeerConnection.RTCConfiguration(iceServers).apply {
+            sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+        }
+        return peerConnectionFactory?.createPeerConnection(rtcConfig, object : PeerConnection.Observer {
+            override fun onIceCandidate(iceCandidate: IceCandidate?) {
+                iceCandidate?.let { 
+                    val json = JSONObject().apply {
+                        put("sdpMid", it.sdpMid)
+                        put("sdpMLineIndex", it.sdpMLineIndex)
+                        put("candidate", it.sdp)
+                    }
+                    signaling.saveIceCandidate(matchId, role, json.toString())
+                }
+            }
+            override fun onConnectionChange(newState: PeerConnection.PeerConnectionState?) {
+                if (newState == PeerConnection.PeerConnectionState.DISCONNECTED || newState == PeerConnection.PeerConnectionState.FAILED) {
+                    listener?.onDisconnected("Conexión perdida")
+                }
+            }
+            // ... implementar otros métodos de Observer como vacíos si no se usan ...
+            override fun onAddStream(p0: MediaStream?) {}
+            override fun onRemoveStream(p0: MediaStream?) {}
+            override fun onDataChannel(p0: DataChannel?) {
+                if (role == "guest") {
+                    setupDataChannel(p0)
+                }
+            }
+            override fun onRenegotiationNeeded() {}
+            override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {}
+            override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {}
+            override fun onSignalingChange(p0: PeerConnection.SignalingState?) {}
+            override fun onAddTrack(p0: RtpReceiver?, p1: Array<out MediaStream>?) {}
+        })
+    }
+
+    private fun setupDataChannel(dc: DataChannel?) {
+        this.dataChannel = dc
+        dc?.registerObserver(object : DataChannel.Observer {
+            override fun onBufferedAmountChange(p0: Long) {}
+            override fun onStateChange() {
+                if (dc.state() == DataChannel.State.OPEN) {
+                    listener?.onConnected()
+                }
+            }
+            override fun onMessage(buffer: DataChannel.Buffer?) {
+                buffer?.let {
+                    val bytes = ByteArray(it.data.remaining())
+                    it.data.get(bytes)
+                    val move = String(bytes)
+                    listener?.onMoveReceived(move)
+                }
+            }
+        })
+    }
+
+    override fun createMatch(onMatchIdGenerated: (String) -> Unit) {
+        role = "host"
+        matchId = signaling.createMatchId()
+        onMatchIdGenerated(matchId)
+
+        val iceServers = listOf(PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer())
+        peerConnection = createPeerConnection(iceServers)
+
+        val dcInit = DataChannel.Init().apply {
+            ordered = true // Garantiza que los movimientos lleguen en orden
+        }
+        dataChannel = peerConnection?.createDataChannel("chess-data", dcInit)
+        setupDataChannel(dataChannel)
+
+        peerConnection?.createOffer(object : SdpObserver {
+            override fun onCreateSuccess(sessionDescription: SessionDescription?) {
+                peerConnection?.setLocalDescription(object : SdpObserver {
+                    override fun onCreateSuccess(p0: SessionDescription?) {}
+                    override fun onSetSuccess() {
+                        signaling.saveOffer(matchId, sessionDescription?.description ?: "", onComplete = {})
+                    }
+                    override fun onCreateFailure(p0: String?) {}
+                    override fun onSetFailure(p0: String?) {}
+                }, sessionDescription)
+            }
+            override fun onSetSuccess() {}
+            override fun onCreateFailure(p0: String?) {}
+            override fun onSetFailure(p0: String?) {}
+        }, MediaConstraints())
+        
+        // Escuchar respuesta del invitado
+        signaling.listenForAnswer(matchId) { answerSdp ->
+            peerConnection?.setRemoteDescription(object : SdpObserver {
+                override fun onCreateSuccess(p0: SessionDescription?) {}
+                override fun onSetSuccess() {}
+                override fun onCreateFailure(p0: String?) {}
+                override fun onSetFailure(p0: String?) {}
+            }, SessionDescription(SessionDescription.Type.ANSWER, answerSdp))
+        }
+
+        // Escuchar candidatos ICE del invitado
+        signaling.listenForIceCandidates(matchId, "guest") { candidateJson ->
+            val json = JSONObject(candidateJson)
+            peerConnection?.addIceCandidate(IceCandidate(
+                json.getString("sdpMid"),
+                json.getInt("sdpMLineIndex"),
+                json.getString("candidate")
+            ))
+        }
+    }
+
+    override fun joinMatch(matchId: String) {
+        role = "guest"
+        this.matchId = matchId
+        val iceServers = listOf(PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer())
+        peerConnection = createPeerConnection(iceServers)
+
+        signaling.listenForOffer(matchId) { offerSdp ->
+            peerConnection?.setRemoteDescription(object : SdpObserver {
+                override fun onCreateSuccess(p0: SessionDescription?) {}
+                override fun onSetSuccess() {
+                    peerConnection?.createAnswer(object : SdpObserver {
+                        override fun onCreateSuccess(sessionDescription: SessionDescription?) {
+                            peerConnection?.setLocalDescription(object : SdpObserver {
+                                override fun onCreateSuccess(p0: SessionDescription?) {}
+                                override fun onSetSuccess() {
+                                    signaling.saveAnswer(matchId, sessionDescription?.description ?: "", onComplete = {})
+                                }
+                                override fun onCreateFailure(p0: String?) {}
+                                override fun onSetFailure(p0: String?) {}
+                            }, sessionDescription)
+                        }
+                        override fun onSetSuccess() {}
+                        override fun onCreateFailure(p0: String?) {}
+                        override fun onSetFailure(p0: String?) {}
+                    }, MediaConstraints())
+                }
+                override fun onCreateFailure(p0: String?) {}
+                override fun onSetFailure(p0: String?) {}
+            }, SessionDescription(SessionDescription.Type.OFFER, offerSdp))
+        }
+
+        signaling.listenForIceCandidates(matchId, "host") { candidateJson ->
+            val json = JSONObject(candidateJson)
+            peerConnection?.addIceCandidate(IceCandidate(
+                json.getString("sdpMid"),
+                json.getInt("sdpMLineIndex"),
+                json.getString("candidate")
+            ))
+        }
+    }
+
+    override fun sendMove(move: String) {
+        val buffer = DataChannel.Buffer(java.nio.ByteBuffer.wrap(move.toByteArray()), false)
+        dataChannel?.send(buffer)
+    }
+
+    override fun disconnect() {
+        dataChannel?.close()
+        dataChannel?.dispose()
+        peerConnection?.close()
+        peerConnection?.dispose()
+        if (matchId.isNotEmpty()) {
+            signaling.cleanupMatch(matchId)
+        }
+    }
+}</code></pre>
+
+    <h2>4. Consideraciones Críticas de Estabilidad y Velocidad</h2>
+    <ul>
+        <li><strong>Servidores STUN/TURN:</strong> El código incluye el servidor STUN público de Google (<code>stun:stun.l.google.com:19302</code>). Esto resuelve el 85% de los casos de NAT. Para el 15% restante (redes móviles con NAT simétrico estricto), se recomienda añadir un servidor TURN de respaldo (ej. Coturn propio o servicio de terceros) en la lista <code>iceServers</code> para garantizar el 100% de éxito en la conexión, aunque con un ligero aumento de latencia.</li>
+        <li><strong>Ciclo de Vida:</strong> Es <em>imperativo</em> llamar a <code>disconnect()</code> cuando la actividad de la partida se destruya (<code>onDestroy</code>) para liberar los recursos de WebRTC y evitar fugas de memoria o conexiones fantasma en Firebase.</li>
+        <li><strong>Seguridad:</strong> Los <code>matchId</code> generados por <code>push().key</code> de Firebase son cadenas alfanuméricas largas y difíciles de adivinar, actuando como una forma básica de seguridad por oscuridad. Para producción, se pueden añadir reglas de seguridad en Firebase para permitir lectura/escritura solo si el <code>matchId</code> existe y tiene menos de 24 horas de antigüedad.</li>
+        <li><strong>Orden y Fiabilidad:</strong> La propiedad <code>ordered = true</code> en <code>DataChannel.Init()</code> asegura que, si la red tiene micro-cortes, los movimientos no se procesarán fuera de orden, manteniendo la integridad del estado del tablero.</li>
+    </ul>
+
+    <div class="note">
+        <strong>Instrucción para el desarrollador:</strong> Copiar esta estructura en el proyecto B-Chess. Comenzar integrando las dependencias y la interfaz <code>ChessNetwork</code>. Luego, implementar <code>WebRTCNetworkManager</code> y conectarlo a la lógica de movimiento del tablero, reemplazando o complementando la llamada actual de <code>BluetoothManager</code> según el modo de juego seleccionado por el usuario.
+    </div>
+
+</body>
+</html>

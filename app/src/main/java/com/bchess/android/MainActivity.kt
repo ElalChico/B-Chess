@@ -443,7 +443,11 @@ class MainActivity : ComponentActivity() {
                         returnToPracticeFromSettings = true
                         screen = Screen.SETTINGS
                     },
-                    prefs = prefs
+                    prefs = prefs,
+                    onReplay = { record ->
+                        replayRecord = record
+                        screen = Screen.REPLAY
+                    }
                 )
             }
 

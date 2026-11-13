@@ -5,6 +5,7 @@
 
 package com.bchess.android.ui.components
 
+import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -28,6 +29,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -52,8 +54,8 @@ private val GoldHl = Color(0xFFE2B94E)
 private val GreenDot = Color(0xFF3DDC97)
 private val RedKing = Color(0xFFFF6B6B)
 
-/** Recurso drawable para cada pieza del conjunto Lichess. */
-internal fun pieceResource(piece: Piece, pieceSet: PieceSet = PieceSet.DEFAULT): Int = when (pieceSet) {
+/** Recurso drawable para cada pieza del conjunto dado. */
+internal fun pieceResource(context: Context, piece: Piece, pieceSet: PieceSet = PieceSet.DEFAULT): Int = when (pieceSet) {
     PieceSet.LICHESS, PieceSet.CHESS_COM, PieceSet.OPEN_SOURCE -> when (piece.color) {
         ChessColor.WHITE -> when (piece.type) {
             PieceType.PAWN -> R.drawable.piece_wp
@@ -71,6 +73,20 @@ internal fun pieceResource(piece: Piece, pieceSet: PieceSet = PieceSet.DEFAULT):
             PieceType.QUEEN -> R.drawable.piece_bq
             PieceType.KING -> R.drawable.piece_bk
         }
+    }
+    else -> {
+        val resKey = pieceSet.resKey ?: return 0
+        val suffix = when (piece.color) {
+            ChessColor.WHITE -> when (piece.type) {
+                PieceType.PAWN -> "wp"; PieceType.KNIGHT -> "wn"; PieceType.BISHOP -> "wb"
+                PieceType.ROOK -> "wr"; PieceType.QUEEN -> "wq"; PieceType.KING -> "wk"
+            }
+            ChessColor.BLACK -> when (piece.type) {
+                PieceType.PAWN -> "bp"; PieceType.KNIGHT -> "bn"; PieceType.BISHOP -> "bb"
+                PieceType.ROOK -> "br"; PieceType.QUEEN -> "bq"; PieceType.KING -> "bk"
+            }
+        }
+        context.resources.getIdentifier("ps_${resKey}_$suffix", "drawable", context.packageName)
     }
 }
 
@@ -167,6 +183,7 @@ private fun BoardSquare(
             .clickable { onSquareTap(index) },
         contentAlignment = Alignment.Center
     ) {
+        val ctx = LocalContext.current
         // Resaltados encima del color base
         Canvas(modifier = Modifier.fillMaxSize()) {
             if (lastMoveSq) drawRect(color = GoldHl.copy(alpha = 0.28f), size = size)
@@ -214,7 +231,7 @@ private fun BoardSquare(
         piece?.let {
             if (pieceSet == PieceSet.LICHESS) {
                 Image(
-                    painter = painterResource(id = pieceResource(it, pieceSet)),
+                    painter = painterResource(id = pieceResource(ctx, it, pieceSet)),
                     contentDescription = it.symbol(),
                     modifier = Modifier.fillMaxSize().padding(2.dp),
                     contentScale = ContentScale.Fit
