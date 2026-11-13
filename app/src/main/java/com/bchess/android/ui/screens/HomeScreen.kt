@@ -41,7 +41,10 @@ private val Text1 = Color(0xFFF0F3F1)
 private val Muted = Color(0xFFAAB5B1)
 private val Accent = Color(0xFF789889)
 private val Green = Color(0xFF81B39A)
-private val Gold = Color(0xFFE2B94E)
+private val Gold = Color(0xFFC9B15A)
+private val PanelPrimary = Color(0xFF28303F)
+private val P2PBorder = Color(0xFF344258)
+private val P2PText = Color(0xFFD8E2F0)
 
 @Composable
 fun HomeScreen(
@@ -220,11 +223,20 @@ fun HomeScreen(
             shape = RoundedCornerShape(12.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, Line),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Text1),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            Column(Modifier.fillMaxWidth()) {
-                Text("Practicar contra Stockfish", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text("Partida local", color = Muted, fontSize = 11.sp)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(com.bchess.android.R.drawable.ic_stockfish),
+                    contentDescription = "Stockfish engine",
+                    tint = Text1,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(Modifier.width(14.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Practicar contra Stockfish", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Motor local con fuerza ajustable", color = Muted, fontSize = 11.sp)
+                }
             }
         }
 
@@ -232,13 +244,22 @@ fun HomeScreen(
             onClick = onPlayOnline,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3A4430)),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Green),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
+            border = androidx.compose.foundation.BorderStroke(1.dp, P2PBorder),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = P2PText),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            Column(Modifier.fillMaxWidth()) {
-                Text("Jugar por Internet", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text("P2P entre dos teléfonos · sin servidores en la partida", color = Muted, fontSize = 11.sp)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(com.bchess.android.R.drawable.ic_p2p),
+                    contentDescription = "Partida Peer-to-Peer",
+                    tint = P2PText,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(Modifier.width(14.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Partida Peer-to-Peer", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Protocolo directo dispositivo a dispositivo · sin intermediarios", color = Muted, fontSize = 11.sp)
+                }
             }
         }
 
@@ -294,7 +315,7 @@ private fun HomeAction(
         modifier = modifier.heightIn(min = 88.dp),
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (primary) Accent else Card,
+            containerColor = if (primary) PanelPrimary else Card,
             contentColor = Text1
         ),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),

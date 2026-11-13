@@ -39,6 +39,7 @@ import com.bchess.android.data.UpdateCheckResult
 import com.bchess.android.core.ChessEngine
 import com.bchess.android.core.Color as ChessColor
 import com.bchess.android.ui.components.BoardSelection
+import com.bchess.android.ui.components.BoardThemeGridSelector
 import com.bchess.android.ui.components.ChessBoard
 import com.bchess.android.ui.components.PieceSetGridSelector
 import kotlinx.coroutines.CoroutineScope
@@ -53,7 +54,7 @@ private val Line = Color(0xFF232C38)
 private val Line2 = Color(0xFF2F3947)
 private val Text1 = Color(0xFFEEF1F5)
 private val Muted = Color(0xFF8B96A5)
-private val Gold = Color(0xFFE2B94E)
+private val Gold = Color(0xFFC9B15A)
 private val Green = Color(0xFF3DDC97)
 
 @Composable
@@ -110,12 +111,11 @@ fun SettingsScreen(
         Section(t("TABLERO", "BOARD"))
         SectionBody {
             Text(t("Tema", "Theme"), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                BoardTheme.entries.forEach { theme ->
-                    val sel = prefs.boardTheme == theme
-                    Chip(if (isEn) theme.labelEn else theme.labelEs, sel, Modifier.weight(1f)) { prefs.setBoardTheme(theme) }
-                }
-            }
+            BoardThemeGridSelector(
+                selected = prefs.boardTheme,
+                isEn = isEn,
+                onSelect = { theme -> prefs.setBoardTheme(theme) }
+            )
             Text(t("Conjunto de piezas", "Piece set"), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
             PieceSetGridSelector(
                 selected = prefs.pieceSet,

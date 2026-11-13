@@ -84,7 +84,7 @@ private val PracticeCard = Color(0xFF151A20)
 private val PracticeLine = Color(0xFF2A3038)
 private val PracticeText = Color(0xFFEEF1F5)
 private val PracticeMuted = Color(0xFF8B96A5)
-private val PracticeGold = Color(0xFFE2B94E)
+private val PracticeGold = Color(0xFFC9B15A)
 private val PracticeGreen = Color(0xFF3DDC97)
 private val PracticeRed = Color(0xFFFF7777)
 

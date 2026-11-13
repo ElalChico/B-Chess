@@ -48,7 +48,7 @@ private val Line = Color(0xFF252E39)
 private val Line2 = Color(0xFF2F3947)
 private val Text1 = Color(0xFFEEF1F5)
 private val Muted = Color(0xFF8B96A5)
-private val Gold = Color(0xFFE2B94E)
+private val Gold = Color(0xFFC9B15A)
 private val Green = Color(0xFF3DDC97)
 
 private fun decodeOrientedImage(resolver: ContentResolver, uri: Uri): Bitmap? {

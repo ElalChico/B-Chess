@@ -112,7 +112,7 @@ fun GameEndDialog(
                                 .size(72.dp)
                                 .clip(CircleShape)
                                 .background(Color(0xFF15251D), CircleShape)
-                                .border(3.dp, Color(0xFFE2B94E), CircleShape),
+                                .border(3.dp, Color(0xFFC9B15A), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             if (bmp != null) {
@@ -126,7 +126,7 @@ fun GameEndDialog(
                                     winnerDisplayName.firstOrNull()?.uppercaseChar().toString() ?: "?",
                                     fontSize = 28.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFFE2B94E)
+                                    color = Color(0xFFC9B15A)
                                 )
                             }
                         }
@@ -153,7 +153,7 @@ fun GameEndDialog(
                             text = winnerDisplayName,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFE2B94E),
+                            color = Color(0xFFC9B15A),
                             textAlign = TextAlign.Center
                         )
                     }
@@ -174,14 +174,14 @@ fun GameEndDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(Color(0xFF26200F), RoundedCornerShape(12.dp))
-                            .border(1.dp, Color(0xFFE2B94E), RoundedCornerShape(12.dp))
+                            .border(1.dp, Color(0xFFC9B15A), RoundedCornerShape(12.dp))
                             .padding(10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             "Torneo en curso · " + (if (isHost) "controlado por el anfitrión" else "controlado por el rival"),
                             fontSize = 11.5.sp,
-                            color = Color(0xFFE2B94E),
+                            color = Color(0xFFC9B15A),
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
                         )
@@ -248,7 +248,7 @@ private fun EndGameOption(title: String, subtitle: String, enabled: Boolean, hig
         modifier = Modifier
             .fillMaxWidth()
             .background(if (enabled) Color(0xFF151C25) else Color(0xFF12141A), RoundedCornerShape(13.dp))
-            .border(1.dp, if (highlight) Color(0xFFE2B94E) else Color(0xFF232C38), RoundedCornerShape(13.dp))
+            .border(1.dp, if (highlight) Color(0xFFC9B15A) else Color(0xFF232C38), RoundedCornerShape(13.dp))
             .clickable(enabled = enabled) { onClick() }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -262,7 +262,7 @@ private fun EndGameOption(title: String, subtitle: String, enabled: Boolean, hig
             )
             Text(subtitle, fontSize = 11.sp, color = Color(0xFF8B96A5))
         }
-        Text("→", color = if (highlight) Color(0xFFE2B94E) else Color(0xFF232C38), fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+        Text("→", color = if (highlight) Color(0xFFC9B15A) else Color(0xFF232C38), fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
     }
 }
 
@@ -320,7 +320,7 @@ fun TournamentEndDialog(
                             if (total == totalGames) "¡¡$winnerText $totalGames/$totalGames!!" else "Torneo finalizado",
                             fontSize = 17.5.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFFE2B94E),
+                            color = Color(0xFFC9B15A),
                             textAlign = TextAlign.Center
                         )
                     }
@@ -337,8 +337,8 @@ fun TournamentEndDialog(
                     Button(
                         onClick = onNewTournament,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F0F0F), contentColor = Color(0xFFE2B94E))
-                    ) { Text("Nuevo torneo", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE2B94E)) }
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F0F0F), contentColor = Color(0xFFC9B15A))
+                    ) { Text("Nuevo torneo", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC9B15A)) }
                     Button(
                         onClick = onBackToRoom,
                         modifier = Modifier.weight(1f),
@@ -356,7 +356,7 @@ private fun ScoreRow(title: String, wins: Int, pieceColor: Color, badgeColor: Co
         modifier = Modifier
             .fillMaxWidth()
             .background(if (isWinning) Color(0xFF26200F) else Color(0xFF151C25), RoundedCornerShape(12.dp))
-            .border(1.dp, if (isWinning) Color(0xFFE2B94E) else Color(0xFF232C38), RoundedCornerShape(12.dp))
+            .border(1.dp, if (isWinning) Color(0xFFC9B15A) else Color(0xFF232C38), RoundedCornerShape(12.dp))
             .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically

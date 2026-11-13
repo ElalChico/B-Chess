@@ -47,7 +47,7 @@ private val ScreenMuted = Color(0xFFAAB5B1)
 private val ScreenAccent = Color(0xFF789889)
 private val ScreenLine = Color(0xFF303A39)
 private val ScreenError = Color(0xFFD98B86)
-private val ScreenGold = Color(0xFFE2B94E)
+private val ScreenGold = Color(0xFFC9B15A)
 
 /**
  * Internet match flow:
@@ -87,12 +87,12 @@ fun InternetMatchScreen(
                 Text("Volver", fontSize = 12.sp)
             }
             Spacer(Modifier.weight(1f))
-            Text("INTERNET", color = ScreenMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Text("PEER-TO-PEER", color = ScreenMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text("Jugar por Internet", color = ScreenText, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-            Text("Partida directamente entre dos teléfonos · $playerName", color = ScreenMuted, fontSize = 13.sp)
+            Text("Jugar Peer-to-Peer", color = ScreenText, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+            Text("Conexión directa dispositivo a dispositivo · $playerName", color = ScreenMuted, fontSize = 13.sp)
         }
 
         Column(
@@ -230,7 +230,7 @@ fun InternetMatchScreen(
                 color = SurfaceMuted
             ) {
                 Text(
-                    "La partida se comunican directamente entre los dos teléfonos (P2P). Solo el código inicial viaja por Firebase; el juego en sí no toca ningún servidor.",
+                    "Los movimientos viajan directamente de un teléfono a otro por una conexión entre pares (P2P), sin intermediarios ni servidores centrales durante la partida. Solo el código inicial se comparte mediante la red de emparejamiento.",
                     color = ScreenMuted,
                     fontSize = 12.sp,
                     modifier = Modifier.fillMaxWidth().padding(14.dp),

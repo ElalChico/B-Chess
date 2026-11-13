@@ -16,6 +16,8 @@ object GameHistoryStore {
     private const val PREFS = "chessbt_history"
     private const val KEY = "records"
     const val MAX_RECORDS = 50
+    // 2 MB en bytes (límite del historial PGN): se sobreescriben las más antiguas.
+    private const val MAX_HISTORY_BYTES = 2 * 1024 * 1024
 
     fun load(context: Context): List<GameRecord> {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -119,8 +121,9 @@ object GameHistoryStore {
     }
 
     private fun writeAll(context: Context, all: List<GameRecord>) {
+        val kept = keepLatestRecords(all).toMutableList()
         val arr = JSONArray()
-        keepLatestRecords(all).forEach { r ->
+        fun putRecord(r: GameRecord) {
             val o = JSONObject()
             o.put("id", r.id)
             o.put("d", r.dateMs)
@@ -138,6 +141,16 @@ object GameHistoryStore {
             o.put("gameType", r.gameType)
             if (r.opponentPhotoBase64 != null) o.put("oppPhoto", r.opponentPhotoBase64)
             arr.put(o)
+        }
+        fun fits(): Boolean {
+            val payload = arr.toString()
+            return payload.toByteArray(Charsets.UTF_8).size <= MAX_HISTORY_BYTES
+        }
+        kept.forEach { putRecord(it) }
+        // Sobreescribir las más antiguas hasta cumplir el límite de 2 MB de historial
+        while (arr.length() > 0 && !fits()) {
+            arr.remove(arr.length() - 1)
+            kept.removeAt(kept.size - 1)
         }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putString(KEY, arr.toString()).apply()

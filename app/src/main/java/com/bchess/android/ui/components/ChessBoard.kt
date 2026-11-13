@@ -50,7 +50,7 @@ private val DarkClassic = Color(0xFFB58863)
 private val LightDark = Color(0xFFB6BEC9)
 private val DarkDark = Color(0xFF5D6775)
 
-private val GoldHl = Color(0xFFE2B94E)
+private val GoldHl = Color(0xFFC9B15A)
 private val GreenDot = Color(0xFF3DDC97)
 private val RedKing = Color(0xFFFF6B6B)
 

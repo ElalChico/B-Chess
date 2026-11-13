@@ -76,7 +76,7 @@ import kotlinx.coroutines.withContext
 
 enum class Screen { HOME, CONNECT, PROFILE, GAME, SETTINGS, REPLAY, ROOM, PRACTICE, INTERNET }
 
-private val NavGold = Color(0xFFE2B94E)
+private val NavGold = Color(0xFFC9B15A)
 private val NavMuted = Color(0xFF8B96A5)
 private val NavBg = Color(0xFF10141A)
 private val NavLine = Color(0xFF252E39)
@@ -111,7 +111,7 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(
                 colorScheme = darkColorScheme(
                     background = Color(0xFF090C10), surface = Color(0xFF121A22), surfaceVariant = Color(0xFF1B242D),
-                    primary = Color(0xFFE2B94E), onPrimary = Color(0xFF131313),
+                    primary = Color(0xFFC9B15A), onPrimary = Color(0xFF131313),
                     onBackground = Color(0xFFEFF3F8), onSurface = Color(0xFFEFF3F8),
                     onSurfaceVariant = Color(0xFF9CA8B4), outline = Color(0xFF2C3742)
                 )

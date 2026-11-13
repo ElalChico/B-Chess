@@ -34,7 +34,7 @@ private val Card3 = Color(0xFF171D25)
 private val Line3 = Color(0xFF252E39)
 private val Text13 = Color(0xFFEEF1F5)
 private val Muted3 = Color(0xFF8B96A5)
-private val Gold3 = Color(0xFFE2B94E)
+private val Gold3 = Color(0xFFC9B15A)
 private val Green3 = Color(0xFF3DDC97)
 
 /**

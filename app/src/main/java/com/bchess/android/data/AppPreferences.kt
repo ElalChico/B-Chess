@@ -32,6 +32,46 @@ enum class BoardTheme(
         Color(0xFF5D6775),
         Color(0xFF11161B),
         Color(0xFF1A2027)
+    ),
+    FOREST(
+        "Verde profundo",
+        "Deep Forest",
+        Color(0xFFDDE2C6),
+        Color(0xFF4F6B3A),
+        Color(0xFF121712),
+        Color(0xFF1A231A)
+    ),
+    STEEL(
+        "Acero azul",
+        "Steel Blue",
+        Color(0xFFD9E2EC),
+        Color(0xFF42566B),
+        Color(0xFF121720),
+        Color(0xFF1A2330)
+    ),
+    PARCHMENT(
+        "Pergamino",
+        "Parchment",
+        Color(0xFFF2E4C9),
+        Color(0xFF83644A),
+        Color(0xFF171310),
+        Color(0xFF211C17)
+    ),
+    BURGUNDY(
+        "Burdeos",
+        "Burgundy",
+        Color(0xFFE6D3DC),
+        Color(0xFF5C313E),
+        Color(0xFF171113),
+        Color(0xFF221A1F)
+    ),
+    IVORY(
+        "Marfil",
+        "Ivory",
+        Color(0xFFF7F5EC),
+        Color(0xFF4A463E),
+        Color(0xFF131312),
+        Color(0xFF1D1D1B)
     )
 }
 

@@ -28,7 +28,7 @@ private val Bg = Color(0xFF161D26)
 private val Line = Color(0xFF252E39)
 private val Text1 = Color(0xFFEEF1F5)
 private val Muted = Color(0xFF8B96A5)
-private val Gold = Color(0xFFE2B94E)
+private val Gold = Color(0xFFC9B15A)
 private val Green = Color(0xFF3DDC97)
 private val Red = Color(0xFFFF6B6B)
 
