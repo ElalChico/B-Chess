@@ -66,6 +66,10 @@ class UpdateManager private constructor(context: Context) {
     private val repoName = "B-Chess"
     private val apiUrl = "https://api.github.com/repos/$repoOwner/$repoName/releases?per_page=20"
     private val apkPrefixes = listOf("B-Chess-", "Chess-X-")
+    // URL oficial de la API para descargar assets (evita el 302 a URLs firmadas del browser_download_url)
+    private fun apiAssetUrl(id: Long) =
+        "https://api.github.com/repos/$repoOwner/$repoName/releases/assets/$id"
+    private val githubUserAgent = "B-Chess-Android"
 
     // Estados
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
@@ -164,6 +168,7 @@ class UpdateManager private constructor(context: Context) {
 
                 val assets = release.optJSONArray("assets") ?: continue
                 var apkUrl: String? = null
+                var apkAssetId: Long = 0L
                 var apkSize = 0L
                 for (assetIndex in 0 until assets.length()) {
                     val asset = assets.optJSONObject(assetIndex) ?: continue
@@ -171,12 +176,16 @@ class UpdateManager private constructor(context: Context) {
                             asset.optString("name").equals("$prefix${remoteVersion.versionName}.apk", ignoreCase = true)
                         }
                     ) {
+                        apkAssetId = asset.optLong("id", 0L)
                         apkUrl = asset.optString("browser_download_url").takeIf { it.isNotBlank() }
                         apkSize = asset.optLong("size", 0L)
                         break
                     }
                 }
-                if (apkUrl == null) continue
+                // Preferir siempre la API oficial (application/octet-stream): evita
+                // el 302 a URLs firmadas que falla con clientes no-navegador en la app
+                val downloadUrl = if (apkAssetId != 0L) apiAssetUrl(apkAssetId) else apkUrl
+                if (downloadUrl == null) continue
 
                 val candidate = UpdateCheckResult(
                     hasUpdate = true,
@@ -184,7 +193,7 @@ class UpdateManager private constructor(context: Context) {
                     remoteVersion = remoteVersion,
                     releaseName = release.optString("name").ifBlank { "Release $tagName" },
                     releaseNotes = release.optString("body", "Sin notas de versión"),
-                    apkUrl = apkUrl,
+                    apkUrl = downloadUrl,
                     apkSize = apkSize,
                     isPrerelease = release.optBoolean("prerelease", false)
                 )
@@ -284,8 +293,14 @@ class UpdateManager private constructor(context: Context) {
         if (file.exists()) file.delete()
 
         return suspendCoroutine { cont ->
-            val request = Request.Builder().url(apkUrl).build()
-            
+            val request = Request.Builder()
+                .url(apkUrl)
+                // La API oficial de GitHub exige Accept: application/octet-stream para assets
+                .header("Accept", "application/octet-stream")
+                .header("User-Agent", githubUserAgent)
+                .header("X-GitHub-Api-Version", "2022-11-28")
+                .build()
+
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
                     Log.e("UpdateManager", "downloadAndInstall failed", e)

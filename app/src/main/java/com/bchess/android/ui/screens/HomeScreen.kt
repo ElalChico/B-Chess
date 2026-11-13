@@ -53,7 +53,8 @@ fun HomeScreen(
     onProfile: () -> Unit,
     onCreate: () -> Unit,
     onSearch: () -> Unit,
-    onPractice: () -> Unit
+    onPractice: () -> Unit,
+    onPlayOnline: () -> Unit = {}
 ) {
     val avatar = remember(profilePhotoBase64) {
         try {
@@ -205,6 +206,20 @@ fun HomeScreen(
             Column(Modifier.fillMaxWidth()) {
                 Text("Practicar contra Stockfish", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Text("Partida local", color = Muted, fontSize = 11.sp)
+            }
+        }
+
+        OutlinedButton(
+            onClick = onPlayOnline,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3A4430)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Green),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            Column(Modifier.fillMaxWidth()) {
+                Text("Jugar por Internet", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("P2P entre dos teléfonos · sin servidores en la partida", color = Muted, fontSize = 11.sp)
             }
         }
 

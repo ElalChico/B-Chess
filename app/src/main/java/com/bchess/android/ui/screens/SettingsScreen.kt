@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.bchess.android.data.AppLanguage
 import com.bchess.android.data.AppPreferences
 import com.bchess.android.data.BoardTheme
+import com.bchess.android.data.PieceSet
 import com.bchess.android.data.UpdateManager
 import com.bchess.android.data.UpdateState
 import com.bchess.android.data.UpdateCheckResult
@@ -116,6 +117,18 @@ fun SettingsScreen(
                 BoardTheme.entries.forEach { theme ->
                     val sel = prefs.boardTheme == theme
                     Chip(if (isEn) theme.labelEn else theme.labelEs, sel, Modifier.weight(1f)) { prefs.setBoardTheme(theme) }
+                }
+            }
+            Text(t("Conjunto de piezas", "Piece set"), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                PieceSet.entries.chunked(3).forEach { rowSets ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        rowSets.forEach { set ->
+                            val sel = prefs.pieceSet == set
+                            Chip(if (isEn) set.labelEn else set.labelEs, sel, Modifier.weight(1f)) { prefs.setPieceSet(set) }
+                        }
+                        repeat(3 - rowSets.size) { Spacer(Modifier.weight(1f)) }
+                    }
                 }
             }
             ToggleRow(

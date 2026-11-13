@@ -9,6 +9,14 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// El plugin de Google Services solo se aplica cuando google-services.json existe
+// (no se sube al repo). Sin ese archivo el build sigue compilando; el modo
+// Internet (WebRTC + Firebase) fallará en tiempo de ejecución con un mensaje
+// claro en vez de romper el arranque.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 val bchessVersion = providers.gradleProperty("bchessVersion").orElse("1.0.0").get()
 val versionMatch = Regex("(\\d+)\\.(\\d+)\\.(\\d+)").matchEntire(bchessVersion)
     ?: throw GradleException("bchessVersion must use MAJOR.MINOR.PATCH, e.g. 1.0.1")
@@ -181,6 +189,7 @@ dependencies {
     // Core Android
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
@@ -201,6 +210,13 @@ dependencies {
     // OkHttp for downloading APK from GitHub releases
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okio:okio:3.9.0")
+
+    // WebRTC (DataChannel P2P) — fork mantenido del original org.webrtc:google-webrtc
+    implementation("io.getstream:stream-webrtc-android:1.3.10")
+
+    // Firebase Realtime Database (solo señalización: SDP/ICE; una vez conectado, queda fuera de la partida)
+    implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
+    implementation("com.google.firebase:firebase-database-ktx")
 
     // Local unit tests for the chess rules engine
     testImplementation("junit:junit:4.13.2")

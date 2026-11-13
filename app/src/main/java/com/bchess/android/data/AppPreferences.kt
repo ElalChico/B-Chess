@@ -47,6 +47,10 @@ enum class PieceSet(
     // --- 12 nuevos conjuntos desde PIEZAS ---
     ALPHA("Alpha", "Alpha", "alpha"),
     ANARCANDY("Anarcandy", "Anarcandy", "anarcandy"),
+    // Variante blanca de Anarcandy: rosa -> blanco, mantiene los acentos
+    ANARCANDY_WHITE("Anarcandy · Blanco", "Anarcandy · White", "anarcandywhite"),
+    // Variante propia de gatos punk/anarquista
+    CATPUNK("Gatos Punk", "Punk Cats", "catpunk"),
     CBURNETT("Lichess · Clásico", "Lichess · Classic", "cburnett"),
     COMPANION("Cómplice", "Companion", "companion"),
     HORSEY("Horsey", "Horsey", "horsey"),

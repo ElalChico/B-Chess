@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="45dp"
+    android:height="45dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <!-- Punk Cats · rey blanco (símbolo anarquista) -->
+    <path
+        android:pathData="M100 462 L412 462 L412 420 C412 392 336 380 256 380 C176 380 100 392 100 420 Z M158 380 L354 380 L354 252 L158 252 Z M132 252 L380 252 L380 218 L132 218 Z"
+        android:fillColor="#F5F1E6"
+        android:strokeColor="#101820"
+        android:strokeWidth="40"
+        android:strokeLineJoin="round"/>
+    <path
+        android:pathData="M256 120 m-54 0 a54 54 0 1 0 108 0 a54 54 0 1 0 -108 0 Z"
+        android:fillColor="#101820"/>
+    <path
+        android:pathData="M232 146 L256 94 L280 146 L264 146 L256 120 L248 146 Z M238 128 L274 128 L274 138 L238 138 Z"
+        android:fillColor="#F5F1E6"/>
+    <path
+        android:pathData="M192 292 L242 310 L242 324 L192 306 Z M320 292 L270 310 L270 324 L320 306 Z"
+        android:fillColor="#FF385C"/>
+    <path
+        android:pathData="M242 344 L270 344 L256 360 Z"
+        android:fillColor="#101820"/>
+</vector>

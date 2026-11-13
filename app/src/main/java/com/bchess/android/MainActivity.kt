@@ -54,12 +54,14 @@ import com.bchess.android.data.GameRecord
 import com.bchess.android.data.StockfishEngineManager
 import com.bchess.android.data.UpdateManager
 import com.bchess.android.data.UpdateState
+import com.bchess.android.data.NetworkMode
 import com.bchess.android.data.discoverableIntent
 import com.bchess.android.data.requiredPermissions
 import com.bchess.android.ui.GameViewModel
 import com.bchess.android.ui.screens.ConnectionFlowScreen
 import com.bchess.android.ui.screens.GameScreen
 import com.bchess.android.ui.screens.HomeScreen
+import com.bchess.android.ui.screens.InternetMatchScreen
 import com.bchess.android.ui.screens.LobbyScreen
 import com.bchess.android.ui.screens.PracticeScreen
 import com.bchess.android.ui.screens.ReplayScreen
@@ -72,7 +74,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class Screen { HOME, CONNECT, PROFILE, GAME, SETTINGS, REPLAY, ROOM, PRACTICE }
+enum class Screen { HOME, CONNECT, PROFILE, GAME, SETTINGS, REPLAY, ROOM, PRACTICE, INTERNET }
 
 private val NavGold = Color(0xFFE2B94E)
 private val NavMuted = Color(0xFF8B96A5)
@@ -173,6 +175,10 @@ class MainActivity : ComponentActivity() {
         val btState by vm.bluetooth.state.collectAsState()
         val devices by vm.bluetooth.devices.collectAsState()
         val btError by vm.bluetooth.lastError.collectAsState()
+        val internetState by vm.internet.state.collectAsState()
+        val internetMatchId by vm.internet.currentMatchId.collectAsState()
+        val internetError by vm.internet.lastError.collectAsState()
+        val netConnected = btState == BtState.CONNECTED || internetState == BtState.CONNECTED
         val remoteProfile by vm.remoteProfile.collectAsState()
         val isEn = prefs.language == AppLanguage.EN
         val startHostListening: () -> Unit = {
@@ -232,6 +238,15 @@ class MainActivity : ComponentActivity() {
                 if (screen == Screen.CONNECT) screen = Screen.ROOM
             }
         }
+        // Internet (WebRTC): mismo protocolo de mensajes -> mismo flujo de inicio
+        LaunchedEffect(internetState) {
+            if (internetState == BtState.CONNECTED) {
+                vm.sendHello()
+                vm.sendProfile()
+                if (ui.lobby.isHost) vm.sendLobbyConfig()
+                if (screen == Screen.INTERNET) screen = Screen.ROOM
+            }
+        }
         LaunchedEffect(ui.lobby.gameStarted) {
             if (ui.lobby.gameStarted && (screen == Screen.PROFILE || screen == Screen.ROOM)) screen = Screen.GAME
         }
@@ -248,8 +263,8 @@ class MainActivity : ComponentActivity() {
             Box(Modifier.weight(1f).fillMaxWidth()) {
             when (screen) {
                 Screen.HOME -> HomeScreen(
-                    inSession = btState == BtState.CONNECTED,
-                    isGuestSession = btState == BtState.CONNECTED && !ui.lobby.isHost,
+                    inSession = netConnected,
+                    isGuestSession = netConnected && !ui.lobby.isHost,
                     profileConfigured = prefs.profileConfigured,
                     profileName = prefs.profileName,
                     profilePhotoBase64 = prefs.profilePhotoBase64,
@@ -259,6 +274,7 @@ class MainActivity : ComponentActivity() {
                         screen = Screen.PROFILE
                     },
                     onCreate = {
+                        vm.setNetworkMode(NetworkMode.BT)
                         isHostMode = true
                         vm.setIsHost(true)
                         if (prefs.profileConfigured) {
@@ -270,6 +286,7 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onSearch = {
+                        vm.setNetworkMode(NetworkMode.BT)
                         isHostMode = false
                         vm.setIsHost(false)
                         if (prefs.profileConfigured) {
@@ -288,6 +305,10 @@ class MainActivity : ComponentActivity() {
                             screen = Screen.PROFILE
                         }
                     },
+                    onPlayOnline = {
+                        vm.setNetworkMode(NetworkMode.INTERNET)
+                        screen = Screen.INTERNET
+                    },
                 )
 
                 Screen.CONNECT -> ConnectionFlowScreen(
@@ -303,12 +324,30 @@ class MainActivity : ComponentActivity() {
                     onBack = { vm.disconnect(); screen = Screen.HOME }
                 )
 
+                Screen.INTERNET -> InternetMatchScreen(
+                    state = internetState,
+                    matchId = internetMatchId,
+                    playerName = ui.localName.ifBlank { prefs.profileName },
+                    error = internetError,
+                    onCreateMatch = {
+                        isHostMode = true
+                        vm.setIsHost(true)
+                        vm.internet.createMatch { /* el código llega vía currentMatchId */ }
+                    },
+                    onJoinMatch = { code ->
+                        isHostMode = false
+                        vm.setIsHost(false)
+                        vm.internet.joinMatch(code)
+                    },
+                    onBack = { vm.disconnect(); screen = Screen.HOME }
+                )
+
                 Screen.PROFILE -> LobbyScreen(
                     lobby = ui.lobby, localName = ui.localName, remoteName = ui.remoteName,
                     photoBase64 = prefs.profilePhotoBase64, history = history,
                     profileSetupRequired = !prefs.profileConfigured,
                     remoteProfile = remoteProfile,
-                    connected = btState == BtState.CONNECTED,
+                    connected = netConnected,
                     onViewRivalProfile = { showRivalProfile = true },
                     continueLabel = when (profileNextScreen) {
                         Screen.HOME -> if (!prefs.profileConfigured) "Guardar perfil y comenzar" else "Guardar cambios"
@@ -342,9 +381,11 @@ class MainActivity : ComponentActivity() {
                     onColorPick = { color -> vm.setLocalColor(color) },
                     onRandomColor = { vm.setRandomColor() },
                     onConnect = {
-                        isHostMode = true
-                        vm.setIsHost(true)
-                        startHostListening()
+                        if (vm.networkMode != NetworkMode.INTERNET) {
+                            isHostMode = true
+                            vm.setIsHost(true)
+                            startHostListening()
+                        }
                     },
                     onStartGame = vm::startGameAsHost,
                     onStartTournament = { games -> vm.startTournament(games, ui.lobby.timeMs, ui.lobby.incrementMs) },
@@ -358,7 +399,7 @@ class MainActivity : ComponentActivity() {
                         lobby = ui.lobby, localName = ui.localName, remoteName = ui.remoteName,
                         photoBase64 = prefs.profilePhotoBase64, history = history,
                         remoteProfile = remoteProfile,
-                        connected = btState == BtState.CONNECTED,
+                        connected = netConnected,
                         onViewRivalProfile = { showRivalProfile = true },
                         continueLabel = "Volver al perfil",
                         onContinue = { screen = Screen.PROFILE },
@@ -498,7 +539,7 @@ class MainActivity : ComponentActivity() {
                             screen = Screen.PROFILE
                         }
                         Screen.GAME -> {
-                            if (ui.lobby.gameStarted && ui.gameEnd == null && btState == BtState.CONNECTED) {
+                            if (ui.lobby.gameStarted && ui.gameEnd == null && netConnected) {
                                 fullscreen = false
                                 screen = Screen.GAME
                             }
@@ -509,7 +550,7 @@ class MainActivity : ComponentActivity() {
                         }
                         else -> { /* ROOM not in bottom nav */ }
                     }
-                }, gameEnabled = ui.lobby.gameStarted && ui.gameEnd == null && btState == BtState.CONNECTED)
+                }, gameEnabled = ui.lobby.gameStarted && ui.gameEnd == null && netConnected)
             }
         }
 

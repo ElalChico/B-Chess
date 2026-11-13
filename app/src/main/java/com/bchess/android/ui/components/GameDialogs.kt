@@ -18,6 +18,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -430,9 +432,9 @@ fun PromotionPieceDialog(
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.clickable { onPromote(pt) }
                         ) {
-                            if (pieceSet == PieceSet.LICHESS) {
+                            if (pieceSet == PieceSet.LICHESS || pieceSet.resKey != null) {
                                 androidx.compose.foundation.Image(
-                                    painter = androidx.compose.ui.res.painterResource(id = pieceRes(pt, localColor)),
+                                    painter = painterResource(id = pieceResource(LocalContext.current, Piece(pt, localColor), pieceSet)),
                                     contentDescription = pt.name,
                                     modifier = Modifier.size(46.dp)
                                 )

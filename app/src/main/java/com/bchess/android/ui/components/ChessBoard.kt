@@ -229,7 +229,7 @@ private fun BoardSquare(
             }
         }
         piece?.let {
-            if (pieceSet == PieceSet.LICHESS) {
+            if (pieceSet == PieceSet.LICHESS || pieceSet.resKey != null) {
                 Image(
                     painter = painterResource(id = pieceResource(ctx, it, pieceSet)),
                     contentDescription = it.symbol(),

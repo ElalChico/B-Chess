@@ -8,6 +8,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bchess.android.core.*
 import com.bchess.android.data.*
+import com.bchess.android.network.ChessNetwork
+import com.bchess.android.network.WebRTCNetworkManager
 import com.bchess.android.ui.components.BoardSelection
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -48,8 +50,13 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
 
     val engine = ChessEngine()
     lateinit var bluetooth: BluetoothClassicManager
+    lateinit var internet: WebRTCNetworkManager
     lateinit var clock: ClockManager
     lateinit var sound: SoundManager
+
+    /** Transporte activo: BT (clásico) o INTERNET (WebRTC P2P). */
+    var networkMode: NetworkMode = NetworkMode.BT
+        private set
 
     private val _ui = MutableStateFlow(UiGameState(engine.snapshot))
     val ui: StateFlow<UiGameState> = _ui.asStateFlow()
@@ -90,19 +97,38 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     fun init() {
         if (this::bluetooth.isInitialized) return
         bluetooth = BluetoothClassicManager(appContext, viewModelScope)
+        internet = WebRTCNetworkManager(appContext, viewModelScope)
         sound = SoundManager(appContext)
         checkSignalEnabled = appContext.getSharedPreferences("chessbt_prefs", Context.MODE_PRIVATE).getBoolean("check_sig", true)
-        
-        // Connection notification callback
+
+        // Connection notification callback (Bluetooth)
         bluetooth.onConnected = {
             sound.play(SoundType.CLICK)
             _ui.value = _ui.value.copy(lastError = "¡${_ui.value.remoteName.ifBlank { "Rival" }} conectado!")
             viewModelScope.launch { delay(3000); _ui.value = _ui.value.copy(lastError = null) }
         }
-        
+
+        // Connection callback (Internet P2P)
+        internet.setListener(object : ChessNetwork.Listener {
+            override fun onConnected() {
+                sound.play(SoundType.CLICK)
+                _ui.value = _ui.value.copy(lastError = "¡Conectado por Internet!")
+                viewModelScope.launch { delay(3000); _ui.value = _ui.value.copy(lastError = null) }
+            }
+
+            override fun onMessageLine(line: String) { /* el flujo incoming ya dispara handleIncoming */ }
+
+            override fun onDisconnected(reason: String) { /* el colector de state maneja la UI */ }
+
+            override fun onError(error: String) {
+                _ui.value = _ui.value.copy(lastError = error)
+                viewModelScope.launch { delay(5000); _ui.value = _ui.value.copy(lastError = null) }
+            }
+        })
+
         clock = ClockManager(
             viewModelScope, isHost = false,
-            onSyncRequest = { msg -> bluetooth.send(msg) },
+            onSyncRequest = { msg -> netSend(msg) },
             onLowTime = { side ->
                 // Suena el aviso de tiempo bajo solo en el móvil cuyo turno está por agotarse
                 if (side == _ui.value.localColor) sound.play(SoundType.LOWTIME)
@@ -114,7 +140,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                     if (winner == _ui.value.localColor) "¡Tiempo agotado! Has ganado" else "Tiempo agotado. Ha ganado el rival")
                 _ui.value = _ui.value.copy(gameEnd = end, clock = _ui.value.clock.copy(finished = true))
                 sound.play(if (winner == _ui.value.localColor) SoundType.WIN else SoundType.LOSE)
-                bluetooth.send(GameEndMessage(MessageParser.stringFromColor(winner), "TIMEOUT", end.message))
+                netSend(GameEndMessage(MessageParser.stringFromColor(winner), "TIMEOUT", end.message))
                 clock.finish()
                 saveGameRecord(end)
                 recordTournamentResult(end)
@@ -122,8 +148,20 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             }
         )
         observeBluetooth()
+        observeInternet()
     }
 
+    /** Selecciona el transporte de red para la próxima partida. */
+    fun setNetworkMode(mode: NetworkMode) {
+        networkMode = mode
+    }
+
+    private fun netSend(message: BtMessage) {
+        when (networkMode) {
+            NetworkMode.BT -> bluetooth.send(message)
+            NetworkMode.INTERNET -> internet.sendMessage(message)
+        }
+    }
     private fun observeBluetooth() {
         viewModelScope.launch {
             bluetooth.incoming.collect { msg ->
@@ -141,6 +179,22 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         viewModelScope.launch {
             clock.state.collect { cs ->
                 _ui.value = _ui.value.copy(clock = cs)
+            }
+        }
+    }
+
+    private fun observeInternet() {
+        viewModelScope.launch {
+            internet.incoming.collect { msg ->
+                try { handleIncoming(msg) } catch (e: Exception) { /* never crash */ }
+            }
+        }
+        viewModelScope.launch {
+            internet.state.collect { st ->
+                val connected = st == BtState.CONNECTED
+                _ui.value = _ui.value.copy(connected = connected,
+                    lobby = _ui.value.lobby.copy(connected = connected))
+                if (!connected) _remoteProfile.value = null
             }
         }
     }
@@ -189,7 +243,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
 
     fun sendHello() {
         val color = if (isHost) "white" else "black"
-        bluetooth.send(HelloMessage(localName, isHost, color))
+        netSend(HelloMessage(localName, isHost, color))
     }
 
     /** Envía el perfil propio por SPP respetando la privacidad (foto / historial / PGN). */
@@ -203,7 +257,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                 val gamesJson = if (prefs.privacy.shareHistory) buildHistoryJson(records, prefs.privacy.sharePgn) else "[]"
                 val photo = if (prefs.privacy.sharePhoto) downscaledPhotoBase64(prefs.profilePhotoBase64) else ""
                 val color = if (_ui.value.lobby.colorRandom) "random" else MessageParser.stringFromColor(_ui.value.lobby.localColor)
-                bluetooth.send(ProfileMessage(localName, color, photo, records.size, wins, draws, losses, gamesJson))
+                netSend(ProfileMessage(localName, color, photo, records.size, wins, draws, losses, gamesJson))
             } catch (_: Exception) { }
         }
     }
@@ -296,7 +350,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     fun sendLobbyConfig() {
         if (!isHost) return
         val lobby = _ui.value.lobby
-        bluetooth.send(LobbyConfigMessage(
+        netSend(LobbyConfigMessage(
             hostName = localName,
             guestName = lobby.remoteName.ifBlank { "---" },
             timeMs = lobby.timeMs,
@@ -328,10 +382,10 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         val lobby = _ui.value.lobby
         when (mode) {
             "same" -> if (isHost) startGameInternal(lastLocalColor, lobby.timeMs, lobby.incrementMs)
-                      else bluetooth.send(RematchMessage("same", localName))
+                      else netSend(RematchMessage("same", localName))
             "random" -> if (isHost) startGameInternal(randomSide(), lobby.timeMs, lobby.incrementMs)
-                        else bluetooth.send(RematchMessage("random", localName))
-            "tournament" -> if (isHost) advanceTournament() else bluetooth.send(RematchMessage("tournament", localName))
+                        else netSend(RematchMessage("random", localName))
+            "tournament" -> if (isHost) advanceTournament() else netSend(RematchMessage("tournament", localName))
         }
     }
 
@@ -362,7 +416,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                 active = true
             )
         )
-        bluetooth.send(TournamentStartMessage(games, timeMs, incMs, hostWhite))
+        netSend(TournamentStartMessage(games, timeMs, incMs, hostWhite))
         startGameInternal(if (hostWhite) Color.WHITE else Color.BLACK, timeMs, incMs)
     }
 
@@ -438,7 +492,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             )
         )
         if (isHost) {
-            bluetooth.send(StartGameMessage(fen, timeMs, incMs,
+            netSend(StartGameMessage(fen, timeMs, incMs,
                 MessageParser.stringFromColor(myColor),
                 hostName = localName, guestName = _ui.value.remoteName.ifBlank { "Rival" },
                 hostTimestamp = System.currentTimeMillis()))
@@ -488,7 +542,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             // El anfitrión sincroniza el reloj al arrancar para que ambos empiecen igual
             if (isHost) {
                 val c = clock.state.value
-                bluetooth.send(ClockSyncMessage(c.whiteMs, c.blackMs, "white", System.currentTimeMillis(), false))
+                netSend(ClockSyncMessage(c.whiteMs, c.blackMs, "white", System.currentTimeMillis(), false))
             }
         }
     }
@@ -580,11 +634,11 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         )
         // Sound ONLY for my own pieces (local move)
         if (inCheck) sound.play(SoundType.CHECK) else if (isCapture) sound.play(SoundType.CAPTURE) else sound.play(SoundType.MOVE)
-        bluetooth.send(MoveMessage(from, to, promotion?.name?.take(1) ?: "", san, uci, fenAfter, System.currentTimeMillis()))
+        netSend(MoveMessage(from, to, promotion?.name?.take(1) ?: "", san, uci, fenAfter, System.currentTimeMillis()))
         if (end != null) {
             _ui.value = _ui.value.copy(gameEnd = end)
             sound.play(SoundType.CHECKMATE)
-            bluetooth.send(GameEndMessage(
+            netSend(GameEndMessage(
                 if (end.winner == null) "draw" else MessageParser.stringFromColor(end.winner),
                 end.reason.name, end.message
             ))
@@ -719,7 +773,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                 recordTournamentResult(end)
                 _showGameEndDialog.value = true
             }
-            is PingMessage -> bluetooth.send(PongMessage(msg.ts))
+            is PingMessage -> netSend(PongMessage(msg.ts))
             is ProfileMessage -> handleProfileMessage(msg)
             is RematchMessage -> {
                 if (!isHost) return
@@ -784,17 +838,17 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         val newPaused = !_ui.value.paused
         clock.setPaused(newPaused)
         _ui.value = _ui.value.copy(paused = newPaused, pauseBy = localName)
-        bluetooth.send(PauseMessage(newPaused, localName))
+        netSend(PauseMessage(newPaused, localName))
         sound.play(SoundType.PAUSE)
     }
 
     fun offerDraw() {
-        bluetooth.send(DrawOfferMessage(localName))
+        netSend(DrawOfferMessage(localName))
         showError("Oferta de tablas enviada")
     }
 
     fun respondDraw(accepted: Boolean) {
-        bluetooth.send(DrawResponseMessage(accepted, localName))
+        netSend(DrawResponseMessage(accepted, localName))
         if (accepted) {
             val end = GameEnd(null, GameEndReason.DRAW_AGREED, "Tablas acordadas")
             _ui.value = _ui.value.copy(gameEnd = end)
@@ -807,7 +861,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     fun resign() {
         val end = GameEnd(_ui.value.remoteColor, GameEndReason.RESIGNATION, "Te has rendido")
         _ui.value = _ui.value.copy(gameEnd = end)
-        bluetooth.send(ResignMessage(localName, MessageParser.stringFromColor(_ui.value.localColor)))
+        netSend(ResignMessage(localName, MessageParser.stringFromColor(_ui.value.localColor)))
         sound.play(SoundType.LOSE)
         clock.finish()
         saveGameRecord(end)
@@ -829,11 +883,13 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
 
     fun disconnect() {
         try { bluetooth.disconnect() } catch (_: Exception) {}
+        try { internet.disconnect() } catch (_: Exception) {}
         try { clock.stop() } catch (_: Exception) {}
     }
 
     fun onClearedCleanup() {
         try { bluetooth.release() } catch (_: Exception) {}
+        try { internet.disconnect() } catch (_: Exception) {}
         try { sound.release() } catch (_: Exception) {}
     }
 }

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="45dp"
+    android:height="45dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <!-- Punk Cats · torre negra (almenas + cara de gato) -->
+    <path
+        android:pathData="M96 462 L416 462 L416 416 C416 384 336 372 256 372 C176 372 96 384 96 416 Z M148 378 L364 378 L364 150 L148 150 Z M156 150 L204 150 L204 78 L156 78 Z M232 150 L280 150 L280 78 L232 78 Z M308 150 L356 150 L356 78 L308 78 Z M180 198 L132 70 L252 144 Z M332 198 L380 70 L260 144 Z M182 202 C182 116 330 116 330 202 C330 268 288 286 256 286 C224 286 182 268 182 202 Z"
+        android:fillColor="#2B2725"
+        android:strokeColor="#FF385C"
+        android:strokeWidth="24"
+        android:strokeLineJoin="round"/>
+    <path
+        android:pathData="M198 192 L250 212 L250 226 L198 206 Z M314 192 L262 212 L262 226 L314 206 Z"
+        android:fillColor="#FF385C"/>
+    <path
+        android:pathData="M244 240 L268 240 L256 258 Z"
+        android:fillColor="#F5F1E6"/>
+</vector>

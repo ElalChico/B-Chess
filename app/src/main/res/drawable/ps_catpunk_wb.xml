@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="45dp"
+    android:height="45dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <!-- Punk Cats · alfil blanco (mitra anarquista) -->
+    <path
+        android:pathData="M100 462 L412 462 L412 416 C412 384 336 372 256 372 C176 372 100 384 100 416 Z M116 372 C116 240 200 170 256 70 C312 170 396 240 396 372 Z"
+        android:fillColor="#F5F1E6"
+        android:strokeColor="#101820"
+        android:strokeWidth="40"
+        android:strokeLineJoin="round"/>
+    <path
+        android:pathData="M244 140 L268 140 L256 250 Z"
+        android:fillColor="#101820"/>
+    <path
+        android:pathData="M198 292 L248 310 L248 322 L198 304 Z M314 292 L264 310 L264 322 L314 304 Z"
+        android:fillColor="#FF385C"/>
+    <path
+        android:pathData="M246 330 L266 330 L256 346 Z"
+        android:fillColor="#101820"/>
+</vector>
