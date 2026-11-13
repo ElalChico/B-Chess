@@ -109,8 +109,8 @@ enum class PieceSet(
 
 enum class SoundPack(val labelEs: String, val labelEn: String) {
     LICHESS("Lichess", "Lichess"),
-    FREE("Gratis / SFX", "Free / SFX"),
-    CLASSIC("Clásico", "Classic");
+    GM3000("GM-3000", "GM-3000"),
+    CLASSIC("Clásico · Retro", "Classic · Retro");
 
     companion object {
         val DEFAULT = LICHESS

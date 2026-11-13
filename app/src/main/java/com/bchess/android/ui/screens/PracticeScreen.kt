@@ -292,7 +292,7 @@ fun PracticeScreen(
                 legalTargets = engine.legalMovesFrom(square).map { it.to }.distinct(),
                 lastMove = lastMove
             )
-            sound?.play(SoundType.CLICK)
+            // Selección de pieza: sin sonido (desactivado a petición del usuario)
             error = null
             return
         }

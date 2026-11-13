@@ -11,11 +11,16 @@ enum class SoundType {
 }
 
 /**
- * Motor de sonidos real basado en los MP3 oficiales de Lichess.
- * Set "standard" (movimiento, captura, selección, error, confirmación, cuenta
- * atrás, tiempo bajo) completado con los avisos de fin de partida del set
- * "sfx" — sin sonidos de naturaleza ni de animales.
- * Cargados en un SoundPool: latencia baja, seguro en cualquier API 26+.
+ * Motor de sonidos.
+ *
+ * Paquetes (cada uno con archivos reales distintos, no sólo cambio de pitch):
+ *  - LICHESS: pack estándar de Lichess (los MP3 oficiales incluidos en la app).
+ *  - GM3000:  librería de efectos GM-3000 (carpeta public/sounds del proyecto GM-3000).
+ *  - CLASSIC: los mismos efectos GM-3000 pero con tono profundo/retro arcade
+ *             (pitch 0.75) para quien prefiera un carácter clásico.
+ *
+ * El sonido de selección de pieza (SoundType.CLICK) está desactivado en todos
+ * los paquetes a petición del usuario: seleccionar una pieza ya no hace ruido.
  */
 class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEFAULT) {
     private var enabled: Boolean = true
@@ -33,38 +38,64 @@ class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEF
         null
     }
 
-    private var moveId = 0
-    private var captureId = 0
-    private var checkId = 0
-    private var checkmateId = 0
-    private var illegalId = 0
-    private var selectId = 0
-    private var winId = 0
-    private var loseId = 0
-    private var drawId = 0
-    private var pauseId = 0
-    private var confirmId = 0
-    private var lowTimeId = 0
-    private var countdown3Id = 0
-    private var countdown2Id = 0
-    private var countdown1Id = 0
+    // Mapa paquete -> tipo de sonido -> id cargado en el SoundPool
+    private val packedIds: Map<SoundPack, Map<SoundType, Int>>
+    // Sonido de confirmación/inicio por paquete
+    private val confirmIds: Map<SoundPack, Int>
 
     init {
-        moveId = loadSound(R.raw.move)
-        captureId = loadSound(R.raw.capture)
-        checkId = loadSound(R.raw.check)
-        checkmateId = loadSound(R.raw.checkmate)
-        illegalId = loadSound(R.raw.error)
-        selectId = loadSound(R.raw.select)
-        winId = loadSound(R.raw.victory)
-        loseId = loadSound(R.raw.defeat)
-        drawId = loadSound(R.raw.draw)
-        confirmId = loadSound(R.raw.confirmation)
-        lowTimeId = loadSound(R.raw.lowtime)
-        countdown3Id = loadSound(R.raw.countdown3)
-        countdown2Id = loadSound(R.raw.countdown2)
-        countdown1Id = loadSound(R.raw.countdown1)
-        pauseId = moveId // pausa: sonido suave, no alarma
+        packedIds = mapOf(
+            SoundPack.LICHESS to mapOf(
+                SoundType.MOVE to loadSound(R.raw.move),
+                SoundType.CAPTURE to loadSound(R.raw.capture),
+                SoundType.CHECK to loadSound(R.raw.check),
+                SoundType.CHECKMATE to loadSound(R.raw.checkmate),
+                SoundType.ILLEGAL to loadSound(R.raw.error),
+                SoundType.WIN to loadSound(R.raw.victory),
+                SoundType.LOSE to loadSound(R.raw.defeat),
+                SoundType.DRAW to loadSound(R.raw.draw),
+                SoundType.PAUSE to loadSound(R.raw.move),
+                SoundType.LOWTIME to loadSound(R.raw.lowtime),
+                SoundType.COUNTDOWN3 to loadSound(R.raw.countdown3),
+                SoundType.COUNTDOWN2 to loadSound(R.raw.countdown2),
+                SoundType.COUNTDOWN1 to loadSound(R.raw.countdown1)
+            ),
+            SoundPack.GM3000 to mapOf(
+                SoundType.MOVE to loadSound(R.raw.gm_move),
+                SoundType.CAPTURE to loadSound(R.raw.gm_capture),
+                SoundType.CHECK to loadSound(R.raw.gm_jaque),
+                SoundType.CHECKMATE to loadSound(R.raw.gm_mate),
+                SoundType.ILLEGAL to loadSound(R.raw.gm_error),
+                SoundType.WIN to loadSound(R.raw.gm_victory),
+                SoundType.LOSE to loadSound(R.raw.gm_tiempofinalizado),
+                SoundType.DRAW to loadSound(R.raw.gm_draw),
+                SoundType.PAUSE to loadSound(R.raw.gm_save),
+                SoundType.LOWTIME to loadSound(R.raw.gm_torrefast),
+                SoundType.COUNTDOWN3 to loadSound(R.raw.gm_torrefast),
+                SoundType.COUNTDOWN2 to loadSound(R.raw.gm_torrefast),
+                SoundType.COUNTDOWN1 to loadSound(R.raw.gm_torrefast)
+            ),
+            SoundPack.CLASSIC to mapOf(
+                SoundType.MOVE to loadSound(R.raw.gm_move),
+                SoundType.CAPTURE to loadSound(R.raw.gm_capture),
+                SoundType.CHECK to loadSound(R.raw.gm_jaque),
+                SoundType.CHECKMATE to loadSound(R.raw.gm_mate),
+                SoundType.ILLEGAL to loadSound(R.raw.gm_error),
+                SoundType.WIN to loadSound(R.raw.gm_victory),
+                SoundType.LOSE to loadSound(R.raw.gm_tiempofinalizado),
+                SoundType.DRAW to loadSound(R.raw.gm_draw),
+                SoundType.PAUSE to loadSound(R.raw.gm_save),
+                SoundType.LOWTIME to loadSound(R.raw.gm_torrefast),
+                SoundType.COUNTDOWN3 to loadSound(R.raw.gm_torrefast),
+                SoundType.COUNTDOWN2 to loadSound(R.raw.gm_torrefast),
+                SoundType.COUNTDOWN1 to loadSound(R.raw.gm_torrefast)
+            )
+        )
+        confirmIds = mapOf(
+            SoundPack.LICHESS to loadSound(R.raw.confirmation),
+            SoundPack.GM3000 to loadSound(R.raw.gm_start),
+            SoundPack.CLASSIC to loadSound(R.raw.gm_start)
+        )
     }
 
     private fun loadSound(resourceId: Int): Int {
@@ -91,7 +122,7 @@ class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEF
     fun playPreview(pack: SoundPack) {
         val previous = soundPack
         soundPack = pack
-        val id = moveId
+        val id = packedIds[pack]?.get(SoundType.MOVE) ?: 0
         if (id > 0 && pool != null) {
             try { pool?.play(id, vol(), vol(), 1, 0, pitch()) } catch (_: Exception) { }
         }
@@ -101,29 +132,16 @@ class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEF
     private fun vol(): Float = (volumePercent / 100f).coerceIn(0f, 1f)
     private fun pitch(): Float = when (soundPack) {
         SoundPack.LICHESS -> 1f
-        SoundPack.FREE -> 1.08f
-        SoundPack.CLASSIC -> 0.94f
+        SoundPack.GM3000 -> 1f
+        SoundPack.CLASSIC -> 0.75f
     }
 
     fun play(type: SoundType) {
         if (!enabled) return
+        // Sonido de selección de pieza desactivado en todos los paquetes
+        if (type == SoundType.CLICK) return
 
-        val id = when (type) {
-            SoundType.MOVE -> moveId
-            SoundType.CAPTURE -> captureId
-            SoundType.CHECK -> checkId
-            SoundType.CHECKMATE -> checkmateId
-            SoundType.ILLEGAL -> illegalId
-            SoundType.CLICK -> selectId
-            SoundType.WIN -> winId
-            SoundType.LOSE -> loseId
-            SoundType.DRAW -> drawId
-            SoundType.PAUSE -> pauseId
-            SoundType.LOWTIME -> lowTimeId
-            SoundType.COUNTDOWN3 -> countdown3Id
-            SoundType.COUNTDOWN2 -> countdown2Id
-            SoundType.COUNTDOWN1 -> countdown1Id
-        }
+        val id = packedIds[soundPack]?.get(type) ?: 0
 
         if (id <= 0 || pool == null) {
             // El motor de audio no está disponible o el sonido no cargó: no-op silencioso.
@@ -138,18 +156,17 @@ class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEF
     }
 
     /** Sonido de confirmación (aceptar conexiones / iniciar partida). */
-    /** Sonido de confirmación (aceptar conexiones / iniciar partida). */
     fun playConfirmation() {
         if (!enabled) return
-        if (confirmId > 0) {
+        val id = confirmIds[soundPack] ?: 0
+        if (id > 0) {
             try {
-                pool?.play(confirmId, vol(), vol(), 1, 0, pitch())
-                Log.d("SoundManager", "Confirmation sound played")
+                pool?.play(id, vol(), vol(), 1, 0, pitch())
             } catch (e: Exception) {
                 Log.e("SoundManager", "Failed to play confirmation", e)
             }
         } else {
-            Log.w("SoundManager", "Confirmation sound ID is invalid: $confirmId")
+            Log.w("SoundManager", "Confirmation sound ID is invalid for pack $soundPack")
         }
     }
 

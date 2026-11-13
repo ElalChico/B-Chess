@@ -177,8 +177,8 @@ fun SettingsScreen(
                     val selected = prefs.soundPack == pack
                     val packLabel = when (pack) {
                         com.bchess.android.data.SoundPack.LICHESS -> t("Lichess", "Lichess")
-                        com.bchess.android.data.SoundPack.FREE -> t("Gratis · SFX", "Free · SFX")
-                        com.bchess.android.data.SoundPack.CLASSIC -> t("Clásico", "Classic")
+                        com.bchess.android.data.SoundPack.GM3000 -> t("GM-3000", "GM-3000")
+                        com.bchess.android.data.SoundPack.CLASSIC -> t("Clásico · Retro", "Classic · Retro")
                     }
                     Column(
                         modifier = Modifier
