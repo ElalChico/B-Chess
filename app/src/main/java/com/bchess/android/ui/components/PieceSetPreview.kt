@@ -102,29 +102,37 @@ private fun PieceSetCard(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Mini-tablero 2x1: casilla clara con caballo blanco + casilla oscura con caballo negro
-        Row(
+        // Dos filas: negras arriba y blancas abajo — las 6 piezas principales del set
+        Column(
             Modifier
-                .size(width = 40.dp, height = 27.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
         ) {
-            Box(
+            val types = listOf(
+                PieceType.KING, PieceType.QUEEN, PieceType.ROOK,
+                PieceType.BISHOP, PieceType.KNIGHT, PieceType.PAWN
+            )
+            Row(
                 Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .background(theme.lightSquare),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .background(theme.darkSquare)
+                    .padding(vertical = 3.dp, horizontal = 2.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                PreviewPiece(Piece(PieceType.KNIGHT, ChessColor.WHITE), set, Modifier.fillMaxSize().padding(1.dp), ctx)
+                types.forEach { t ->
+                    PreviewPiece(Piece(t, ChessColor.BLACK), set, Modifier.size(22.dp), ctx)
+                }
             }
-            Box(
+            Row(
                 Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .background(theme.darkSquare),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .background(theme.lightSquare)
+                    .padding(vertical = 3.dp, horizontal = 2.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                PreviewPiece(Piece(PieceType.KNIGHT, ChessColor.BLACK), set, Modifier.fillMaxSize().padding(1.dp), ctx)
+                types.forEach { t ->
+                    PreviewPiece(Piece(t, ChessColor.WHITE), set, Modifier.size(22.dp), ctx)
+                }
             }
         }
         Text(

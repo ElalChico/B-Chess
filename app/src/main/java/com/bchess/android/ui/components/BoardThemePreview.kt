@@ -82,21 +82,21 @@ private fun BoardThemeCard(
         modifier = modifier
             .background(if (selected) CardSel else Card, RoundedCornerShape(12.dp))
             .border(if (selected) 1.5.dp else 1.dp, if (selected) LineSel else Line, RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(10.dp))
             .clickable { onClick() }
-            .padding(vertical = 9.dp, horizontal = 6.dp),
+            .padding(vertical = 5.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        // Mini-tablero 3x2 con las casillas del tema
+        // Mini-tablero 2x2 con las casillas del tema (compacto)
         Column(
             Modifier
-                .size(width = 40.dp, height = 27.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .size(width = 32.dp, height = 22.dp)
+                .clip(RoundedCornerShape(4.dp))
         ) {
             repeat(2) { row ->
                 Row(Modifier.weight(1f).fillMaxWidth()) {
-                    repeat(3) { col ->
+                    repeat(2) { col ->
                         val light = (row + col) % 2 == 0
                         Box(
                             Modifier
@@ -111,7 +111,7 @@ private fun BoardThemeCard(
         Text(
             if (isEn) theme.labelEn else theme.labelEs,
             color = if (selected) Gold else Text1,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
