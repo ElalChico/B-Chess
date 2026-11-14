@@ -85,6 +85,15 @@ class WebRTCNetworkManager(
     }
 
     override fun createMatch(onMatchIdGenerated: (String) -> Unit) {
+        createMatch(null, onMatchIdGenerated)
+    }
+
+    /**
+     * @param customCode código elegido por el anfitrión (null/vacío = automático).
+     *   Firebase solo verifica en ese momento si el código está libre; no guarda
+     *   una lista persistente y el nodo se borra al terminar la conexión.
+     */
+    fun createMatch(customCode: String?, onMatchIdGenerated: (String) -> Unit) {
         role = "host"
         isHost = true
         disconnectPeer() // reset defensivo por si había una sesión previa
@@ -95,69 +104,69 @@ class WebRTCNetworkManager(
             return
         }
 
-        try {
-            matchId = signaling.createMatchId()
-            _matchId.value = matchId
-            onMatchIdGenerated(matchId)
-        } catch (e: Exception) {
-            Log.e(TAG, "createMatchId failed", e)
-            fail(e.message ?: "No se pudo generar el código de partida")
-            return
-        }
-
         _state.value = BtState.WAITING_HOST
         _lastError.value = null
-        openPeerConnection(signaling)
 
-        // Host crea el DataChannel y la oferta SDP
-        val dcInit = DataChannel.Init().apply {
-            ordered = true // los movimientos llegan en orden, incluso con micro-cortes
-        }
-        val local = peerConnection?.createDataChannel("chess-data", dcInit)
-        setupDataChannel(local)
+        signaling.resolveMatchId(customCode, onResult = { id ->
+            matchId = id
+            _matchId.value = id
+            onMatchIdGenerated(id)
+            signaling.touchMatch(id)
+            openPeerConnection(signaling)
 
-        peerConnection?.createOffer(object : SdpObserver {
-            override fun onCreateSuccess(sessionDescription: SessionDescription?) {
-                val sdp = sessionDescription?.description ?: return
-                peerConnection?.setLocalDescription(object : SdpObserver {
+            // Host crea el DataChannel y la oferta SDP
+            val dcInit = DataChannel.Init().apply {
+                ordered = true // los movimientos llegan en orden, incluso con micro-cortes
+            }
+            val local = peerConnection?.createDataChannel("chess-data", dcInit)
+            setupDataChannel(local)
+
+            peerConnection?.createOffer(object : SdpObserver {
+                override fun onCreateSuccess(sessionDescription: SessionDescription?) {
+                    val sdp = sessionDescription?.description ?: return
+                    peerConnection?.setLocalDescription(object : SdpObserver {
+                        override fun onCreateSuccess(p0: SessionDescription?) {}
+                        override fun onSetSuccess() { signaling.saveOffer(matchId, sdp, {}) }
+                        override fun onCreateFailure(p0: String?) {}
+                        override fun onSetFailure(p0: String?) {}
+                    }, sessionDescription)
+                }
+                override fun onSetSuccess() {}
+                override fun onCreateFailure(p0: String?) = fail("No se pudo crear la oferta")
+                override fun onSetFailure(p0: String?) {}
+            }, MediaConstraints())
+
+            // Host espera la respuesta del invitado
+            signaling.listenForAnswer(matchId) { answerSdp ->
+                peerConnection?.setRemoteDescription(object : SdpObserver {
                     override fun onCreateSuccess(p0: SessionDescription?) {}
-                    override fun onSetSuccess() { signaling.saveOffer(matchId, sdp, {}) }
+                    override fun onSetSuccess() {}
                     override fun onCreateFailure(p0: String?) {}
                     override fun onSetFailure(p0: String?) {}
-                }, sessionDescription)
+                }, SessionDescription(SessionDescription.Type.ANSWER, answerSdp))
             }
-            override fun onSetSuccess() {}
-            override fun onCreateFailure(p0: String?) = fail("No se pudo crear la oferta")
-            override fun onSetFailure(p0: String?) {}
-        }, MediaConstraints())
+            signaling.listenForIceCandidates(matchId, "guest") { candidateJson ->
+                addRemoteIceCandidate(candidateJson)
+            }
 
-        // Host espera la respuesta del invitado
-        signaling.listenForAnswer(matchId) { answerSdp ->
-            peerConnection?.setRemoteDescription(object : SdpObserver {
-                override fun onCreateSuccess(p0: SessionDescription?) {}
-                override fun onSetSuccess() {}
-                override fun onCreateFailure(p0: String?) {}
-                override fun onSetFailure(p0: String?) {}
-            }, SessionDescription(SessionDescription.Type.ANSWER, answerSdp))
-        }
-        signaling.listenForIceCandidates(matchId, "guest") { candidateJson ->
-            addRemoteIceCandidate(candidateJson)
-        }
-
-        startWatchdog() // sin conexión en 90 s -> error legible
+            startWatchdog() // sin conexión en 90 s -> error legible
+        }, onError = { message ->
+            fail(message)
+        })
     }
 
     override fun joinMatch(matchId: String) {
         role = "guest"
         isHost = false
         disconnectPeer()
-        this.matchId = matchId.trim()
+        val signaling0 = signalingOrNull()
+        this.matchId = signaling0?.normalizeJoinCode(matchId) ?: matchId.trim()
         if (this.matchId.isBlank()) {
             fail("Código de partida inválido")
             return
         }
 
-        val signaling = signalingOrNull()
+        val signaling = signaling0
         if (signaling == null) {
             fail(SignalingManager.MISSING_ERROR)
             return

@@ -55,6 +55,7 @@ import com.bchess.android.data.GameRecord
 import com.bchess.android.data.StockfishEngineManager
 import com.bchess.android.data.UpdateManager
 import com.bchess.android.data.UpdateState
+import com.bchess.android.network.TcpBridgeNetwork
 import com.bchess.android.data.NetworkMode
 import com.bchess.android.data.discoverableIntent
 import com.bchess.android.data.requiredPermissions
@@ -180,7 +181,10 @@ class MainActivity : ComponentActivity() {
         val internetState by vm.internet.state.collectAsState()
         val internetMatchId by vm.internet.currentMatchId.collectAsState()
         val internetError by vm.internet.lastError.collectAsState()
-        val netConnected = btState == BtState.CONNECTED || internetState == BtState.CONNECTED
+        val tcpState by vm.tcp.state.collectAsState()
+        val tcpMatchId by vm.tcp.currentMatchId.collectAsState()
+        val tcpError by vm.tcp.lastError.collectAsState()
+        val netConnected = btState == BtState.CONNECTED || internetState == BtState.CONNECTED || tcpState == BtState.CONNECTED
         val showEndDialog by vm.showGameEndDialog.collectAsState()
         val remoteProfile by vm.remoteProfile.collectAsState()
         val isEn = prefs.language == AppLanguage.EN
@@ -244,6 +248,15 @@ class MainActivity : ComponentActivity() {
         // Internet (WebRTC): mismo protocolo de mensajes -> mismo flujo de inicio
         LaunchedEffect(internetState) {
             if (internetState == BtState.CONNECTED) {
+                vm.sendHello()
+                vm.sendProfile()
+                if (ui.lobby.isHost) vm.sendLobbyConfig()
+                if (screen == Screen.INTERNET) screen = Screen.ROOM
+            }
+        }
+        // Red local / cross-play PC: mismo protocolo de mensajes -> mismo flujo
+        LaunchedEffect(tcpState) {
+            if (tcpState == BtState.CONNECTED) {
                 vm.sendHello()
                 vm.sendProfile()
                 if (ui.lobby.isHost) vm.sendLobbyConfig()
@@ -349,15 +362,32 @@ class MainActivity : ComponentActivity() {
                     matchId = internetMatchId,
                     playerName = ui.localName.ifBlank { prefs.profileName },
                     error = internetError,
-                    onCreateMatch = {
+                    onCreateMatch = { customCode ->
+                        vm.setNetworkMode(NetworkMode.INTERNET)
                         isHostMode = true
                         vm.setIsHost(true)
-                        vm.internet.createMatch { /* el código llega vía currentMatchId */ }
+                        vm.internet.createMatch(customCode) { /* el código llega vía currentMatchId */ }
                     },
                     onJoinMatch = { code ->
+                        vm.setNetworkMode(NetworkMode.INTERNET)
                         isHostMode = false
                         vm.setIsHost(false)
                         vm.internet.joinMatch(code)
+                    },
+                    tcpState = tcpState,
+                    tcpMatchId = tcpMatchId,
+                    tcpError = tcpError,
+                    onCreateTcp = { port ->
+                        vm.setNetworkMode(NetworkMode.TCP)
+                        isHostMode = true
+                        vm.setIsHost(true)
+                        vm.tcp.createMatch(port.toIntOrNull() ?: TcpBridgeNetwork.DEFAULT_PORT)
+                    },
+                    onJoinTcp = { ip, port ->
+                        vm.setNetworkMode(NetworkMode.TCP)
+                        isHostMode = false
+                        vm.setIsHost(false)
+                        vm.tcp.joinMatch("$ip:${port.ifBlank { TcpBridgeNetwork.DEFAULT_PORT.toString() }}")
                     },
                     onBack = { vm.disconnect(); screen = Screen.HOME },
                     onFinishConnection = {
@@ -414,7 +444,9 @@ class MainActivity : ComponentActivity() {
                     },
                     onStartGame = vm::startGameAsHost,
                     onStartTournament = { games -> vm.startTournament(games, ui.lobby.timeMs, ui.lobby.incrementMs) },
-                    onBack = { screen = Screen.HOME; vm.disconnect(); roomTournament = false }
+                    // Volver al inicio NO corta la sesión: el badge del Home debe
+                    // mostrar "Conectado" y desde ahi se finaliza con el boton propio.
+                    onBack = { screen = Screen.HOME; roomTournament = false }
                 )
 
                 Screen.REPLAY -> {

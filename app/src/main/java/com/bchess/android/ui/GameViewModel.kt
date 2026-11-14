@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.bchess.android.core.*
 import com.bchess.android.data.*
 import com.bchess.android.network.ChessNetwork
+import com.bchess.android.network.TcpBridgeNetwork
 import com.bchess.android.network.WebRTCNetworkManager
 import com.bchess.android.ui.components.BoardSelection
 import kotlinx.coroutines.*
@@ -51,6 +52,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     val engine = ChessEngine()
     lateinit var bluetooth: BluetoothClassicManager
     lateinit var internet: WebRTCNetworkManager
+    lateinit var tcp: TcpBridgeNetwork
     lateinit var clock: ClockManager
     lateinit var sound: SoundManager
 
@@ -98,6 +100,8 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         if (this::bluetooth.isInitialized) return
         bluetooth = BluetoothClassicManager(appContext, viewModelScope)
         internet = WebRTCNetworkManager(appContext, viewModelScope)
+        tcp = TcpBridgeNetwork(viewModelScope)
+        tcp.localColorProvider = { MessageParser.stringFromColor(_ui.value.localColor) }
         sound = SoundManager(appContext)
         checkSignalEnabled = appContext.getSharedPreferences("chessbt_prefs", Context.MODE_PRIVATE).getBoolean("check_sig", true)
 
@@ -147,8 +151,30 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                 _showGameEndDialog.value = true
             }
         )
+        // Connection callback (LAN / cross-play PC)
+        tcp.setListener(object : ChessNetwork.Listener {
+            override fun onConnected() {
+                sound.play(SoundType.CLICK)
+                _ui.value = _ui.value.copy(lastError = "¡Conectado por red local!")
+                viewModelScope.launch { delay(3000); _ui.value = _ui.value.copy(lastError = null) }
+            }
+
+            override fun onMessageLine(line: String) { /* el flujo incoming ya dispara handleIncoming */ }
+
+            override fun onDisconnected(reason: String) {
+                _ui.value = _ui.value.copy(lastError = "Se cortó la conexión con el PC")
+                viewModelScope.launch { delay(3000); _ui.value = _ui.value.copy(lastError = null) }
+            }
+
+            override fun onError(error: String) {
+                _ui.value = _ui.value.copy(lastError = error)
+                viewModelScope.launch { delay(5000); _ui.value = _ui.value.copy(lastError = null) }
+            }
+        })
+
         observeBluetooth()
         observeInternet()
+        observeTcp()
     }
 
     /** Oculta el diálogo de fin de partida para ver el tablero con la partida jugada. */
@@ -166,10 +192,23 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         networkMode = mode
     }
 
+    /** Flags por transporte para no apagar el estado conectado de uno por culpa de otro. */
+    private var btConnected = false
+    private var internetConnected = false
+    private var tcpConnected = false
+
+    private fun applyConnected() {
+        val connected = btConnected || internetConnected || tcpConnected
+        _ui.value = _ui.value.copy(connected = connected,
+            lobby = _ui.value.lobby.copy(connected = connected))
+        if (!connected) _remoteProfile.value = null
+    }
+
     private fun netSend(message: BtMessage) {
         when (networkMode) {
             NetworkMode.BT -> bluetooth.send(message)
             NetworkMode.INTERNET -> internet.sendMessage(message)
+            NetworkMode.TCP -> tcp.sendMessage(message)
         }
     }
     private fun observeBluetooth() {
@@ -180,10 +219,8 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         }
         viewModelScope.launch {
             bluetooth.state.collect { st ->
-                val connected = st == BtState.CONNECTED
-                _ui.value = _ui.value.copy(connected = connected,
-                    lobby = _ui.value.lobby.copy(connected = connected))
-                if (!connected) _remoteProfile.value = null
+                btConnected = st == BtState.CONNECTED
+                applyConnected()
             }
         }
         viewModelScope.launch {
@@ -201,10 +238,22 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         }
         viewModelScope.launch {
             internet.state.collect { st ->
-                val connected = st == BtState.CONNECTED
-                _ui.value = _ui.value.copy(connected = connected,
-                    lobby = _ui.value.lobby.copy(connected = connected))
-                if (!connected) _remoteProfile.value = null
+                internetConnected = st == BtState.CONNECTED
+                applyConnected()
+            }
+        }
+    }
+
+    private fun observeTcp() {
+        viewModelScope.launch {
+            tcp.incoming.collect { msg ->
+                try { handleIncoming(msg) } catch (e: Exception) { /* never crash */ }
+            }
+        }
+        viewModelScope.launch {
+            tcp.state.collect { st ->
+                tcpConnected = st == BtState.CONNECTED
+                applyConnected()
             }
         }
     }
@@ -219,8 +268,10 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     fun setIsHost(host: Boolean) {
         isHost = host
         if (isHost) colorChosen = false
-        // Host is the clock authority; just switch the flag (no recreation, no leaked collectors).
-        if (this::clock.isInitialized) clock.isHost = host
+        // En TCP el PC no manda sincronizaciones de reloj: el móvil siempre
+        // corre su reloj en local (como una partida PC↔PC).
+        val localClock = host || networkMode == NetworkMode.TCP
+        if (this::clock.isInitialized) clock.isHost = localClock
         _ui.value = _ui.value.copy(lobby = _ui.value.lobby.copy(isHost = host, colorRandom = true),
             localColor = if (host) Color.WHITE else Color.BLACK,
             remoteColor = if (host) Color.BLACK else Color.WHITE)
@@ -771,6 +822,8 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             }
             is ClockSyncMessage -> clock.applyRemoteSync(msg)
             is GameEndMessage -> {
+                // Idempotente: ambos dispositivos pueden darse por vencidos al mismo tiempo
+                if (_ui.value.gameEnd != null) return
                 val winner = when (msg.winnerColor) {
                     "white" -> Color.WHITE; "black" -> Color.BLACK; else -> null
                 }
@@ -914,12 +967,14 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     fun disconnect() {
         try { bluetooth.disconnect() } catch (_: Exception) {}
         try { internet.disconnect() } catch (_: Exception) {}
+        try { tcp.disconnect() } catch (_: Exception) {}
         try { clock.stop() } catch (_: Exception) {}
     }
 
     fun onClearedCleanup() {
         try { bluetooth.release() } catch (_: Exception) {}
         try { internet.disconnect() } catch (_: Exception) {}
+        try { tcp.disconnect() } catch (_: Exception) {}
         try { sound.release() } catch (_: Exception) {}
     }
 }

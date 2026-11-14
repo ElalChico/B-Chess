@@ -100,7 +100,12 @@ enum class PieceSet(
     PIXEL("Pixel", "Pixel", "pixel"),
     RIOHACHA("Riohacha", "Riohacha", "riohacha"),
     STAUNTY("Staunty", "Staunty", "staunty"),
-    TATIANA("Tatiana", "Tatiana", "tatiana");
+    TATIANA("Tatiana", "Tatiana", "tatiana"),
+
+    // --- Sets propios de gatos (PNG, carpeta "Piezas Nuestras") ---
+    NUESTRAS_1("Piezas Nuestras 1", "Our Pieces 1", "nuestras1"),
+    NUESTRAS_2("Piezas Nuestras 2", "Our Pieces 2", "nuestras2"),
+    NUESTRAS_3("Piezas Nuestras 3", "Our Pieces 3", "nuestras3");
 
     companion object {
         val DEFAULT = LICHESS

@@ -43,7 +43,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import com.bchess.android.data.BtState
+import com.bchess.android.network.TcpBridgeNetwork
 
 private val ScreenBg = Color(0xFF101416)
 private val SurfaceColor = Color(0xFF1A2021)
@@ -56,12 +59,12 @@ private val ScreenError = Color(0xFFD98B86)
 private val ScreenGold = Color(0xFFC9B15A)
 
 /**
- * Internet match flow:
- * - "Crear partida" → genera un código (matchId) que el invitado ingresa
- * - "Unirme con código" → el invitado pega el código del anfitrión
+ * Conexión por P2P. Dos "transportes" en la misma pantalla:
+ * - Internet: sala con código (Firebase solo en el apretón de manos).
+ * - Red local / PC: TCP directo por IP:puerto — cross-play con la app de PC
+ *   (misma red WiFi, o la misma PC con dos instancias en 127.0.0.1).
  *
- * Una vez conectado, el juego pasa a la sala (RoomScreen) igual que en Bluetooth,
- * y el protocolo de mensajes es idéntico (BtMessage JSON).
+ * Una vez conectado, el juego pasa a la sala (RoomScreen) igual que en Bluetooth.
  */
 @Composable
 fun InternetMatchScreen(
@@ -69,19 +72,35 @@ fun InternetMatchScreen(
     matchId: String?,
     playerName: String,
     error: String?,
-    onCreateMatch: () -> Unit,
+    onCreateMatch: (String) -> Unit,
     onJoinMatch: (String) -> Unit,
+    tcpState: BtState = BtState.IDLE,
+    tcpMatchId: String? = null,
+    tcpError: String? = null,
+    onCreateTcp: (String) -> Unit = {},
+    onJoinTcp: (String, String) -> Unit = { _, _ -> },
     onBack: () -> Unit,
     onFinishConnection: () -> Unit = {}
 ) {
+    var tab by remember { mutableStateOf("web") } // "web" | "lan"
     var mode by remember { mutableStateOf<String?>(null) } // null | "create" | "join"
+    var customCode by remember { mutableStateOf("") }
     var joinCode by remember { mutableStateOf("") }
+    var lanMode by remember { mutableStateOf<String?>(null) } // null | "host" | "join"
+    var lanIp by remember { mutableStateOf("") }
+    var lanPort by remember { mutableStateOf(TcpBridgeNetwork.DEFAULT_PORT.toString()) }
     var copied by remember { mutableStateOf(false) }
+    var copiedLan by remember { mutableStateOf<String?>(null) }
     var showConnectionSuccess by remember { mutableStateOf(false) }
+    val localIps = remember { TcpBridgeNetwork.localIpv4() }
     val clipboard = LocalClipboardManager.current
     val waiting = state == BtState.WAITING_HOST
     val connecting = state == BtState.CONNECTING
     val connected = state == BtState.CONNECTED
+    val lanWaiting = tcpState == BtState.WAITING_HOST
+    val lanConnecting = tcpState == BtState.CONNECTING
+    val lanConnected = tcpState == BtState.CONNECTED
+    val activeError = if (tab == "lan") tcpError else error
 
     if (copied) {
         LaunchedEffect(copied) {
@@ -89,10 +108,16 @@ fun InternetMatchScreen(
             copied = false
         }
     }
+    if (copiedLan != null) {
+        LaunchedEffect(copiedLan) {
+            kotlinx.coroutines.delay(2200)
+            copiedLan = null
+        }
+    }
 
     // Mostrar mensaje de éxito de conexión cuando se conecta
-    LaunchedEffect(connected) {
-        if (connected) {
+    LaunchedEffect(connected, lanConnected) {
+        if (connected || lanConnected) {
             showConnectionSuccess = true
         }
     }
@@ -117,17 +142,52 @@ fun InternetMatchScreen(
 
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text("Jugar Peer-to-Peer", color = ScreenText, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-            Text("Conexión directa dispositivo a dispositivo · $playerName", color = ScreenMuted, fontSize = 13.sp)
+            Text(
+                if (tab == "lan") "Conexión directa por IP:puerto · $playerName"
+                else "Conexión directa dispositivo a dispositivo · $playerName",
+                color = ScreenMuted, fontSize = 13.sp
+            )
+        }
+
+        // ---- Elegir transporte ----
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(SurfaceColor, RoundedCornerShape(10.dp))
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            val transports = listOf("web" to "Internet", "lan" to "Red local / PC")
+            for ((id, label) in transports) {
+                val selected = tab == id
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (selected) ScreenAccent else Color.Transparent)
+                        .clickable { tab = id }
+                        .padding(vertical = 9.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        label,
+                        color = if (selected) Color(0xFF10201A) else ScreenMuted,
+                        fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                        fontSize = 12.sp
+                    )
+                }
+            }
         }
 
         Column(
             modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (!waiting && !connecting) {
+            if (tab == "web") {
+            if (!waiting && !connecting && mode == null) {
                 // ---- Elegir rol ----
                 Button(
-                    onClick = { mode = "create"; onCreateMatch() },
+                    onClick = { mode = "create" },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = ScreenGold, contentColor = Color(0xFF17130A))
@@ -137,7 +197,7 @@ fun InternetMatchScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text("Crear partida", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
-                        Text("Genera un código y compártelo", fontSize = 12.sp, color = Color(0xFF3A2E14))
+                        Text("Elige tu código o genera uno automático", fontSize = 12.sp, color = Color(0xFF3A2E14))
                     }
                 }
 
@@ -171,7 +231,45 @@ fun InternetMatchScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        if (matchId == null) {
+                        if (matchId == null && !waiting) {
+                            // Formulario: código propio opcional
+                            Text("CREAR SALA", color = ScreenMuted, fontSize = 11.sp, letterSpacing = 2.sp)
+                            Text(
+                                "Puedes elegir tu propio código para compartirlo con tu rival. Déjalo vacío para generar uno automático.",
+                                color = ScreenMuted,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 17.sp
+                            )
+                            OutlinedTextField(
+                                value = customCode,
+                                onValueChange = { input ->
+                                    customCode = input.filter { it.isLetterOrDigit() }.take(12).uppercase()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp),
+                                label = { Text("Código propio (opcional)", color = ScreenMuted, fontSize = 12.sp) },
+                                placeholder = { Text("Ej. CLUBAJEDREZ", color = ScreenMuted.copy(alpha = 0.6f), fontSize = 12.sp) },
+                                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = ScreenAccent,
+                                    unfocusedBorderColor = ScreenLine,
+                                    focusedTextColor = ScreenText,
+                                    unfocusedTextColor = ScreenText
+                                )
+                            )
+                            Button(
+                                onClick = { onCreateMatch(customCode) },
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = ScreenGold, contentColor = Color(0xFF17130A))
+                            ) {
+                                Text("Crear sala", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                            }
+                            TextButton(onClick = { mode = null; customCode = "" }) {
+                                Text("Cancelar", color = ScreenMuted, fontSize = 13.sp)
+                            }
+                        } else if (matchId == null) {
                             CircularProgressIndicator(color = ScreenAccent, modifier = Modifier.size(28.dp))
                             Text("Generando partida…", color = ScreenMuted, fontSize = 13.sp)
                         } else {
@@ -215,6 +313,8 @@ fun InternetMatchScreen(
 
             // ---- Vista de unión (invitado) ----
             if (mode == "join" || connecting) {
+                // (contenido web)
+
                 Surface(
                     shape = RoundedCornerShape(14.dp),
                     color = SurfaceColor,
@@ -259,7 +359,7 @@ fun InternetMatchScreen(
                         }
                         Button(
                             onClick = { onJoinMatch(joinCode) },
-                            enabled = joinCode.length >= 10 && !connecting,
+                            enabled = joinCode.trim().length >= 4 && !connecting,
                             modifier = Modifier.fillMaxWidth().height(50.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = ScreenGold, contentColor = Color(0xFF17130A)),
@@ -277,8 +377,215 @@ fun InternetMatchScreen(
                     }
                 }
             }
+            } // fin pestaña Internet
 
-            error?.let {
+            // ===== Pestaña Red local / PC (TCP directo) =====
+            if (tab == "lan") {
+                if (!lanWaiting && !lanConnecting && lanMode == null && !lanConnected) {
+                    // ---- Elegir rol ----
+                    Button(
+                        onClick = { lanMode = "host" },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = ScreenGold, contentColor = Color(0xFF17130A))
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("Abrir sala", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
+                            Text("El PC se une a esta sala por IP:puerto", fontSize = 12.sp, color = Color(0xFF3A2E14))
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = { lanMode = "join" },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ScreenLine),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ScreenText)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            horizontalAlignment = Alignment.Start
+                        ) {
+                            Text("Unirme a PC", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Ingresa la IP y el puerto del PC", fontSize = 12.sp, color = ScreenMuted)
+                        }
+                    }
+                }
+
+                // ---- Vista de anfitrión ----
+                if (lanMode == "host" || lanWaiting) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = SurfaceColor,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ScreenLine)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            if (!lanWaiting) {
+                                Text("ABRIR SALA", color = ScreenMuted, fontSize = 11.sp, letterSpacing = 2.sp)
+                                Text(
+                                    "Abre la sala y comparte tu IP y puerto con el PC. En la app de PC elige «Unirme a una sala» con esos datos.",
+                                    color = ScreenMuted,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 17.sp
+                                )
+                                OutlinedTextField(
+                                    value = lanPort,
+                                    onValueChange = { v -> lanPort = v.filter { it.isDigit() }.take(5) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(10.dp),
+                                    label = { Text("Puerto", color = ScreenMuted, fontSize = 12.sp) },
+                                    placeholder = { Text("${TcpBridgeNetwork.DEFAULT_PORT}", color = ScreenMuted.copy(alpha = 0.6f), fontSize = 13.sp) },
+                                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = ScreenAccent,
+                                        unfocusedBorderColor = ScreenLine,
+                                        focusedTextColor = ScreenText,
+                                        unfocusedTextColor = ScreenText
+                                    )
+                                )
+                                Button(
+                                    onClick = { onCreateTcp(lanPort) },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    enabled = (lanPort.toIntOrNull() ?: 0) in 1..65535,
+                                    colors = ButtonDefaults.buttonColors(containerColor = ScreenGold, contentColor = Color(0xFF17130A))
+                                ) {
+                                    Text("Abrir sala", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                                }
+                                TextButton(onClick = { lanMode = null; lanPort = TcpBridgeNetwork.DEFAULT_PORT.toString() }) {
+                                    Text("Cancelar", color = ScreenMuted, fontSize = 13.sp)
+                                }
+                            } else {
+                                Text("SALA ABIERTA", color = ScreenMuted, fontSize = 11.sp, letterSpacing = 2.sp)
+                                Text(
+                                    tcpMatchId ?: "?",
+                                    color = ScreenGold,
+                                    fontSize = 40.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    "Escribe esta IP y puerto en el PC («Unirme a una sala»):",
+                                    color = ScreenMuted,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                                if (localIps.isEmpty()) {
+                                    Text(
+                                        "No se detectó red local. Conecta ambos dispositivos al mismo WiFi o usa la IP del equipo.",
+                                        color = ScreenError,
+                                        fontSize = 12.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                } else {
+                                    for (ip in localIps) {
+                                        val addr = "$ip:${tcpMatchId ?: ""}"
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(SurfaceMuted, RoundedCornerShape(10.dp))
+                                                .border(1.dp, ScreenLine, RoundedCornerShape(10.dp))
+                                                .clickable {
+                                                    clipboard.setText(AnnotatedString(addr))
+                                                    copiedLan = addr
+                                                }
+                                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(addr, color = ScreenText, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                            Text(
+                                                if (copiedLan == addr) "¡Copiada!" else "Copiar",
+                                                color = ScreenAccent,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    CircularProgressIndicator(color = ScreenAccent, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    Text("Esperando al PC…", color = ScreenMuted, fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ---- Vista de invitado ----
+                if (lanMode == "join" || lanConnecting) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = SurfaceColor,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ScreenLine)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text("UNIRSE A PC", color = ScreenMuted, fontSize = 11.sp, letterSpacing = 2.sp)
+                            Text("Ingresa la IP del PC y el puerto de la sala que abrió", color = ScreenMuted, fontSize = 12.sp)
+                            OutlinedTextField(
+                                value = lanIp,
+                                onValueChange = { lanIp = it.trim().take(40) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp),
+                                label = { Text("IP del PC (p.ej. 192.168.1.10)", color = ScreenMuted, fontSize = 12.sp) },
+                                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = ScreenAccent,
+                                    unfocusedBorderColor = ScreenLine,
+                                    focusedTextColor = ScreenText,
+                                    unfocusedTextColor = ScreenText
+                                )
+                            )
+                            OutlinedTextField(
+                                value = lanPort,
+                                onValueChange = { v -> lanPort = v.filter { it.isDigit() }.take(5) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp),
+                                label = { Text("Puerto", color = ScreenMuted, fontSize = 12.sp) },
+                                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = ScreenAccent,
+                                    unfocusedBorderColor = ScreenLine,
+                                    focusedTextColor = ScreenText,
+                                    unfocusedTextColor = ScreenText
+                                )
+                            )
+                            Button(
+                                onClick = { onJoinTcp(lanIp, lanPort) },
+                                enabled = lanIp.isNotBlank() && (lanPort.toIntOrNull() ?: 0) in 1..65535 && !lanConnecting,
+                                modifier = Modifier.fillMaxWidth().height(50.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = ScreenGold, contentColor = Color(0xFF17130A)),
+                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 8.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    if (lanConnecting) {
+                                        CircularProgressIndicator(color = Color(0xFF17130A), modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                        Text("Conectando…", fontWeight = FontWeight.Bold)
+                                    } else {
+                                        Text("Conectar", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                            TextButton(onClick = { lanMode = null }) {
+                                Text("Cancelar", color = ScreenMuted, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            activeError?.let {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = SurfaceColor,
@@ -293,7 +600,11 @@ fun InternetMatchScreen(
                 color = SurfaceMuted
             ) {
                 Text(
-                    "Los movimientos viajan directamente de un teléfono a otro por una conexión entre pares (P2P), sin intermediarios ni servidores centrales durante la partida. Solo el código inicial se comparte mediante la red de emparejamiento.",
+                    if (tab == "lan") {
+                        "Conexión directa por TCP en la misma red WiFi (o entre instancias de la misma PC en 127.0.0.1). Compatible con la app de PC: juega con el mismo protocolo."
+                    } else {
+                        "Los movimientos viajan directamente de un teléfono a otro por una conexión entre pares (P2P), sin intermediarios ni servidores centrales durante la partida. Solo el código inicial se comparte mediante la red de emparejamiento."
+                    },
                     color = ScreenMuted,
                     fontSize = 12.sp,
                     modifier = Modifier.fillMaxWidth().padding(14.dp),
@@ -302,7 +613,7 @@ fun InternetMatchScreen(
             }
 
             // ==== MENSAJE DE ÉXITO DE CONEXIÓN ====
-            if (connected && showConnectionSuccess) {
+            if ((connected || lanConnected) && showConnectionSuccess) {
                 Surface(
                     shape = RoundedCornerShape(14.dp),
                     color = Color(0xFF14241D),
@@ -330,7 +641,10 @@ fun InternetMatchScreen(
                             textAlign = TextAlign.Center
                         )
                         Text(
-                            "Estás conectado con tu rival. Los movimientos viajarán directamente de dispositivo a dispositivo.",
+                            if (lanConnected && !connected)
+                                "Conectado con el PC. Los movimientos viajarán por la red local."
+                            else
+                                "Estás conectado con tu rival. Los movimientos viajarán directamente de dispositivo a dispositivo.",
                             color = ScreenMuted,
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center,
@@ -350,7 +664,7 @@ fun InternetMatchScreen(
             }
 
             // ==== BOTÓN DE FINALIZAR CONEXIÓN ====
-            if (connected) {
+            if (connected || lanConnected) {
                 Button(
                     onClick = onFinishConnection,
                     modifier = Modifier.fillMaxWidth().height(52.dp),

@@ -5,5 +5,7 @@ enum class NetworkMode {
     /** Bluetooth clásico (actual, con heartbeat + reconexión automática). */
     BT,
     /** Internet P2P (WebRTC + señalización Firebase). Código de partida. */
-    INTERNET
+    INTERNET,
+    /** LAN/red local o misma PC: TCP directo por IP:puerto (cross-play con PC). */
+    TCP
 }

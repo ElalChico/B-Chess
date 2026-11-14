@@ -148,17 +148,10 @@ fun HomeScreen(
                         .border(1.dp, Accent, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Prioridad: la foto que configuro el usuario. El avatar de
-                    // GitHub solo se usa como respaldo si no hay ninguna.
+                    // Solo la foto que configuro el usuario. Nunca se muestra el
+                    // avatar de GitHub del desarrollador aqui (solo en su tarjeta).
                     if (avatar != null) {
                         Image(avatar, contentDescription = "Foto de $profileName", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    } else if (githubAvatar != null) {
-                        Image(
-                            githubAvatar,
-                            contentDescription = "Foto de perfil de GitHub de Elal Chico",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
                     } else {
                         Text(profileName.firstOrNull()?.uppercaseChar()?.toString() ?: "J", color = Accent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     }
@@ -413,63 +406,39 @@ private fun DeveloperCard(
     onProfile: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         color = Card,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+        border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onAbout)
     ) {
-        Column(
-            Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Box(
+                Modifier.size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF1A2430), CircleShape)
+                    .border(1.dp, Accent, CircleShape),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    Modifier.size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF1A2430), CircleShape)
-                        .border(1.dp, Accent, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (githubAvatar != null) {
-                        Image(
-                            githubAvatar,
-                            contentDescription = "Foto de GitHub de Elal Chico",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Text("EC", color = Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Creado por Elal Chico", color = Text1, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text("Desarrollador autodidacta · Software libre", color = Muted, fontSize = 11.sp)
+                if (githubAvatar != null) {
+                    Image(
+                        githubAvatar,
+                        contentDescription = "Foto de GitHub de Elal Chico",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text("EC", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = onAbout,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Text1),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
-                ) {
-                    Text("Acerca de este desarrollador", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                }
-                Button(
-                    onClick = onProfile,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
-                ) {
-                    Text("Mi perfil de GitHub", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text("Creado por Elal Chico", color = Text1, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text("Desarrollador autodidacta · Software libre", color = Muted, fontSize = 10.sp, maxLines = 1)
             }
+            Text("›", color = Accent, fontSize = 18.sp)
         }
     }
 }
@@ -486,24 +455,24 @@ private fun AboutDeveloperDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
-            modifier = Modifier.fillMaxWidth().padding(24.dp),
-            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(16.dp),
+            shape = RoundedCornerShape(24.dp),
             color = Card,
             border = androidx.compose.foundation.BorderStroke(1.dp, Line)
         ) {
             Column(
-                Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(28.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Box(
-                        Modifier.size(46.dp)
+                        Modifier.size(72.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF1A2430), CircleShape)
-                            .border(1.dp, Accent, CircleShape),
+                            .border(2.dp, Accent, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         if (githubAvatar != null) {
@@ -514,17 +483,17 @@ private fun AboutDeveloperDialog(
                                 contentScale = ContentScale.Crop
                             )
                         } else {
-                            Text("EC", color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text("EC", color = Accent, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                         }
                     }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("Elal Chico", color = Text1, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                        Text("Desarrollador de B-Chess", color = Muted, fontSize = 12.sp)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Elal Chico", color = Text1, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Text("Desarrollador de B-Chess", color = Muted, fontSize = 14.sp)
                     }
                     Text(
                         "×",
                         color = Muted,
-                        fontSize = 22.sp,
+                        fontSize = 28.sp,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .clickable(onClick = onDismiss)
@@ -535,18 +504,18 @@ private fun AboutDeveloperDialog(
                 Text(
                     GitHubProfile.BIO,
                     color = Text1,
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp
+                    fontSize = 15.sp,
+                    lineHeight = 24.sp
                 )
 
                 Button(
                     onClick = onProfile,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White),
                     contentPadding = PaddingValues(vertical = 13.dp)
                 ) {
-                    Text("Más detalles en GitHub", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("Más detalles en GitHub", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
