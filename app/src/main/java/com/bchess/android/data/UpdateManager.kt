@@ -108,10 +108,10 @@ class UpdateManager private constructor(context: Context) {
     /**
      * Verifica si hay actualización disponible en GitHub
      */
-    suspend fun checkForUpdate(): Result<UpdateCheckResult> {
+    suspend fun checkForUpdate(quiet: Boolean = false): Result<UpdateCheckResult> {
         // Limpia APKs de actualizaciones que quedaran de sesiones anteriores
         cleanupStaleDownloads()
-        _updateState.value = UpdateState.Checking
+        if (!quiet) _updateState.value = UpdateState.Checking
         return suspendCoroutine { cont ->
             val request = Request.Builder()
                 .url(apiUrl)
@@ -122,19 +122,19 @@ class UpdateManager private constructor(context: Context) {
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
                     Log.e("UpdateManager", "checkForUpdate failed", e)
-                    _updateState.value = UpdateState.Error(e.message ?: "Error de red")
+                    if (!quiet) _updateState.value = UpdateState.Error(e.message ?: "Error de red")
                     cont.resume(Result.failure(e))
                 }
 
                 override fun onResponse(call: Call, response: Response) {
                     try {
                         if (!response.isSuccessful) {
-                            _updateState.value = UpdateState.Error("HTTP ${response.code}")
+                            if (!quiet) _updateState.value = UpdateState.Error("HTTP ${response.code}")
                             cont.resume(Result.failure(Exception("HTTP ${response.code}")))
                         } else {
                             val json = response.body?.string() ?: "{}"
                             response.close()
-                            val result = parseReleaseJson(json)
+                            val result = parseReleaseJson(json, quiet)
                             if (result.isSuccess) {
                                 ctx.getSharedPreferences("update_prefs", Context.MODE_PRIVATE)
                                     .edit()
@@ -153,7 +153,7 @@ class UpdateManager private constructor(context: Context) {
         }
     }
 
-    private fun parseReleaseJson(json: String): Result<UpdateCheckResult> {
+    private fun parseReleaseJson(json: String, quiet: Boolean = false): Result<UpdateCheckResult> {
         try {
             val releases = org.json.JSONArray(json)
             val current = getCurrentVersion()
@@ -221,7 +221,7 @@ class UpdateManager private constructor(context: Context) {
             return Result.success(result)
         } catch (e: Exception) {
             Log.e("UpdateManager", "parseReleaseJson failed", e)
-            _updateState.value = UpdateState.Error("Error parseando release")
+            if (!quiet) _updateState.value = UpdateState.Error("Error parseando release")
             return Result.failure(e)
         }
     }
