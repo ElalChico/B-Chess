@@ -17,6 +17,9 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -57,7 +60,6 @@ fun GameScreen(
     showCoordinates: Boolean = true,
     localPhotoBase64: String = "",
     remoteProfile: com.bchess.android.data.RemoteProfile? = null,
-    onViewRivalProfile: () -> Unit = {},
     onToggleFullscreen: () -> Unit,
     onSquareTap: (Int) -> Unit,
     onTogglePause: () -> Unit,
@@ -85,8 +87,14 @@ fun GameScreen(
             .background(Bg)
             .padding(horizontal = if (isFullscreen) 8.dp else 10.dp, vertical = 8.dp)
     ) {
+        // Clock values shared by both player bars (opponent's above the board, local below)
+        val localClockMs = if (ui.localColor == ChessColor.WHITE) ui.clock.whiteMs else ui.clock.blackMs
+        val localIsLowTime = ui.lobby.timeMs > 0 && localClockMs < 30000 // 30 seconds threshold
+        val remoteClockMs = if (ui.remoteColor == ChessColor.WHITE) ui.clock.whiteMs else ui.clock.blackMs
+        val remoteIsLowTime = ui.lobby.timeMs > 0 && remoteClockMs < 30000
+
         if (!isFullscreen) {
-            // Top status line + fullscreen control
+            // Top status line + fullscreen control + overflow menu
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -109,6 +117,10 @@ fun GameScreen(
                 ) {
                     Text("Pantalla completa", color = Color(0xFFC9D2DE), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
+                if (ui.gameEnd == null) {
+                    Spacer(Modifier.width(6.dp))
+                    OverflowMenu(onResign = onResign)
+                }
             }
             Spacer(Modifier.height(6.dp))
 
@@ -116,17 +128,17 @@ fun GameScreen(
                 name = ui.remoteName.ifBlank { remoteProfile?.name ?: "Rival" },
                 isYou = false,
                 isTurn = ui.snapshot.sideToMove == ui.remoteColor,
-                clockMs = if (ui.remoteColor == ChessColor.WHITE) ui.clock.whiteMs else ui.clock.blackMs,
+                clockMs = remoteClockMs,
                 totalMs = ui.lobby.timeMs,
                 showClock = ui.lobby.timeMs > 0,
                 inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.remoteColor,
                 sideLabel = if (ui.remoteColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
                 remotePhoto = remoteProfile?.photoBase64,
-                onRivalTap = onViewRivalProfile
+                isLowTime = remoteIsLowTime
             )
             Spacer(Modifier.height(6.dp))
         } else {
-            CompactHud(ui = ui, onExit = onToggleFullscreen)
+            CompactHud(ui = ui, remotePhotoBase64 = remoteProfile?.photoBase64, onExit = onToggleFullscreen, onResign = onResign)
             Spacer(Modifier.height(4.dp))
         }
 
@@ -159,12 +171,6 @@ fun GameScreen(
 
         Spacer(Modifier.height(6.dp))
 
-        // Update the PlayerBar for both local and remote player with better clock colors
-        val localClockMs = if (ui.localColor == ChessColor.WHITE) ui.clock.whiteMs else ui.clock.blackMs
-        val localIsLowTime = ui.lobby.timeMs > 0 && localClockMs < 30000 // 30 seconds threshold
-        val remoteClockMs = if (ui.remoteColor == ChessColor.WHITE) ui.clock.whiteMs else ui.clock.blackMs
-        val remoteIsLowTime = ui.lobby.timeMs > 0 && remoteClockMs < 30000
-
         if (!isFullscreen) {
             PlayerBar(
                 name = ui.localName.ifBlank { "Jugador" },
@@ -182,22 +188,6 @@ fun GameScreen(
             ui.lastError?.let {
                 Text(it, color = Red, fontSize = 12.5.sp, modifier = Modifier.padding(top = 4.dp, start = 4.dp))
             }
-        }
-
-        if (!isFullscreen) {
-            PlayerBar(
-                name = ui.remoteName.ifBlank { remoteProfile?.name ?: "Rival" },
-                isYou = false,
-                isTurn = ui.snapshot.sideToMove == ui.remoteColor,
-                clockMs = remoteClockMs,
-                totalMs = ui.lobby.timeMs,
-                showClock = ui.lobby.timeMs > 0,
-                inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.remoteColor,
-                sideLabel = if (ui.remoteColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
-                remotePhoto = remoteProfile?.photoBase64,
-                onRivalTap = onViewRivalProfile,
-                isLowTime = remoteIsLowTime
-            )
         }
 
         Spacer(Modifier.height(8.dp))
@@ -233,8 +223,6 @@ fun GameScreen(
                         modifier = Modifier.weight(1f)
                     ) { if (ui.lastError?.contains("ofrece tablas") == true) onAcceptDraw() else onOfferDraw() }
                 }
-
-                ActionBtn("Abandonar", weak = true, modifier = Modifier.weight(1f)) { onResign() }
             }
         }
 
@@ -362,7 +350,7 @@ private fun statusText(ui: UiGameState): String = when {
 }
 
 @Composable
-private fun CompactHud(ui: UiGameState, onExit: () -> Unit) {
+private fun CompactHud(ui: UiGameState, remotePhotoBase64: String?, onExit: () -> Unit, onResign: () -> Unit) {
     val remoteTurn = ui.snapshot.sideToMove == ui.remoteColor
     val remoteClock = if (ui.remoteColor == ChessColor.WHITE) ui.clock.whiteMs else ui.clock.blackMs
     val localClock = if (ui.localColor == ChessColor.WHITE) ui.clock.whiteMs else ui.clock.blackMs
@@ -376,6 +364,8 @@ private fun CompactHud(ui: UiGameState, onExit: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(7.dp).background(Color(0xFFFF8A8A), CircleShape))
+        Spacer(Modifier.width(6.dp))
+        HudAvatar(photoBase64 = remotePhotoBase64, name = ui.remoteName.ifBlank { "Rival" }, tint = Color(0xFFFF9B9B))
         Spacer(Modifier.width(6.dp))
         Text(
             text = ui.remoteName.ifBlank { "Rival" },
@@ -410,6 +400,37 @@ private fun CompactHud(ui: UiGameState, onExit: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             Text("Salir", color = Color(0xFFC9D2DE), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        }
+        if (ui.gameEnd == null) {
+            Spacer(Modifier.width(8.dp))
+            OverflowMenu(onResign = onResign, compact = true)
+        }
+    }
+}
+
+@Composable
+private fun HudAvatar(photoBase64: String?, name: String, tint: Color) {
+    val bmp = remember(photoBase64) { decodePhoto(photoBase64) }
+    Box(
+        modifier = Modifier
+            .size(22.dp)
+            .clip(CircleShape)
+            .background(Color(0xFF251A1A))
+            .border(1.dp, Color(0xFFFF8A8A).copy(alpha = 0.6f), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        val b = bmp
+        if (b != null) {
+            androidx.compose.foundation.Image(
+                bitmap = b.asImageBitmap(),
+                contentDescription = "Foto de $name",
+                modifier = Modifier.fillMaxSize().clip(CircleShape)
+            )
+        } else {
+            Text(
+                (name.firstOrNull() ?: 'R').uppercaseChar().toString(),
+                fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = tint
+            )
         }
     }
 }
@@ -484,6 +505,49 @@ private fun ActionBtn(label: String, weak: Boolean, modifier: Modifier = Modifie
 }
 
 @Composable
+private fun OverflowMenu(onResign: () -> Unit, compact: Boolean = false) {
+    var expanded by remember { mutableStateOf(false) }
+    val buttonSize = if (compact) 30.dp else 34.dp
+    val corner = if (compact) 9.dp else 10.dp
+    Box {
+        Box(
+            modifier = Modifier
+                .size(buttonSize)
+                .background(Color(0xFF161C24), RoundedCornerShape(corner))
+                .border(1.dp, Line2, RoundedCornerShape(corner))
+                .clickable { expanded = true },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "Más opciones",
+                tint = Color(0xFFC9D2DE),
+                modifier = Modifier.size(if (compact) 18.dp else 19.dp)
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = Card,
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            DropdownMenuItem(
+                text = { Text("Abandonar", color = Red, fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Flag,
+                        contentDescription = null,
+                        tint = Red,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                onClick = { expanded = false; onResign() }
+            )
+        }
+    }
+}
+
+@Composable
 private fun PlayerBar(
     name: String,
     isYou: Boolean,
@@ -495,7 +559,6 @@ private fun PlayerBar(
     sideLabel: String,
     photoBase64: String = "",
     remotePhoto: String? = null,
-    onRivalTap: (() -> Unit)? = null,
     isLowTime: Boolean = false
 ) {
     val accentColor = if (isTurn) Gold else Color(0xFF2B3542)
@@ -514,7 +577,6 @@ private fun PlayerBar(
                 if (isTurn) Color(0xFF2E3A26) else Color(0xFF232C38),
                 RoundedCornerShape(14.dp)
             )
-            .then(if (!isYou && onRivalTap != null) Modifier.clickable { onRivalTap() } else Modifier)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -597,7 +659,7 @@ private fun PlayerBar(
             }
             Text(
                 text = if (isYou) "TÚ · ${if (isTurn) "Jugando" else "En espera"}"
-                       else "RIVAL · ${if (isTurn) "Jugando" else "En espera"} · toca para ver su perfil",
+                       else "RIVAL · ${if (isTurn) "Jugando" else "En espera"}",
                 fontSize = 10.sp,
                 color = if (isTurn) Green else Muted,
                 fontWeight = FontWeight.SemiBold,

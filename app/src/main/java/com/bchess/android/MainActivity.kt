@@ -213,7 +213,7 @@ class MainActivity : ComponentActivity() {
                     screen = Screen.CONNECT
                     if (isHostMode) startHostListening() else startGuestScanning()
                 }
-                Screen.GAME -> screen = Screen.GAME
+                Screen.GAME -> { screen = Screen.GAME; if (ui.lobby.gameStarted) fullscreen = true }
                 Screen.SETTINGS -> screen = Screen.SETTINGS
                 Screen.PRACTICE -> screen = Screen.PRACTICE
                 else -> screen = Screen.HOME
@@ -266,7 +266,10 @@ class MainActivity : ComponentActivity() {
             }
         }
         LaunchedEffect(ui.lobby.gameStarted) {
-            if (ui.lobby.gameStarted && (screen == Screen.PROFILE || screen == Screen.ROOM)) screen = Screen.GAME
+            if (ui.lobby.gameStarted && (screen == Screen.PROFILE || screen == Screen.ROOM)) {
+                fullscreen = true // el tablero debe abrirse grande desde el inicio
+                screen = Screen.GAME
+            }
         }
 
         val updateManager = remember { UpdateManager.getInstance(activity) }
@@ -385,7 +388,9 @@ class MainActivity : ComponentActivity() {
                     onListen = startHostListening,
                     onSearch = startGuestScanning,
                     onConnect = { addr -> vm.bluetooth.connectTo(addr) },
-                    onBack = { vm.disconnect(); screen = Screen.HOME }
+                    onBack = { vm.disconnect(); screen = Screen.HOME },
+                    remoteProfile = remoteProfile,
+                    onViewRivalProfile = { rivalProfileFromScreen = Screen.CONNECT; screen = Screen.RIVAL_PROFILE }
                 )
 
                 Screen.INTERNET -> InternetMatchScreen(
@@ -522,7 +527,6 @@ class MainActivity : ComponentActivity() {
                     showCoordinates = prefs.showCoordinates,
                     localPhotoBase64 = prefs.profilePhotoBase64,
                     remoteProfile = remoteProfile,
-                    onViewRivalProfile = { rivalProfileFromScreen = screen; screen = Screen.RIVAL_PROFILE },
                     onToggleFullscreen = { fullscreen = !fullscreen },
                     onSquareTap = vm::onSquareTap,
                     onTogglePause = vm::togglePause,
@@ -668,7 +672,7 @@ class MainActivity : ComponentActivity() {
                         }
                         Screen.GAME -> {
                             if (ui.lobby.gameStarted && ui.gameEnd == null) {
-                                fullscreen = false
+                                fullscreen = true // vuelve a la partida en grande
                                 screen = Screen.GAME
                             }
                         }

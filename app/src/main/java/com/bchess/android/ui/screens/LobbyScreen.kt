@@ -39,11 +39,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.PopupProperties
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import com.bchess.android.data.GameRecord
 import com.bchess.android.data.GameHistoryStore
 import com.bchess.android.data.LobbyState
 import com.bchess.android.data.PgnArchive
-import com.bchess.android.data.formatClock
 import com.bchess.android.ui.components.PhotoCropDialog
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -133,6 +136,9 @@ fun LobbyScreen(
     var pendingCrop by remember { mutableStateOf<Bitmap?>(null) }
     var photoError by remember { mutableStateOf<String?>(null) }
     var pgnMessage by remember { mutableStateOf<String?>(null) }
+    // Edición del perfil: solo abierta por defecto la primera vez (profileSetupRequired);
+    // el resto de veces se abre desde el botón de engranaje
+    var editMode by remember(profileSetupRequired) { mutableStateOf(profileSetupRequired) }
     val context = LocalContext.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         photoError = null
@@ -252,6 +258,24 @@ fun LobbyScreen(
                     }
                 }
             }
+            if (!profileSetupRequired) {
+                Spacer(Modifier.weight(1f))
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(if (editMode) Color(0xFF2A2412) else Color(0xFF161C24), RoundedCornerShape(11.dp))
+                        .border(1.dp, if (editMode) Color(0xFF3A3120) else Line2, RoundedCornerShape(11.dp))
+                        .clickable { editMode = !editMode },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = if (editMode) "Ocultar edición del perfil" else "Editar perfil",
+                        tint = if (editMode) Gold else Color(0xFFC9D2DE),
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+            }
         }
         Text(
             if (profileSetupRequired) "Paso 1 de 3 · El rival reconocerá tu nombre y foto."
@@ -287,6 +311,37 @@ fun LobbyScreen(
             }
         }
 
+        if (!editMode) {
+            // Vista de solo lectura del perfil: la edición se abre desde el engranaje
+            SectionLabel("TU PERFIL")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF141A22), RoundedCornerShape(14.dp))
+                    .border(1.dp, Line, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ProfileAvatar(photoBase64, localName.ifBlank { "T" })
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        localName.ifBlank { "Jugador" },
+                        color = Text1,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 17.sp,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "Toca el engranaje para editar tu foto y nombre",
+                        color = Muted,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
+        } else {
         // Profile photo (round avatar + crop)
         SectionLabel("FOTO DE PERFIL")
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -353,6 +408,7 @@ fun LobbyScreen(
         if (hasChanges && nameText.isNotBlank()) {
             Text("Nombre guardado automáticamente", color = Green, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, start = 4.dp))
         }
+        } // fin edición del perfil
 
         val canContinue = nameText.isNotBlank() && (!profileSetupRequired || photoBase64.isNotBlank())
         Button(
@@ -689,25 +745,25 @@ private fun SectionLabel(text: String) {
 
 @Composable
 private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> Unit) {
-    // Determine white and black player names based on who played white
+    // Nombre de blancas y negras según el color local
     val (whiteName, blackName) = if (rec.localColorWhite) {
         (rec.playerName.ifBlank { "Tú" }) to rec.opponent
     } else {
         rec.opponent to (rec.playerName.ifBlank { "Tú" })
     }
 
-    // Resultado del juego
     val resultColor = when {
         rec.localWon == true -> Green
         rec.localWon == false -> Color(0xFFFF6B6B)
         else -> Gold
     }
-    val resultText = when {
-        rec.localWon == true -> "Victoria"
-        rec.localWon == false -> "Derrota"
-        else -> "Empate"
+    val outcome = when {
+        rec.localWon == true -> "V"
+        rec.localWon == false -> "D"
+        else -> "E"
     }
-    // Marcador estilo lichess: el ganador resaltado en verde, el perdedor atenuado
+
+    // Marcador estilo lichess: ganador resaltado, perdedor atenuado
     val whiteWon = rec.result == "1-0"
     val blackWon = rec.result == "0-1"
     val isDraw = !whiteWon && !blackWon
@@ -715,98 +771,93 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
     val whiteColor = when { whiteWon -> Green; isDraw -> Gold; else -> Muted }
     val blackColor = when { blackWon -> Green; isDraw -> Gold; else -> Muted }
 
-    // Tiempo promedio por jugada
-    val avgTime = if (rec.moveClocks.isNotEmpty()) {
-        val totalTime = rec.moveClocks.sum().toDouble()
-        val msPerMove = totalTime / rec.moveClocks.size
-        formatClock(msPerMove.toLong())
-    } else {
-        "--"
-    }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Card, RoundedCornerShape(14.dp))
-            .border(1.dp, Line, RoundedCornerShape(14.dp))
-            .padding(12.dp),
+            .background(Card, RoundedCornerShape(10.dp))
+            .border(1.dp, Line, RoundedCornerShape(10.dp))
+            .clickable { onReplay() }
+            .padding(horizontal = 6.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .background(resultColor.copy(alpha = 0.16f), RoundedCornerShape(7.dp))
+                .border(1.dp, resultColor.copy(alpha = 0.45f), RoundedCornerShape(7.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(outcome, color = resultColor, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
+        }
+        Spacer(Modifier.width(7.dp))
         Column(Modifier.weight(1f)) {
-            // Nombres con el ganador en verde y el perdedor atenuado
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     whiteName,
-                    fontSize = 13.sp,
+                    fontSize = 10.5.sp,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     fontWeight = if (whiteWon) FontWeight.ExtraBold else FontWeight.Medium,
                     color = whiteColor,
-                    textAlign = TextAlign.End, modifier = Modifier.weight(1f)
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(1f)
                 )
                 Text(
                     " $scoreText ",
-                    fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Text1,
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Text1,
                     textAlign = TextAlign.Center
                 )
                 Text(
                     blackName,
-                    fontSize = 13.sp,
+                    fontSize = 10.5.sp,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     fontWeight = if (blackWon) FontWeight.ExtraBold else FontWeight.Medium,
                     color = blackColor,
-                    textAlign = TextAlign.Start, modifier = Modifier.weight(1f)
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier.weight(1f)
                 )
             }
-            // Resultado con fecha y hora
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    resultText,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = resultColor,
+                    "${rec.dateLabel()} · ${rec.movesSan.size} jugadas" +
+                        (if (rec.gameType == "practice") " · Stockfish" else ""),
+                    fontSize = 9.5.sp,
+                    color = Muted,
                     maxLines = 1
                 )
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(resultColor, CircleShape)
-                )
                 Text(
-                    "${rec.dateLabel()} · ${rec.timeLabel}",
-                    fontSize = 10.sp, color = Muted, maxLines = 1
+                    if (rec.localColorWhite) "Blancas" else "Negras",
+                    fontSize = 9.sp,
+                    color = Muted,
+                    maxLines = 1
                 )
             }
-            Text(
-                "${rec.movesSan.size} jugadas · tiempo prom. ${avgTime} · ${if (rec.localColorWhite) "Blancas" else "Negras"}" +
-                (if (rec.gameType == "practice") " · Stockfish" else ""),
-                fontSize = 10.sp, color = Muted, maxLines = 2
+        }
+        IconButton(onClick = onReplay, modifier = Modifier.size(30.dp)) {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = "Reproducir partida",
+                tint = Gold,
+                modifier = Modifier.size(18.dp)
             )
         }
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Button(
-                onClick = onReplay,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F0F0F), contentColor = Gold),
-                shape = RoundedCornerShape(10.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3A3524)),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-            ) { Text("Reproducir", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
-            Spacer(Modifier.height(4.dp))
-            OutlinedButton(
-                onClick = onDelete,
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4A2626)),
-                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF3A2222), contentColor = Color(0xFFFF9B9B))
-            ) { Text("Eliminar", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+        IconButton(onClick = onDelete, modifier = Modifier.size(30.dp)) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = "Eliminar partida",
+                tint = Color(0xFFFF9B9B),
+                modifier = Modifier.size(16.dp)
+            )
         }
     }
 }

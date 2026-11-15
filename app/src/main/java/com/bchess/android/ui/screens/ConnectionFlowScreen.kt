@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import com.bchess.android.data.BtState
 import com.bchess.android.data.DeviceRole
 import com.bchess.android.data.DiscoveredDevice
+import com.bchess.android.data.RemoteProfile
 
 private val ScreenBg = Color(0xFF101416)
 private val SurfaceColor = Color(0xFF1A2021)
@@ -55,7 +57,9 @@ fun ConnectionFlowScreen(
     onListen: () -> Unit,
     onSearch: () -> Unit,
     onConnect: (String) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    remoteProfile: RemoteProfile? = null,
+    onViewRivalProfile: () -> Unit = {}
 ) {
     val appDevices = devices.filter { it.isChessX }.sortedByDescending { it.rssi }
     val otherDevices = devices.filterNot { it.isChessX }.sortedByDescending { it.rssi }
@@ -133,6 +137,41 @@ fun ConnectionFlowScreen(
                         color = ScreenMuted,
                         fontSize = 11.sp
                     )
+                }
+            }
+        }
+
+        if (state == BtState.CONNECTED && remoteProfile != null) {
+            // Ver perfil del rival: acceso desde Conexiones
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFF151C25),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3A3524))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onViewRivalProfile() }
+                        .padding(horizontal = 14.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    RemoteAvatarMini(remoteProfile.photoBase64, remoteProfile.name.ifBlank { remoteName.ifBlank { "R" } })
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            "Ver perfil de ${remoteProfile.name.ifBlank { remoteName.ifBlank { "Rival" } }}",
+                            color = ScreenAccent,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            maxLines = 1
+                        )
+                        Text(
+                            "${remoteProfile.total} jugadas · ${remoteProfile.wins}V · ${remoteProfile.losses}D · ${remoteProfile.draws}E",
+                            color = ScreenMuted,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Text("→", color = ScreenAccent, fontWeight = FontWeight.ExtraBold)
                 }
             }
         }

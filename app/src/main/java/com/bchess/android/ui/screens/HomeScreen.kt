@@ -43,8 +43,8 @@ private val Accent = Color(0xFF789889)
 private val Green = Color(0xFF81B39A)
 private val Gold = Color(0xFFC9B15A)
 private val PanelPrimary = Color(0xFF28303F)
-private val P2PBorder = Color(0xFF344258)
-private val P2PText = Color(0xFFD8E2F0)
+private val P2PBorder = Color(0xFF3B82F6)
+private val P2PText = Color(0xFF6FA8FF)
 
 @Composable
 fun HomeScreen(
@@ -240,7 +240,7 @@ fun HomeScreen(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, P2PBorder),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = P2PText),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = P2PText, containerColor = Color(0xFF101E33)),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -253,7 +253,7 @@ fun HomeScreen(
                 Spacer(Modifier.width(14.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("Partida Peer-to-Peer", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Protocolo directo dispositivo a dispositivo · sin intermediarios", color = Muted, fontSize = 11.sp)
+                    Text("Protocolo directo dispositivo a dispositivo · sin intermediarios", color = Color(0xFF8FA8D8), fontSize = 11.sp)
                 }
             }
         }

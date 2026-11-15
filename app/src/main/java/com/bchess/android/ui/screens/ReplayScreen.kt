@@ -93,35 +93,46 @@ fun ReplayScreen(record: GameRecord, showCoordinates: Boolean = true, onBack: ()
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(Bg2).padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        modifier = Modifier.fillMaxSize().background(Bg2).padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onBack() }
-                .padding(vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = androidx.compose.material.icons.Icons.Default.ArrowBack,
-                contentDescription = "Volver al historial",
-                tint = Muted3,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(Modifier.width(6.dp))
-            Text("Volver al historial", color = Muted3, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        }
+        // Volver + título en una sola fila compacta -> el tablero queda igual de grande que en juego
         Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(Color(0xFF161C24), RoundedCornerShape(9.dp))
+                    .border(1.dp, Line3, RoundedCornerShape(9.dp))
+                    .clickable { onBack() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Volver al historial",
+                    tint = Muted3,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
+            Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     "Reproducción · $localName vs $oppName",
-                    fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = Text13, maxLines = 1
+                    fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Text13,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 Text(
-                    "${record.dateLabel()} · ${record.timeLabel} · ${if (localIsWhite) "Juegas blancas" else "Juegas negras"} · ${record.result}",
-                    fontSize = 11.sp, color = Muted3, maxLines = 1
+                    "${record.dateLabel()} · ${if (localIsWhite) "Juegas blancas" else "Juegas negras"} · ${record.timeLabel}",
+                    fontSize = 10.sp, color = Muted3, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
+            }
+            Box(
+                modifier = Modifier
+                    .background(Card3, RoundedCornerShape(8.dp))
+                    .border(1.dp, Line3, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(record.result, color = Gold3, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
             }
         }
         HudBar(oppName, false, remoteClock, record)
@@ -272,12 +283,12 @@ private fun clockAfter(record: GameRecord, idx: Int, white: Boolean): Long {
 @Composable
 private fun HudBar(name: String, isYou: Boolean, clockMs: Long, record: GameRecord) {
     Row(
-        modifier = Modifier.fillMaxWidth().background(Card3, RoundedCornerShape(16.dp))
-            .border(1.dp, Line3, RoundedCornerShape(16.dp)).padding(horizontal = 10.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().background(Card3, RoundedCornerShape(12.dp))
+            .border(1.dp, Line3, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(38.dp).background(
+            Modifier.size(30.dp).background(
                 if (isYou) Color(0xFF15251D) else Color(0xFF251A1A), androidx.compose.foundation.shape.CircleShape
             ),
             contentAlignment = Alignment.Center
@@ -289,7 +300,7 @@ private fun HudBar(name: String, isYou: Boolean, clockMs: Long, record: GameReco
             )
         }
         Spacer(Modifier.width(10.dp))
-        Text(name, color = Text13, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
-        Text(formatClock(clockMs), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = Text13)
+        Text(name, color = Text13, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
+        Text(formatClock(clockMs), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Text13)
     }
 }

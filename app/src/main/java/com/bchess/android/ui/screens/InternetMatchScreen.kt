@@ -44,6 +44,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.draw.clip
 import com.bchess.android.data.BtState
 import com.bchess.android.network.TcpBridgeNetwork
@@ -248,6 +250,7 @@ fun InternetMatchScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
                                 shape = RoundedCornerShape(10.dp),
                                 label = { Text("Código propio (opcional)", color = ScreenMuted, fontSize = 12.sp) },
                                 placeholder = { Text("Ej. CLUBAJEDREZ", color = ScreenMuted.copy(alpha = 0.6f), fontSize = 12.sp) },
@@ -333,10 +336,11 @@ fun InternetMatchScreen(
                         ) {
                             OutlinedTextField(
                                 value = joinCode,
-                                onValueChange = { joinCode = it.trim() },
+                                onValueChange = { input -> joinCode = normalizeCodeInput(input) },
                                 modifier = Modifier.weight(1f),
                                 singleLine = false,
                                 maxLines = 4,
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
                                 shape = RoundedCornerShape(10.dp),
                                 colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = ScreenAccent,
@@ -350,7 +354,7 @@ fun InternetMatchScreen(
                             )
                             TextButton(
                                 onClick = {
-                                    clipboard.getText()?.let { joinCode = it.toString().trim() }
+                                    clipboard.getText()?.let { joinCode = normalizeCodeInput(it.toString()) }
                                 },
                                 enabled = joinCode.isNotBlank()
                             ) {
@@ -682,4 +686,14 @@ fun InternetMatchScreen(
             }
         }
     }
+}
+
+/**
+ * Normaliza la entrada del campo de código: las claves push de Firebase
+ * (empiezan por '-') distinguen mayúsculas y se conservan tal cual;
+ * el resto, solo letras y dígitos en MAYÚSCULAS.
+ */
+private fun normalizeCodeInput(raw: String): String {
+    val t = raw.trim()
+    return if (t.startsWith("-")) t else t.filter { it.isLetterOrDigit() }.uppercase().take(24)
 }

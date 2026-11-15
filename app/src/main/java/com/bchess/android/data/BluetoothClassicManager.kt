@@ -471,7 +471,8 @@ fun isBluetoothPermissionGranted(context: Context): Boolean {
         context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) == android.content.pm.PackageManager.PERMISSION_GRANTED
                         && context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_SCAN) == android.content.pm.PackageManager.PERMISSION_GRANTED
     } else {
-        context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        // Sin permiso de ubicación: BLUETOOTH/BLUETOOTH_ADMIN se conceden en la instalación
+        true
     }
 }
 
@@ -479,6 +480,7 @@ fun requiredPermissions(): Array<String> {
     return if (Build.VERSION.SDK_INT >= 31) {
         arrayOf(android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_SCAN)
     } else {
-        arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        // Sin GPS: en Android <= 11 no se piden permisos en tiempo de ejecución
+        arrayOf()
     }
 }

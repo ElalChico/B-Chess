@@ -318,7 +318,11 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                 val gamesJson = if (prefs.privacy.shareHistory) buildHistoryJson(records, prefs.privacy.sharePgn) else "[]"
                 val photo = if (prefs.privacy.sharePhoto) downscaledPhotoBase64(prefs.profilePhotoBase64) else ""
                 val color = if (_ui.value.lobby.colorRandom) "random" else MessageParser.stringFromColor(_ui.value.lobby.localColor)
-                netSend(ProfileMessage(localName, color, photo, records.size, wins, draws, losses, gamesJson))
+                val profile = ProfileMessage(localName, color, photo, records.size, wins, draws, losses, gamesJson)
+                // Nunca desbordes el límite del canal (64 KB): si el historial con PGN no cabe,
+                // reenvía solo estadísticas y foto para que el rival siempre reciba el perfil.
+                netSend(if (profile.toJsonLine().length <= 60000) profile
+                        else ProfileMessage(localName, color, photo, records.size, wins, draws, losses, "[]"))
             } catch (_: Exception) { }
         }
     }
@@ -531,6 +535,8 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     }
 
     private fun startGameInternal(myColor: Color, timeMs: Long, incMs: Long) {
+        // Reenvía el perfil al arrancar: garantiza que el rival reciba nombre y foto en la partida
+        if (networkMode != NetworkMode.TCP) { sendHello(); sendProfile() }
         lastLocalColor = myColor
         engine.reset()
         moveHistory.clear()
@@ -562,6 +568,8 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     }
 
     private fun onGameStartedAsGuest(msg: StartGameMessage) {
+        // Reenvía el perfil al recibir el inicio: garantiza que el anfitrión reciba nombre y foto
+        if (networkMode != NetworkMode.TCP) { sendHello(); sendProfile() }
         engine.parseFEN(msg.startFen)
         moveHistory.clear()
         uciHistory.clear()
