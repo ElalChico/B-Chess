@@ -9,7 +9,7 @@ partida. También practica contra Stockfish con fuerza ajustable.
 [![Descargar B-Chess APK](https://img.shields.io/github/v/release/ElalChico/B-Chess?label=Descargar%20APK&color=0078D4&logo=github)](https://github.com/ElalChico/B-Chess/releases/latest)
 [![B-Chess Desktop](https://img.shields.io/github/v/release/ElalChico/B-Chess?label=%E2%9C%8B%20Desktop&color=2ea043&logo=github)](https://github.com/ElalChico/B-Chess/blob/main/B-Chess-Desktop/README.md)
 
-> 💻 **B-Chess Desktop** — también hay versión para PC e instálable en el navegador (PWA). Abre [B-Chess-Desktop](B-Chess-Desktop/README.md) o visita **https://elalchico.github.io/B-Chess/B-Chess-Desktop/** en Chrome/Edge y pulsa **«Instalar B-Chess Desktop»**. Se instala como una app del sistema, con el propio motor Stockfish y sincronización P2P con el APK, y **se actualiza sola** cada vez que publicas un release aquí (mismo flujo de GitHub Releases que el APK).
+> 💻 **B-Chess Desktop** — también hay versión para PC e instálable en el navegador. Abre [B-Chess-Desktop](B-Chess-Desktop/README.md) o visita **https://elalchico.github.io/B-Chess/B-Chess-Desktop/** en Chrome/Edge y pulsa **«Instalar B-Chess Desktop»**. Se instala como una app del sistema, con el propio motor Stockfish y sincronización P2P con el APK, y **se actualiza sola** cada vez que publicas un release aquí (mismo flujo de GitHub Releases que el APK).
 
 ## Qué es
 
