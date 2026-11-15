@@ -11,6 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -277,6 +279,35 @@ class MainActivity : ComponentActivity() {
 
         Column(Modifier.fillMaxSize().background(Color(0xFF0B0D10))) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
+            // La partida contra Stockfish sobrevive al paseo por Ajustes:
+            // se mantiene montada debajo (oculta) y se desmonta al salir de Ajustes/Práctica.
+            val keepPractice = screen == Screen.PRACTICE || screen == Screen.SETTINGS
+            if (keepPractice) {
+                PracticeScreen(
+                    engineManager = engineManager,
+                    boardTheme = prefs.boardTheme,
+                    pieceSet = prefs.pieceSet,
+                    showCoordinates = prefs.showCoordinates,
+                    moveIndicators = prefs.moveIndicators,
+                    checkSignal = prefs.checkSignal,
+                    initialTimeMs = prefs.defaultTimeMs,
+                    initialIncrementMs = prefs.defaultIncrementMs,
+                    onBack = {
+                        returnToPracticeFromSettings = false
+                        screen = Screen.HOME
+                    },
+                    onOpenSettings = {
+                        returnToPracticeFromSettings = true
+                        screen = Screen.SETTINGS
+                    },
+                    prefs = prefs,
+                    sound = vm.sound,
+                    onReplay = { record ->
+                        replayRecord = record
+                        screen = Screen.REPLAY
+                    }
+                )
+            }
             when (screen) {
                 Screen.HOME -> HomeScreen(
                     inSession = netConnected,
@@ -521,7 +552,17 @@ class MainActivity : ComponentActivity() {
                     },
                 )
 
-                Screen.SETTINGS -> SettingsScreen(
+                Screen.SETTINGS -> Box(
+                    // Capa que consume los toques sobrantes: no llegan al tablero oculto
+                    Modifier.fillMaxSize().pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                awaitPointerEvent(PointerEventPass.Final).changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+                ) {
+                    SettingsScreen(
                     prefs = prefs,
                     onDisconnectBt = { try { vm.disconnect() } catch (_: Exception) {} },
                     onOpenBtSettings = {
@@ -537,7 +578,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         null
                     },
-                    onBackToGame = if (ui.lobby.gameStarted && ui.gameEnd == null && netConnected) {
+                    onBackToGame = if (ui.lobby.gameStarted && ui.gameEnd == null) {
                         {
                             fullscreen = true
                             screen = Screen.GAME
@@ -546,29 +587,10 @@ class MainActivity : ComponentActivity() {
                         null
                     },
                     onPreviewSoundPack = { vm.sound.playPreview(it) }
-                )
+                    )
+                }
 
-                Screen.PRACTICE -> PracticeScreen(
-                    engineManager = engineManager,
-                    boardTheme = prefs.boardTheme,
-                    pieceSet = prefs.pieceSet,
-                    showCoordinates = prefs.showCoordinates,
-                    moveIndicators = prefs.moveIndicators,
-                    checkSignal = prefs.checkSignal,
-                    initialTimeMs = prefs.defaultTimeMs,
-                    initialIncrementMs = prefs.defaultIncrementMs,
-                    onBack = { screen = Screen.HOME },
-                    onOpenSettings = {
-                        returnToPracticeFromSettings = true
-                        screen = Screen.SETTINGS
-                    },
-                    prefs = prefs,
-                    sound = vm.sound,
-                    onReplay = { record ->
-                        replayRecord = record
-                        screen = Screen.REPLAY
-                    }
-                )
+                Screen.PRACTICE -> Unit
 
                 Screen.RIVAL_PROFILE -> RivalProfileScreen(
                     profile = remoteProfile?.takeUnless { it.name.isBlank() }
@@ -645,7 +667,7 @@ class MainActivity : ComponentActivity() {
                             screen = Screen.PROFILE
                         }
                         Screen.GAME -> {
-                            if (ui.lobby.gameStarted && ui.gameEnd == null && netConnected) {
+                            if (ui.lobby.gameStarted && ui.gameEnd == null) {
                                 fullscreen = false
                                 screen = Screen.GAME
                             }
@@ -656,7 +678,7 @@ class MainActivity : ComponentActivity() {
                         }
                         else -> { /* ROOM not in bottom nav */ }
                     }
-                }, gameEnabled = ui.lobby.gameStarted && ui.gameEnd == null && netConnected)
+                }, gameEnabled = ui.lobby.gameStarted && ui.gameEnd == null)
             }
         }
 

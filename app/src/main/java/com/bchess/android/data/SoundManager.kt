@@ -42,6 +42,14 @@ class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEF
     private val packedIds: Map<SoundPack, Map<SoundType, Int>>
     // Sonido de confirmación/inicio por paquete
     private val confirmIds: Map<SoundPack, Int>
+    // Sonidos de reloj GLOBALES (lowtime + cuenta regresiva): siempre los de
+    // lichess, sin importar el paquete musical elegido.
+    private val lichessClockIds: Map<SoundType, Int> = mapOf(
+        SoundType.LOWTIME to loadSound(R.raw.lowtime),
+        SoundType.COUNTDOWN3 to loadSound(R.raw.countdown3),
+        SoundType.COUNTDOWN2 to loadSound(R.raw.countdown2),
+        SoundType.COUNTDOWN1 to loadSound(R.raw.countdown1)
+    )
 
     init {
         packedIds = mapOf(
@@ -141,7 +149,8 @@ class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEF
         // Sonido de selección de pieza desactivado en todos los paquetes
         if (type == SoundType.CLICK) return
 
-        val id = packedIds[soundPack]?.get(type) ?: 0
+        // Sonidos de reloj siempre lichess (global)
+        val id = lichessClockIds[type] ?: packedIds[soundPack]?.get(type) ?: 0
 
         if (id <= 0 || pool == null) {
             // El motor de audio no está disponible o el sonido no cargó: no-op silencioso.

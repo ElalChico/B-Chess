@@ -117,19 +117,51 @@ fun SettingsScreen(
         // ============ TABLERO ============
         Section(t("TABLERO", "BOARD"))
         SectionBody {
-            Text(t("Tema", "Theme"), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-            BoardThemeGridSelector(
-                selected = prefs.boardTheme,
-                isEn = isEn,
-                onSelect = { theme -> prefs.setBoardTheme(theme) }
-            )
-            Text(t("Conjunto de piezas", "Piece set"), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-            PieceSetGridSelector(
-                selected = prefs.pieceSet,
-                isEn = isEn,
-                boardTheme = prefs.boardTheme,
-                onSelect = { set -> prefs.setPieceSet(set) }
-            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                // Izquierda: vista previa en vivo
+                val previewSnapshot = remember { ChessEngine().startingPosition() }
+                Column(
+                    Modifier.weight(1f).padding(top = 2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    ChessBoard(
+                        snapshot = previewSnapshot,
+                        perspective = ChessColor.WHITE,
+                        selection = BoardSelection(null),
+                        onSquareTap = { },
+                        modifier = Modifier.size(142.dp),
+                        theme = prefs.boardTheme,
+                        pieceSet = prefs.pieceSet,
+                        showMoveIndicators = false,
+                        showCoordinates = false
+                    )
+                    Text(t("Vista previa", "Preview"), color = Muted, fontSize = 9.sp)
+                }
+                // Derecha: selectores de tema y piezas
+                Column(
+                    Modifier.weight(1.15f),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Text(t("Tema", "Theme"), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    BoardThemeGridSelector(
+                        selected = prefs.boardTheme,
+                        isEn = isEn,
+                        onSelect = { theme -> prefs.setBoardTheme(theme) }
+                    )
+                    Text(t("Conjunto de piezas", "Piece set"), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    PieceSetGridSelector(
+                        selected = prefs.pieceSet,
+                        isEn = isEn,
+                        boardTheme = prefs.boardTheme,
+                        onSelect = { set -> prefs.setPieceSet(set) }
+                    )
+                }
+            }
             ToggleRow(
                 t("Indicadores de movimiento", "Move indicators"),
                 t("Puntos y anillos con las jugadas legales", "Dots and rings with legal moves"),

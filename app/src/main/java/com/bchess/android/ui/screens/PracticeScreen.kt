@@ -206,15 +206,13 @@ fun PracticeScreen(
         if (gameEnd != null) clockManager.finish()
     }
 
-    // Sonido de jugada y de fin de partida: mismo espíritu sonoro que la partida PvP,
-    // también cuando se juega contra Stockfish.
+    // Sonido de jugada y de fin de partida: captura/jaque/mate (sin sonido de colocación)
     fun playMoveSound(captured: Boolean) {
         when {
             gameEnd?.reason == GameEndReason.CHECKMATE -> sound?.play(SoundType.CHECKMATE)
             gameEnd != null -> sound?.play(SoundType.DRAW)
             engine.isInCheck(engine.sideToMove()) -> sound?.play(SoundType.CHECK)
             captured -> sound?.play(SoundType.CAPTURE)
-            else -> sound?.play(SoundType.MOVE)
         }
         val winner = gameEnd?.winner
         if (winner != null) {

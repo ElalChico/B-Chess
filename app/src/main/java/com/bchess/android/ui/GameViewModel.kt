@@ -693,8 +693,8 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             history = moveHistory.toList(),
             lastError = null
         )
-        // Sound ONLY for my own pieces (local move)
-        if (inCheck) sound.play(SoundType.CHECK) else if (isCapture) sound.play(SoundType.CAPTURE) else sound.play(SoundType.MOVE)
+        // Sonido de colocación eliminado: solo captura, jaque (mate se suena aparte)
+        if (inCheck) sound.play(SoundType.CHECK) else if (isCapture) sound.play(SoundType.CAPTURE)
         netSend(MoveMessage(from, to, promotion?.name?.take(1) ?: "", san, uci, fenAfter, System.currentTimeMillis()))
         if (end != null) {
             _ui.value = _ui.value.copy(gameEnd = end)

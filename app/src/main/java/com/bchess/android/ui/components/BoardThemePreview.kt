@@ -12,12 +12,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,9 +41,10 @@ private val Text1 = Color(0xFFEEF1F5)
 private val Gold = Color(0xFFC9B15A)
 
 /**
- * Grid de temas de tablero con vista previa 3x2 (estilo chess-bt-android).
- * 3 columnas por fila.
+ * Selector compacto de temas: mini-tablero 2x2 por tema; con la vista previa
+ * grande del tablero en Ajustes.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BoardThemeGridSelector(
     selected: BoardTheme,
@@ -49,23 +52,19 @@ fun BoardThemeGridSelector(
     onSelect: (BoardTheme) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        BoardTheme.entries.chunked(3).forEach { rowThemes ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                rowThemes.forEach { theme ->
-                    BoardThemeCard(
-                        theme = theme,
-                        selected = theme == selected,
-                        isEn = isEn,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onSelect(theme) }
-                    )
-                }
-                repeat(3 - rowThemes.size) { Spacer(Modifier.weight(1f)) }
-            }
+    FlowRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        BoardTheme.entries.forEach { theme ->
+            BoardThemeCard(
+                theme = theme,
+                selected = theme == selected,
+                isEn = isEn,
+                modifier = Modifier.width(92.dp),
+                onClick = { onSelect(theme) }
+            )
         }
     }
 }
