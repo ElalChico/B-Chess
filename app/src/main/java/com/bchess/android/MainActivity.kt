@@ -170,6 +170,7 @@ class MainActivity : ComponentActivity() {
         var connectReturnScreen by remember { mutableStateOf(Screen.HOME) }
         var fullscreen by remember { mutableStateOf(false) }
         var roomTournament by remember { mutableStateOf(false) }
+        var internetInitialTab by remember { mutableStateOf("web") }
         var history by remember { mutableStateOf(GameHistoryStore.load(activity)) }
         var replayRecord by remember { mutableStateOf<GameRecord?>(null) }
         var rivalProfileFromScreen by remember { mutableStateOf<Screen?>(null) }
@@ -358,9 +359,12 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onPlayOnline = {
+                        internetInitialTab = "web"
                         vm.setNetworkMode(NetworkMode.INTERNET)
                         screen = Screen.INTERNET
                     },
+                    onOpenConexiones = { screen = Screen.CONEXIONES },
+                    remoteName = ui.remoteName,
                     onTournament = {
                         roomTournament = true
                         vm.setNetworkMode(NetworkMode.BT)
@@ -431,7 +435,8 @@ class MainActivity : ComponentActivity() {
                     onFinishConnection = {
                         vm.sendDisconnect()
                         screen = Screen.HOME
-                    }
+                    },
+                    initialTab = internetInitialTab
                 )
 
                 Screen.PROFILE -> LobbyScreen(
@@ -639,7 +644,12 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onPlayOnline = {
+                        internetInitialTab = "web"
                         vm.setNetworkMode(NetworkMode.INTERNET)
+                        screen = Screen.INTERNET
+                    },
+                    onPlayLan = {
+                        internetInitialTab = "lan"
                         screen = Screen.INTERNET
                     },
                     onBack = { screen = Screen.HOME }

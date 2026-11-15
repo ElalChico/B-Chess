@@ -10,6 +10,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -61,6 +63,8 @@ fun HomeScreen(
     onPlayOnline: () -> Unit = {},
     onTournament: () -> Unit = {},
     onFinishConnection: () -> Unit = {},
+    onOpenConexiones: () -> Unit = {},
+    remoteName: String = "",
     versionUpToDate: Boolean = true
 ) {
     val avatar = remember(profilePhotoBase64) {
@@ -258,25 +262,61 @@ fun HomeScreen(
             }
         }
 
-        Surface(shape = RoundedCornerShape(12.dp), color = Card, border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
+        OutlinedButton(
+            onClick = onOpenConexiones,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Accent),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Text1, containerColor = Color(0xFF121E1A)),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Link,
+                    contentDescription = "Conexiones",
+                    tint = Green,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(Modifier.width(14.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Conexiones", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (inSession) "Sesión activa con ${remoteName.ifBlank { "el rival" }} · toca para entrar"
+                        else "Crear sala, unirse, ver perfil del rival · BT · P2P · red local",
+                        color = Muted, fontSize = 11.sp
+                    )
+                }
+            }
+        }
+
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = Card,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+            modifier = if (inSession) Modifier.clickable { onOpenConexiones() } else Modifier
+        ) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(if (inSession) "Sala conectada" else "Tu reloj habitual", color = Text1, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (inSession) "Conexiones · ${remoteName.ifBlank { "Rival" }}" else "Tu reloj habitual",
+                        color = Text1, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
                     Text(
                         when {
-                            inSession && isGuestSession -> "Esperando el inicio del anfitrión"
-                            inSession -> "Listos para comenzar"
+                            inSession && isGuestSession -> "Conexión activa · esperando el inicio del anfitrión · toca para entrar"
+                            inSession -> "Conexión activa · listos para comenzar · toca para entrar"
                             else -> "Individual o torneo · el rival se conecta cerca"
                         },
                         color = Muted,
-                        fontSize = 11.sp
+                        fontSize = 11.sp, maxLines = 1
                     )
                 }
-                Text(if (inSession) "●" else clockSummary, color = if (inSession) Green else Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(if (inSession) "→" else clockSummary, color = if (inSession) Green else Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
 

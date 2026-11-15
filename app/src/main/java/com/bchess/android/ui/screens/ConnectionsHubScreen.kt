@@ -65,6 +65,7 @@ fun ConnectionsHubScreen(
     onCreateMatch: () -> Unit,
     onSearchMatch: () -> Unit,
     onPlayOnline: () -> Unit,
+    onPlayLan: () -> Unit,
     onBack: () -> Unit
 ) {
     val rivalName = remoteProfile?.name?.ifBlank { remoteName.ifBlank { "Rival" } }
@@ -266,6 +267,15 @@ fun ConnectionsHubScreen(
                 colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF6FA8FF))
             ) {
                 Text("Partida Peer-to-Peer · Internet", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            }
+            OutlinedButton(
+                onClick = onPlayLan,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, ScreenLine),
+                colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = ScreenText)
+            ) {
+                Text("Unirse a PC · Red local (IP:puerto)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
             }
         }
     }

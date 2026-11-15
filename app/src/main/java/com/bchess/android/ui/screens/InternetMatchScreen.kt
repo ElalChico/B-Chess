@@ -82,9 +82,10 @@ fun InternetMatchScreen(
     onCreateTcp: (String) -> Unit = {},
     onJoinTcp: (String, String) -> Unit = { _, _ -> },
     onBack: () -> Unit,
-    onFinishConnection: () -> Unit = {}
+    onFinishConnection: () -> Unit = {},
+    initialTab: String = "web"
 ) {
-    var tab by remember { mutableStateOf("web") } // "web" | "lan"
+    var tab by remember(initialTab) { mutableStateOf(initialTab) } // "web" | "lan"
     var mode by remember { mutableStateOf<String?>(null) } // null | "create" | "join"
     var customCode by remember { mutableStateOf("") }
     var joinCode by remember { mutableStateOf("") }
