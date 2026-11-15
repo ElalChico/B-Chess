@@ -7,6 +7,9 @@ conexión directa entre los dos dispositivos, sin cuentas ni servidores en la
 partida. También practica contra Stockfish con fuerza ajustable.
 
 [![Descargar B-Chess APK](https://img.shields.io/github/v/release/ElalChico/B-Chess?label=Descargar%20APK&color=0078D4&logo=github)](https://github.com/ElalChico/B-Chess/releases/latest)
+[![B-Chess Desktop](https://img.shields.io/github/v/release/ElalChico/B-Chess?label=%E2%9C%8B%20Desktop&color=2ea043&logo=github)](https://github.com/ElalChico/B-Chess/blob/main/B-Chess-Desktop/README.md)
+
+> 💻 **B-Chess Desktop** — también hay versión para PC e instálable en el navegador (PWA). Abre [B-Chess-Desktop](B-Chess-Desktop/README.md) o visita **https://elalchico.github.io/B-Chess/B-Chess-Desktop/** en Chrome/Edge y pulsa **«Instalar B-Chess Desktop»**. Se instala como una app del sistema, con el propio motor Stockfish y sincronización P2P con el APK, y **se actualiza sola** cada vez que publicas un release aquí (mismo flujo de GitHub Releases que el APK).
 
 ## Qué es
 
@@ -95,6 +98,20 @@ Requiere JDK 17 y Android SDK 34. La firma debe ser siempre la misma (mismo
 keystore) para que las actualizaciones futuras no requieran desinstalar.
 El modo Peer-to-Peer requiere `google-services.json` (Firebase Realtime
 Database) para la señalización inicial.
+
+---
+
+## 💻 B-Chess Desktop (PC en el navegador)
+
+Además del APK para Android, B-Chess tiene **versión de escritorio** en [`B-Chess-Desktop/`](B-Chess-Desktop/): mismas piezas, mismo motor y mismo protocolo que el APK — versión para **PC**: PWA instalable desde Chrome/Edge para ajedrez contra la IA y online P2P compatible con el APK móvil.
+
+Instalación y actualización automática **sin reinstalar nunca**:
+
+1. Abre **https://elalchico.github.io/B-Chess/B-Chess-Desktop/** en Chrome o Edge.
+2. Pulsa **«Instalar B-Chess Desktop»** (icono de instalación en la barra de direcciones).
+3. Instalas una vez y, en cada **release nuevo** de [Releases](https://github.com/ElalChico/B-Chess/releases/latest), GitHub Pages publica la versión actualizada: al abrir la app la recibes instantáneamente (service worker). Tu historial y tu configuración se conservan siempre.
+
+Incluye además: torneos con colores alternados, replay del historial, premove como en Lichess, relojes con autoridad del anfitrión y estadísticas gráficas (resumen, flujo, aperturas, progreso y resultados por color).
 
 ---
 

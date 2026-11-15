@@ -1,0 +1,75 @@
+B-Chess V2 · Pendientes de comunicación y seguridad
+==================================================
+
+[ ] CIFRADO DE LA SEÑALIZACIÓN (WEB ↔ WEB)
+    - Hoy: offer/answer/ICE van planos a Firebase (igual que el APK).
+    - Objetivo: archivo js/net-secure.js con path `secureMatches`:
+      * PBKDF2-SHA256 (300k) derivado de código+clave.
+      * AES-256-GCM para offer/answer/ICE.
+      * Reglas create-once/no-delete en Firebase.
+      * No toca los JSON de MOVE/CLOCK/END (van por DataChannel DTLS).
+    - PC↔APK actual: NO cambiar `matches`; el APK no descifra.
+
+[ ] ACTUALIZAR EL APK PARA MODO SEGURO
+    - Que el APK soporte `secureMatches` + AES-GCM.
+    - Entonces PC↔móvil puede usar señalización cifrada.
+    - Mientras tanto, usar código de 12 caracteres y trátalo como secreto.
+
+[ ] VERIFICACIÓN SAS (ANTI-MITM)
+    - Derivar 6 dígitos de los fingerprints DTLS.
+    - Mostrarlos en ambos lados y que el usuario los compare.
+    - No cambia el protocolo de juego; solo confirma que no hay MITM.
+
+[ ] LAN / IP LOCAL (TCP 5891)
+    - El navegador NO puede abrir sockets TCP.
+    - Opciones:
+      a) Puente local Node/Electron que abra TCP 5891 y hable con el APK/PC.
+      b) Servidor WebSocket local en la misma LAN.
+      c) WebRTC en LAN con señalización local (limitado por mDNS).
+    - Mantener el protocolo "BCHESS-PC 1" para hablar con el APK/PC.
+
+[ ] BLUETOOTH (como el APK)
+    - El navegador solo tiene Web Bluetooth (BLE), NO Bluetooth Classic/SPP.
+    - Opciones: app Electron/nativa con node-serialport/bluetooth-classic.
+    - El APK sigue usando su Bluetooth Classic normal.
+
+[ ] TURN OVER TLS
+    - Para NAT estricto / simétricos.
+    - turn:...?transport=udp o turns:...:443 (TLS).
+    - Credenciales temporales (time-limited).
+
+[ ] FIREBASE AUTH + REGLAS
+    - Auth anónima para `secureMatches`.
+    - Reglas: create-once, no-delete, auth != null.
+    - Dejar `matches` abierto para compatibilidad con el APK.
+
+[x] FIREBASE WEB APP (hecho 2026-11-14)
+    - App web "B-Chess Web" creada en proyecto b-chess-app.
+    - SDK config en js/firebase-config.js (API key web pública por diseño).
+    - RTDB compartida con el APK (`matches/<código>`). PC↔PC y PC↔APK.
+    - Reglas RTDB: solo `matches/<id>` read/write; el resto cerrado.
+
+[ ] PERFIL / AVATAR P2P
+    - Enviar PROFILE con foto en base64 (como el APK).
+    - Mostrar nombre/foto del rival en la partida.
+    - Hoy el modal del rival usa tus partidas locales (sin foto remota).
+
+[ ] HISTORIAL Y REVancha
+    - Implementar REMATCH (same/random/custom).
+    - Guardar partidas en localStorage / IndexedDB.
+
+[ ] MODO INSPECTOR MEJORADO
+    - Elegir elemento → ver su data-dev y copiarlo.
+    - Atajo F2 ya implementado (js/inspector.js).
+
+[ ] PWA / INSTALACIÓN
+    - Iconos PNG 192/512, service worker para offline básico.
+    - Publicar en Firebase Hosting si quieres URL pública.
+
+[ ] STOCKFISH 18 WASM (opcional)
+    - Archivo LFS de 113 MB: no incluido por peso.
+    - Si se quiere: descargar desde el repo GM-3000 y ajustar js/engine.js.
+
+[ ] ATLAS COMO MOTOR SEPARADO
+    - Atlas hoy es Stockfish con Skill Level 14 (como GM-3000).
+    - Si Atlas.1 pasa a ser un motor propio (negamax), añadirlo como worker.
