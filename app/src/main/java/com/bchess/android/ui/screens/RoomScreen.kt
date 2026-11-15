@@ -372,6 +372,7 @@ fun RoomScreen(
 
     if (showConnectedDialog) {
         val opponentName = remoteProfile?.name?.ifBlank { remoteName } ?: remoteName
+        val isReady = modeSelected && clockSelected
         AlertDialog(
             onDismissRequest = { showConnectedDialog = false },
             title = { Text("$opponentName conectado", fontWeight = FontWeight.Bold) },
@@ -379,7 +380,7 @@ fun RoomScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("El perfil del rival está listo.")
                     Text(
-                        if (modeSelected && clockSelected) {
+                        if (isReady) {
                             if (tournamentMode) "Torneo de $tournamentGames partidas · $clockLabel"
                             else "Partida individual · $clockLabel"
                         } else {
@@ -393,7 +394,7 @@ fun RoomScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (modeSelected && clockSelected) {
+                        if (isReady) {
                             showConnectedDialog = false
                             if (tournamentMode) onStartTournament(tournamentGames) else onStartGame()
                         } else {
@@ -403,15 +404,19 @@ fun RoomScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Color(0xFF131313))
                 ) {
                     Text(
-                        if (modeSelected && clockSelected) "Comenzar partida" else "Configurar partida",
+                        if (isReady) "Comenzar partida" else "Configurar partida",
                         fontWeight = FontWeight.Bold
                     )
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showConnectedDialog = false }) {
-                    Text("Seguir configurando")
+            dismissButton = if (isReady) {
+                {
+                    TextButton(onClick = { showConnectedDialog = false }) {
+                        Text("Seguir configurando")
+                    }
                 }
+            } else {
+                null
             },
             containerColor = Card
         )

@@ -1,22 +1,26 @@
 /*
  * B-Chess · © Elal Chico
- * Selector de conjunto de piezas (compacto, solo nombre): la vista previa
- * del tablero en Ajustes muestra cómo se ven las piezas.
+ * Selector de conjunto de piezas como un DIAL < Clásico >: ahorra espacio y
+ * evita listar los 24 conjuntos. La vista previa del tablero en Ajustes
+ * muestra cómo se ven las piezas.
  */
 
 package com.bchess.android.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,71 +31,74 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.bchess.android.data.BoardTheme
 import com.bchess.android.data.PieceSet
 
 private val Card = Color(0xFF151C25)
-private val CardSel = Color(0x26C9B15A)
 private val Line = Color(0xFF232C38)
-private val LineSel = Color(0xFFC9B15A)
 private val Text1 = Color(0xFFEEF1F5)
 private val Gold = Color(0xFFC9B15A)
+private val Muted = Color(0xFF8B96A5)
 
-/**
- * Selector de 17 conjuntos: chips solo con el nombre (la previsualización
- * del tablero en Ajustes muestra las piezas).
- */
-@OptIn(ExperimentalLayoutApi::class)
+/** Dial compacto: < Anterior | Nombre del conjunto (i/N) | Siguiente >. */
 @Composable
-fun PieceSetGridSelector(
+fun PieceSetDial(
     selected: PieceSet,
     isEn: Boolean,
-    boardTheme: BoardTheme,
     onSelect: (PieceSet) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    FlowRow(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+    val entries = PieceSet.entries
+    val index = entries.indexOf(selected).coerceAtLeast(0)
+    val count = entries.size
+
+    fun step(delta: Int) {
+        val next = ((index + delta) % count + count) % count
+        onSelect(entries[next])
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Card, RoundedCornerShape(12.dp))
+            .border(1.dp, Line, RoundedCornerShape(12.dp))
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        PieceSet.entries.forEach { set ->
-            PieceSetCard(
-                set = set,
-                selected = set == selected,
-                isEn = isEn,
-                modifier = Modifier.width(112.dp),
-                onClick = { onSelect(set) }
+        IconButton(onClick = { step(-1) }, modifier = Modifier.size(36.dp)) {
+            Icon(
+                imageVector = Icons.Default.ChevronLeft,
+                contentDescription = if (isEn) "Previous set" else "Conjunto anterior",
+                tint = Gold,
+                modifier = Modifier.size(22.dp)
             )
         }
-    }
-}
-
-@Composable
-private fun PieceSetCard(
-    set: PieceSet,
-    selected: Boolean,
-    isEn: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .background(if (selected) CardSel else Card, RoundedCornerShape(10.dp))
-            .border(if (selected) 1.5.dp else 1.dp, if (selected) LineSel else Line, RoundedCornerShape(10.dp))
-            .clip(RoundedCornerShape(10.dp))
-            .clickable { onClick() }
-            .padding(vertical = 8.dp, horizontal = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(
-            if (isEn) set.labelEn else set.labelEs,
-            color = if (selected) Gold else Text1,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            Text(
+                if (isEn) selected.labelEn else selected.labelEs,
+                color = Text1,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                "${index + 1} / $count",
+                color = Muted,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        IconButton(onClick = { step(1) }, modifier = Modifier.size(36.dp)) {
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = if (isEn) "Next set" else "Conjunto siguiente",
+                tint = Gold,
+                modifier = Modifier.size(22.dp)
+            )
+        }
     }
 }

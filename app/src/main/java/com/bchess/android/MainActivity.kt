@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -63,6 +64,7 @@ import com.bchess.android.data.discoverableIntent
 import com.bchess.android.data.requiredPermissions
 import com.bchess.android.ui.GameViewModel
 import com.bchess.android.ui.screens.ConnectionFlowScreen
+import com.bchess.android.ui.screens.ConnectionsHubScreen
 import com.bchess.android.ui.screens.GameScreen
 import com.bchess.android.ui.screens.HomeScreen
 import com.bchess.android.ui.screens.InternetMatchScreen
@@ -78,7 +80,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class Screen { HOME, CONNECT, PROFILE, GAME, SETTINGS, REPLAY, ROOM, PRACTICE, INTERNET, RIVAL_PROFILE }
+enum class Screen { HOME, CONNECT, PROFILE, GAME, SETTINGS, REPLAY, ROOM, PRACTICE, INTERNET, RIVAL_PROFILE, CONEXIONES }
 
 private val NavGold = Color(0xFFC9B15A)
 private val NavMuted = Color(0xFF8B96A5)
@@ -596,6 +598,53 @@ class MainActivity : ComponentActivity() {
 
                 Screen.PRACTICE -> Unit
 
+                Screen.CONEXIONES -> ConnectionsHubScreen(
+                    connected = netConnected,
+                    networkModeName = when (vm.networkMode) {
+                        NetworkMode.INTERNET -> "Peer-to-Peer · Internet"
+                        NetworkMode.TCP -> "Red local / PC"
+                        else -> "Bluetooth"
+                    },
+                    isHost = ui.lobby.isHost,
+                    localName = ui.localName,
+                    remoteName = ui.remoteName,
+                    remoteProfile = remoteProfile,
+                    gameInProgress = ui.lobby.gameStarted && ui.gameEnd == null,
+                    onViewRivalProfile = { rivalProfileFromScreen = Screen.CONEXIONES; screen = Screen.RIVAL_PROFILE },
+                    onConfigureMatch = { screen = Screen.ROOM },
+                    onBackToGame = { fullscreen = true; screen = Screen.GAME },
+                    onFinishConnection = { vm.sendDisconnect(); screen = Screen.HOME },
+                    onCreateMatch = {
+                        vm.setNetworkMode(NetworkMode.BT)
+                        isHostMode = true
+                        vm.setIsHost(true)
+                        if (prefs.profileConfigured) {
+                            screen = Screen.CONNECT
+                            startHostListening()
+                        } else {
+                            profileNextScreen = Screen.CONNECT
+                            screen = Screen.PROFILE
+                        }
+                    },
+                    onSearchMatch = {
+                        vm.setNetworkMode(NetworkMode.BT)
+                        isHostMode = false
+                        vm.setIsHost(false)
+                        if (prefs.profileConfigured) {
+                            screen = Screen.CONNECT
+                            startGuestScanning()
+                        } else {
+                            profileNextScreen = Screen.CONNECT
+                            screen = Screen.PROFILE
+                        }
+                    },
+                    onPlayOnline = {
+                        vm.setNetworkMode(NetworkMode.INTERNET)
+                        screen = Screen.INTERNET
+                    },
+                    onBack = { screen = Screen.HOME }
+                )
+
                 Screen.RIVAL_PROFILE -> RivalProfileScreen(
                     profile = remoteProfile?.takeUnless { it.name.isBlank() }
                         ?: com.bchess.android.data.RemoteProfile(name = ui.remoteName.ifBlank { "Rival" }),
@@ -675,6 +724,10 @@ class MainActivity : ComponentActivity() {
                                 fullscreen = true // vuelve a la partida en grande
                                 screen = Screen.GAME
                             }
+                        }
+                        Screen.CONEXIONES -> {
+                            fullscreen = false
+                            screen = Screen.CONEXIONES
                         }
                         Screen.SETTINGS -> {
                             fullscreen = false
@@ -761,6 +814,7 @@ private fun BottomNav(current: Screen, isEn: Boolean, gameEnabled: Boolean, onSe
     val entries = listOf(
         NavEntry(Screen.HOME, "Inicio", "Home", Icons.Filled.Home),
         NavEntry(Screen.GAME, "Partida", "Game", Icons.Filled.PlayArrow),
+        NavEntry(Screen.CONEXIONES, "Conexiones", "Link", Icons.Filled.Link),
         NavEntry(Screen.PROFILE, "Perfil", "Profile", Icons.Filled.Person),
         NavEntry(Screen.SETTINGS, "Ajustes", "Settings", Icons.Filled.Settings)
     )

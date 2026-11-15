@@ -43,7 +43,7 @@ import com.bchess.android.core.Color as ChessColor
 import com.bchess.android.ui.components.BoardSelection
 import com.bchess.android.ui.components.BoardThemeGridSelector
 import com.bchess.android.ui.components.ChessBoard
-import com.bchess.android.ui.components.PieceSetGridSelector
+import com.bchess.android.ui.components.PieceSetDial
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -134,7 +134,7 @@ fun SettingsScreen(
                         perspective = ChessColor.WHITE,
                         selection = BoardSelection(null),
                         onSquareTap = { },
-                        modifier = Modifier.size(142.dp),
+                        modifier = Modifier.size(184.dp),
                         theme = prefs.boardTheme,
                         pieceSet = prefs.pieceSet,
                         showMoveIndicators = false,
@@ -154,10 +154,9 @@ fun SettingsScreen(
                         onSelect = { theme -> prefs.setBoardTheme(theme) }
                     )
                     Text(t("Conjunto de piezas", "Piece set"), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                    PieceSetGridSelector(
+                    PieceSetDial(
                         selected = prefs.pieceSet,
                         isEn = isEn,
-                        boardTheme = prefs.boardTheme,
                         onSelect = { set -> prefs.setPieceSet(set) }
                     )
                 }
