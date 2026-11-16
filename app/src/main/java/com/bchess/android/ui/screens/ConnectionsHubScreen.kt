@@ -4,7 +4,7 @@
  * - Con conexión: ver el perfil del rival, seguir configurando la partida
  *   (Sala) o volver a ella si está en curso. Cerrar esta pantalla NO cierra
  *   la conexión.
- * - Sin conexión: accesos diferenciados por transporte y torneos.
+ * - Sin conexión: botones grandes con iconos, secciones claras y torneos.
  */
 
 package com.bchess.android.ui.screens
@@ -20,15 +20,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddCircle
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Groups
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -58,21 +60,22 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.bchess.android.data.RemoteProfile
 
-private val ScreenBg = Color(0xFF101416)
-private val SurfaceColor = Color(0xFF1A2021)
-private val SurfaceGreen = Color(0xFF14241D)
-private val ScreenText = Color(0xFFF0F3F1)
-private val ScreenMuted = Color(0xFFAAB5B1)
-private val ScreenAccent = Color(0xFF789889)
-private val ScreenLine = Color(0xFF303A39)
-private val ScreenGold = Color(0xFFC9B15A)
-private val ScreenError = Color(0xFFD98B86)
-private val Blue = Color(0xFF6FA8FF)
+// ===== Paleta minimalista =====
+private val ScreenBg = Color(0xFF0F1416)
+private val Card = Color(0xFF161C1F)
+private val CardDeep = Color(0xFF121719)
+private val Line = Color(0xFF263134)
+private val LineSoft = Color(0xFF1E272A)
+private val ScreenText = Color(0xFFF1F4F2)
+private val ScreenMuted = Color(0xFF95A29D)
+private val Muted2 = Color(0xFF6C7A76)
 private val Green = Color(0xFF5FD3A0)
+private val Blue = Color(0xFF6FA8FF)
+private val Gold = Color(0xFFC9B15A)
+private val Danger = Color(0xFFFF7A7A)
+private val OnAccent = Color(0xFF0C1411)
 
 private val CardShape = RoundedCornerShape(18.dp)
-private val CardColor = Color(0xFF101416)
-private val Divider2 = Color(0xFF4A4A4A)
 
 @Composable
 fun ConnectionsHubScreen(
@@ -104,288 +107,113 @@ fun ConnectionsHubScreen(
             .fillMaxSize()
             .background(ScreenBg)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         TextButton(
             onClick = onBack,
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 2.dp)
         ) {
-            Text("← Volver al inicio", color = ScreenMuted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("← Volver al inicio", color = ScreenMuted, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
         }
 
-        // Título + estado
+        // ===== Cabecera =====
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Conexiones", color = ScreenText, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
-            Spacer(Modifier.weight(1f))
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = if (connected) SurfaceGreen else Color(0xFF1A2021),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    if (connected) Color(0xFF2E5B3E) else ScreenLine
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Conexiones", color = ScreenText, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    if (connected) "Sesión en curso" else "Elige cómo jugar",
+                    color = ScreenMuted, fontSize = 12.sp
                 )
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    BoxStatusDot(connected)
-                    Text(
-                        if (connected) "CONECTADO" else "SIN CONEXIÓN",
-                        color = if (connected) Green else ScreenMuted,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.sp
-                    )
-                }
             }
+            Spacer(Modifier.weight(1f))
+            StatusPill(connected)
         }
 
         if (connected) {
-            // Transporte activo
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = SurfaceColor,
-                border = androidx.compose.foundation.BorderStroke(1.dp, ScreenLine)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        if (isHost) "Eres anfitrión" else "Eres invitado",
-                        color = ScreenMuted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text("·", color = ScreenMuted)
-                    Text(
-                        networkModeName,
-                        color = ScreenAccent,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            // Ver perfil del rival (tarjeta tocable)
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = Color(0xFF151C25),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3A3524))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onViewRivalProfile() }
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    RemoteAvatarMini(remoteProfile?.photoBase64, rivalName.ifBlank { "R" })
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            "Ver perfil de $rivalName",
-                            color = ScreenGold,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (remoteProfile != null) {
-                            Text(
-                                "${remoteProfile.total} jugadas · ${remoteProfile.wins}V · ${remoteProfile.losses}D · ${remoteProfile.draws}E",
-                                color = ScreenMuted,
-                                fontSize = 11.sp
-                            )
-                        } else {
-                            Text("Perfil del rival disponible al sincronizar", color = ScreenMuted, fontSize = 11.sp)
-                        }
-                    }
-                    Text("→", color = ScreenGold, fontWeight = FontWeight.ExtraBold)
-                }
-            }
-
-            Button(
-                onClick = if (gameInProgress) onBackToGame else onConfigureMatch,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(13.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color(0xFF0C1411))
-            ) {
-                Text(
-                    if (gameInProgress) "Volver a la partida" else "Configurar partida",
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 15.sp
-                )
-            }
-
-            Text(
-                if (isHost) "El rival está conectado · la partida comienza cuando ambas partes elijan modo y reloj."
-                else "Conectado con el anfitrión · espera su inicio de partida.",
-                color = ScreenMuted,
-                fontSize = 11.sp
-            )
-
-            OutlinedButton(
-                onClick = onFinishConnection,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(13.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, ScreenError.copy(alpha = 0.5f)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = ScreenError)
-            ) {
-                Text("Finalizar conexión", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            }
-            Text(
-                "Cerrar esta pantalla no cierra la conexión.",
-                color = ScreenMuted,
-                fontSize = 10.sp,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ConnectedContent(
+                rivalName = rivalName,
+                remoteProfile = remoteProfile,
+                networkModeName = networkModeName,
+                isHost = isHost,
+                gameInProgress = gameInProgress,
+                onViewRivalProfile = onViewRivalProfile,
+                onConfigureMatch = onConfigureMatch,
+                onBackToGame = onBackToGame,
+                onFinishConnection = onFinishConnection
             )
         } else {
-            // Bloque "Crear sala / Unirme" en una tarjeta vertical
-            Surface(
-                shape = CardShape,
-                color = CardColor,
-                border = androidx.compose.foundation.BorderStroke(1.dp, Divider2)
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        TouchableOpacity(onClick = onCreateMatch) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Green.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Outlined.AddCircle, null, tint = Green, modifier = Modifier.size(20.dp))
-                            }
-                        }
-                        TouchableOpacity(onClick = onSearchMatch) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(
-                                        Color(0xFF232E2A).copy(alpha = 0.6f)
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Outlined.Groups, null, tint = Color(0xFF8CA08B), modifier = Modifier.size(20.dp))
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Separador
-            Surface(
-                shape = CardShape,
-                color = CardColor
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                )
-            }
-
-            TouchableOpacity(onClick = onPlayOnline) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Blue.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.Link, null, tint = Blue, modifier = Modifier.size(20.dp))
-                    }
-                    Text(
-                        "Peer-to-Peer",
-                        color = ScreenText,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            TouchableOpacity(onClick = onPlayLan) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(ScreenGold.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.Computer, null, tint = ScreenGold, modifier = Modifier.size(20.dp))
-                    }
-                    Text(
-                        "Red local/PC",
-                        color = ScreenGold,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                }
-            }
-
-            // Separador
-            Surface(
-                shape = CardShape,
-                color = CardColor
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                )
-            }
-
-            // ===== TORNEOS =====
-            Text(
-                "TORNEOS",
-                color = ScreenMuted,
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.4.sp
+            // ===== Acción principal: crear partida =====
+            BigAction(
+                icon = Icons.Outlined.AddCircle,
+                title = "Crear sala",
+                subtitle = "Bluetooth · sé anfitrión y comparte la conexión",
+                accent = Green,
+                filled = true,
+                onClick = onCreateMatch
             )
+
+            // ===== Acción secundaria: unirse =====
+            BigAction(
+                icon = Icons.Outlined.Groups,
+                title = "Unirme a una sala",
+                subtitle = "Bluetooth · busca al anfitrión cercano",
+                accent = ScreenText,
+                filled = false,
+                onClick = onSearchMatch
+            )
+
+            // ===== Otros transportes =====
+            SectionLabel("OTROS TRANSPORTES")
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = CardShape,
-                color = SurfaceColor,
-                border = androidx.compose.foundation.BorderStroke(1.dp, ScreenLine)
+                color = Card,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line)
             ) {
                 Column {
-                    TournamentRow(
-                        icon = Icons.Outlined.History,
-                        accent = ScreenAccent,
-                        title = "Torneos guardados",
-                        subtitle = "Historial y resultados de tus series"
-                    ) { onTournamentHistory() }
-                    androidx.compose.material3.HorizontalDivider(color = ScreenLine)
-                    TournamentRow(
+                    ListRow(
+                        icon = Icons.Outlined.Link,
+                        accent = Blue,
+                        title = "Peer-to-Peer · Internet",
+                        subtitle = "Juega a distancia con un código de sala",
+                        onClick = onPlayOnline
+                    )
+                    HorizontalDivider(color = LineSoft)
+                    ListRow(
+                        icon = Icons.Outlined.Computer,
+                        accent = Gold,
+                        title = "PC · Red local",
+                        subtitle = "Cross-play con B-Chess Desktop (IP:puerto)",
+                        onClick = onPlayLan
+                    )
+                }
+            }
+
+            // ===== Torneos =====
+            SectionLabel("TORNEOS")
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = CardShape,
+                color = Card,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+            ) {
+                Column {
+                    ListRow(
                         icon = Icons.Outlined.EmojiEvents,
-                        accent = ScreenGold,
+                        accent = Gold,
                         title = "Crear torneo",
-                        subtitle = "Elige Bluetooth, P2P o red local"
-                    ) { showTournamentDialog = true }
+                        subtitle = "Elige Bluetooth, P2P o red local",
+                        onClick = { showTournamentDialog = true }
+                    )
+                    HorizontalDivider(color = LineSoft)
+                    ListRow(
+                        icon = Icons.Outlined.History,
+                        accent = ScreenMuted,
+                        title = "Torneos guardados",
+                        subtitle = "Historial y resultados de tus series",
+                        onClick = onTournamentHistory
+                    )
                 }
             }
         }
@@ -402,26 +230,141 @@ fun ConnectionsHubScreen(
     }
 }
 
-/** Wrapper simplificado para TouchableOpacity. */
+/** Contenido cuando hay una conexión activa. */
 @Composable
-private fun TouchableOpacity(
-    onClick: () -> Unit,
-    content: @Composable () -> Unit
+private fun ConnectedContent(
+    rivalName: String,
+    remoteProfile: RemoteProfile?,
+    networkModeName: String,
+    isHost: Boolean,
+    gameInProgress: Boolean,
+    onViewRivalProfile: () -> Unit,
+    onConfigureMatch: () -> Unit,
+    onBackToGame: () -> Unit,
+    onFinishConnection: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .size(80.dp)
-            .clickable(onClick = onClick)
-            .clip(RoundedCornerShape(10.dp))
-            .background(CardColor),
-        contentAlignment = Alignment.Center
+    // Estado del transporte
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        content()
+        Text(
+            if (isHost) "Anfitrión" else "Invitado",
+            color = ScreenMuted, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold
+        )
+        Text("·", color = Muted2)
+        Text(networkModeName, color = Green, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+    }
+
+    // Perfil del rival (botón grande)
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onViewRivalProfile),
+        shape = CardShape,
+        color = Card,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(13.dp)
+        ) {
+            RemoteAvatarMini(remoteProfile?.photoBase64, rivalName.ifBlank { "R" })
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    "Ver perfil de $rivalName",
+                    color = ScreenText, fontWeight = FontWeight.Bold, fontSize = 14.5.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+                if (remoteProfile != null) {
+                    Text(
+                        "${remoteProfile.total} jugadas · ${remoteProfile.wins}V · ${remoteProfile.losses}D · ${remoteProfile.draws}E",
+                        color = ScreenMuted, fontSize = 11.sp
+                    )
+                } else {
+                    Text("Sincronizando perfil…", color = ScreenMuted, fontSize = 11.sp)
+                }
+            }
+            ChevronGreen()
+        }
+    }
+
+    // Acción principal
+    BigAction(
+        icon = if (gameInProgress) Icons.Outlined.EmojiEvents else Icons.Outlined.AddCircle,
+        title = if (gameInProgress) "Volver a la partida" else "Configurar partida",
+        subtitle = if (gameInProgress) "La partida sigue en curso"
+        else if (isHost) "Elige modo y reloj; el rival te espera"
+        else "Espera a que el anfitrión inicie la partida",
+        accent = Green,
+        filled = true,
+        onClick = if (gameInProgress) onBackToGame else onConfigureMatch
+    )
+
+    Text(
+        "Cerrar esta pantalla no cierra la conexión.",
+        color = Muted2, fontSize = 11.sp,
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+    )
+
+    OutlinedButton(
+        onClick = onFinishConnection,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
+        shape = RoundedCornerShape(14.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Danger.copy(alpha = 0.4f)),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger, containerColor = Color(0xFF201416))
+    ) {
+        Text("Finalizar conexión", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
     }
 }
 
+/** Botón grande de acción principal/secundaria con icono y descripción. */
 @Composable
-private fun TournamentRow(
+private fun BigAction(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    accent: Color,
+    filled: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 76.dp).clickable(onClick = onClick),
+        shape = CardShape,
+        color = if (filled) Color(0xFF12211B) else CardDeep,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (filled) Green.copy(alpha = 0.6f) else Line
+        )
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            IconTile(icon = icon, accent = if (filled) Green else ScreenMuted, big = true)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    title,
+                    color = if (filled) Green else ScreenText,
+                    fontSize = 16.sp, fontWeight = FontWeight.ExtraBold
+                )
+                Text(subtitle, color = ScreenMuted, fontSize = 11.5.sp, maxLines = 2)
+            }
+            Icon(
+                Icons.Outlined.ChevronRight,
+                contentDescription = null,
+                tint = if (filled) Green else Muted2,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+/** Fila de lista: icono, título, descripción y chevron. */
+@Composable
+private fun ListRow(
     icon: ImageVector,
     accent: Color,
     title: String,
@@ -430,23 +373,82 @@ private fun TournamentRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 13.dp),
+            .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Box(
-            Modifier.size(36.dp).clip(RoundedCornerShape(11.dp))
-                .background(accent.copy(alpha = 0.16f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, null, tint = accent, modifier = Modifier.size(19.dp))
-        }
+        IconTile(icon = icon, accent = accent, big = false)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, color = ScreenText, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = ScreenMuted, fontSize = 10.5.sp)
+            Text(title, color = ScreenText, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = ScreenMuted, fontSize = 11.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        Text("›", color = accent, fontSize = 20.sp)
+        Icon(
+            Icons.Outlined.ChevronRight,
+            contentDescription = null,
+            tint = Muted2,
+            modifier = Modifier.size(18.dp)
+        )
     }
+}
+
+/** Cuadro de icono con fondo tintado. */
+@Composable
+private fun IconTile(icon: ImageVector, accent: Color, big: Boolean) {
+    val size = if (big) 46.dp else 40.dp
+    Box(
+        Modifier.size(size).clip(RoundedCornerShape(if (big) 14.dp else 12.dp))
+            .background(accent.copy(alpha = 0.14f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, null, tint = accent, modifier = Modifier.size(if (big) 24.dp else 21.dp))
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text,
+        color = Muted2,
+        fontSize = 10.5.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.4.sp,
+        modifier = Modifier.padding(top = 2.dp)
+    )
+}
+
+@Composable
+private fun StatusPill(connected: Boolean) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = if (connected) Color(0xFF12211B) else Card,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (connected) Green.copy(alpha = 0.45f) else Line
+        )
+    ) {
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Box(Modifier.size(7.dp).background(if (connected) Green else Muted2, CircleShape))
+            Text(
+                if (connected) "Conectado" else "Sin conexión",
+                color = if (connected) Green else ScreenMuted,
+                fontSize = 11.sp, fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChevronGreen() {
+    Icon(
+        Icons.Outlined.ChevronRight,
+        contentDescription = null,
+        tint = Green,
+        modifier = Modifier.size(20.dp)
+    )
 }
 
 /** Selector del transporte para crear un torneo. */
@@ -457,24 +459,26 @@ private fun TournamentConnectionDialog(
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = SurfaceColor,
-            border = androidx.compose.foundation.BorderStroke(1.dp, ScreenLine)
+            shape = RoundedCornerShape(22.dp),
+            color = Card,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line)
         ) {
             Column(
                 Modifier.fillMaxWidth().padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Text("Crear torneo", color = ScreenText, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-                Text(
-                    "Elige el tipo de conexión. Luego configura las partidas en la sala.",
-                    color = ScreenMuted, fontSize = 11.5.sp
-                )
-                TournamentChoice(Icons.Outlined.AddCircle, Green, "Bluetooth", "Dispositivos cercanos") { onSelect("bt") }
-                TournamentChoice(Icons.Outlined.Link, Blue, "Peer-to-Peer", "Internet con código de sala") { onSelect("p2p") }
-                TournamentChoice(Icons.Outlined.Computer, ScreenGold, "Red local / PC", "IP:puerto") { onSelect("lan") }
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                    Text("Cancelar", color = ScreenMuted)
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("Crear torneo", color = ScreenText, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(
+                        "Elige el tipo de conexión. Configurarás las partidas en la sala.",
+                        color = ScreenMuted, fontSize = 11.5.sp, lineHeight = 16.sp
+                    )
+                }
+                ChoiceRow(Icons.Outlined.AddCircle, Green, "Bluetooth", "Dispositivos cercanos") { onSelect("bt") }
+                ChoiceRow(Icons.Outlined.Link, Blue, "Peer-to-Peer", "Internet con código de sala") { onSelect("p2p") }
+                ChoiceRow(Icons.Outlined.Computer, Gold, "Red local / PC", "IP:puerto") { onSelect("lan") }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                    Text("Cancelar", color = ScreenMuted, fontSize = 13.sp)
                 }
             }
         }
@@ -482,7 +486,7 @@ private fun TournamentConnectionDialog(
 }
 
 @Composable
-private fun TournamentChoice(
+private fun ChoiceRow(
     icon: ImageVector,
     accent: Color,
     title: String,
@@ -490,28 +494,19 @@ private fun TournamentChoice(
     onClick: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-            .background(accent.copy(alpha = 0.10f))
-            .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+            .background(CardDeep)
+            .border(1.dp, Line, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 11.dp),
+            .padding(horizontal = 13.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(13.dp)
     ) {
-        Icon(icon, null, tint = accent, modifier = Modifier.size(20.dp))
+        IconTile(icon = icon, accent = accent, big = false)
         Column(Modifier.weight(1f)) {
-            Text(title, color = ScreenText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = ScreenMuted, fontSize = 10.5.sp)
+            Text(title, color = ScreenText, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = ScreenMuted, fontSize = 11.sp)
         }
-        Text("→", color = accent, fontWeight = FontWeight.ExtraBold)
+        Icon(Icons.Outlined.ChevronRight, null, tint = accent, modifier = Modifier.size(18.dp))
     }
-}
-
-@Composable
-private fun BoxStatusDot(connected: Boolean) {
-    Box(
-        modifier = Modifier
-            .size(8.dp)
-            .background(if (connected) Color(0xFF3DDC97) else ScreenMuted, CircleShape)
-    )
 }
