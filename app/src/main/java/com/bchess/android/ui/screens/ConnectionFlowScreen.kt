@@ -229,7 +229,7 @@ fun ConnectionFlowScreen(
                 }
             }
             if (appDevices.isNotEmpty()) {
-                item { Text("CHESS-X", color = ScreenAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                item { Text("B-CHESS", color = ScreenAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
                 items(appDevices, key = { it.address }) { device ->
                     NearbyDeviceRow(device, isHost, onConnect)
                 }
@@ -246,7 +246,12 @@ fun ConnectionFlowScreen(
 
 @Composable
 private fun NearbyDeviceRow(device: DiscoveredDevice, isHost: Boolean, onConnect: (String) -> Unit) {
-    val name = device.username?.takeIf { it.isNotBlank() } ?: device.name
+    val appName = if (device.isChessX) "B-Chess" else null
+    val name = when {
+        appName != null && device.username?.isNotBlank() == true -> "$appName · ${device.username}"
+        appName != null -> appName
+        else -> device.name
+    }
     val role = when (device.role) {
         DeviceRole.HOST -> "Anfitrión"
         DeviceRole.GUEST -> "Invitado"

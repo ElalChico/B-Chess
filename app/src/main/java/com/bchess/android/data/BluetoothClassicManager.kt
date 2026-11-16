@@ -154,26 +154,35 @@ class BluetoothClassicManager(
     private fun parseChessXInfo(name: String): Triple<Boolean, DeviceRole, String?> {
         val lower = name.lowercase()
         // Check if it's our app by service record name or naming convention
-        val isChessX = lower.contains("chess") || lower.contains("chx")
-        
+        val isChessX = lower.contains("b-chess") || lower.contains("chx") || lower.contains("chess-x")
+
         var role = DeviceRole.UNKNOWN
         var username: String? = null
-        
+
         if (isChessX) {
-            // Try to parse format: "CHESS-X · Anfitrión" or "CHESS-X · Invitado" or "CHESS-X · Username"
-            if (lower.contains("anfitri")) role = DeviceRole.HOST
-            else if (lower.contains("invitad")) role = DeviceRole.GUEST
-            
-            // Extract username after "·"
-            val parts = name.split("·")
-            if (parts.size > 1) {
-                val candidate = parts.last().trim()
-                if (candidate.isNotBlank() && !candidate.equals("Anfitrión", true) && !candidate.equals("Invitado", true)) {
-                    username = candidate
+            val anfitrion = lower.contains("anfitri")
+            val invitado = lower.contains("invitad")
+            if (anfitrion) role = DeviceRole.HOST
+            else if (invitado) role = DeviceRole.GUEST
+
+            // Extrae el nombre del jugador: "B-Chess · <nombre> · Anfitrión/Invitado"
+            val parts = name.split("·").map { it.trim() }
+            if (parts.size >= 2) {
+                val first = parts.first().lowercase()
+                val last = parts.last().lowercase()
+                val tailRole = last.contains("anfitri") || last.contains("invitad")
+                val headApp = first.contains("b-chess") || first.contains("bchess") || first.contains("chess-x") || first == "chx"
+                val candidate = if (tailRole && parts.size >= 3 && headApp) {
+                    parts.subList(1, parts.size - 1).joinToString(" ").trim()
+                } else if (headApp) {
+                    parts.drop(1).joinToString(" ").trim()
+                } else {
+                    ""
                 }
+                if (candidate.isNotBlank()) username = candidate
             }
         }
-        
+
         return Triple(isChessX, role, username)
     }
 
@@ -200,7 +209,8 @@ class BluetoothClassicManager(
     }
 
     fun updateHostName(username: String?) {
-        hostName = "CHESS-X · ${username?.ifBlank { "Anfitrión" } ?: "Anfitrión"}"
+        val who = username?.trim()?.ifBlank { "Anfitrión" } ?: "Anfitrión"
+        hostName = "B-Chess · $who · Anfitrión"
         if (isHost && _state.value == BtState.WAITING_HOST) {
             setVisibleDeviceName(hostName)
         }

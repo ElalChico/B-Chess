@@ -9,8 +9,9 @@ import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import android.os.PowerManager
 import android.content.Context
+import android.util.Log
+import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.input.pointer.pointerInput
@@ -57,7 +58,7 @@ import com.bchess.android.data.AppPreferences
 import com.bchess.android.data.BtState
 import com.bchess.android.data.GameHistoryStore
 import com.bchess.android.data.GameRecord
-import com.bchess.android.data.StockfishEngineManager
+import com.bchess.android.data.LocalChessEngine
 import com.bchess.android.data.UpdateManager
 import com.bchess.android.data.UpdateState
 import com.bchess.android.network.TcpBridgeNetwork
@@ -197,7 +198,7 @@ class MainActivity : ComponentActivity() {
         val remoteProfile by vm.remoteProfile.collectAsState()
         val isEn = prefs.language == AppLanguage.EN
         val startHostListening: () -> Unit = {
-            vm.bluetooth.setVisibleDeviceName("${prefs.profileName} · Anfitrión")
+            vm.bluetooth.setVisibleDeviceName("B-Chess · ${prefs.profileName} · Anfitrión")
             try {
                 discoverableLauncher.launch(discoverableIntent())
             } catch (_: Exception) {
@@ -205,7 +206,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         val startGuestScanning: () -> Unit = {
-            vm.bluetooth.setVisibleDeviceName("${prefs.profileName} · Invitado")
+            vm.bluetooth.setVisibleDeviceName("B-Chess · ${prefs.profileName} · Invitado")
             vm.bluetooth.startDiscovery()
         }
         val continueFromProfile: () -> Unit = {
@@ -279,27 +280,25 @@ class MainActivity : ComponentActivity() {
         }
 
         // Mantener pantalla encendida durante la partida
-        // Mantener pantalla encendida durante la partida
-        var wakeLock by remember { mutableStateOf<PowerManager.WakeLock?>(null) }
-        DisposableEffect(ui.lobby.gameStarted, ui.gameEnd) {
-            val pm = activity.getSystemService(Context.POWER_SERVICE) as PowerManager
-            val shouldKeepOn = ui.lobby.gameStarted && ui.gameEnd == null
-            if (shouldKeepOn) {
-                val wl = pm.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, "B-Chess::GameWakeLock")
-                wl.acquire()
-                wakeLock = wl
-            } else {
-                wakeLock?.release()
-                wakeLock = null
-            }
-            onDispose {
-                wakeLock?.release()
-                wakeLock = null
+        // Mantener pantalla encendida durante la partida: con FLAG_KEEP_SCREEN_ON
+        // (no requiere permiso WAKE_LOCK, a diferencia de los wake locks).
+        LaunchedEffect(ui.lobby.gameStarted, ui.gameEnd) {
+            val keepOn = ui.lobby.gameStarted && ui.gameEnd == null
+            try {
+                val attrs = activity.window.attributes
+                attrs.flags = if (keepOn) {
+                    attrs.flags or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                } else {
+                    attrs.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON.inv()
+                }
+                activity.window.attributes = attrs
+            } catch (e: Exception) {
+                Log.e("BChess", "keep screen on failed", e)
             }
         }
 
         val updateManager = remember { UpdateManager.getInstance(activity) }
-        val engineManager = remember { StockfishEngineManager.getInstance(activity) }
+        val engineManager = remember { LocalChessEngine.getInstance(activity) }
         val updateState by updateManager.updateState.collectAsStateWithLifecycle()
         var dismissedUpdateCode by remember { mutableStateOf<Long?>(null) }
         LaunchedEffect(Unit) {

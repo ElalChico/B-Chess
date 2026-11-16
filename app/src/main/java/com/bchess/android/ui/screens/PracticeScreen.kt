@@ -70,7 +70,7 @@ import com.bchess.android.data.GameRecord
 import com.bchess.android.data.GAME_TYPE_PRACTICE
 import com.bchess.android.data.PieceSet
 import com.bchess.android.data.PredefinedControls
-import com.bchess.android.data.StockfishEngineManager
+import com.bchess.android.data.LocalChessEngine
 import com.bchess.android.data.SoundManager
 import com.bchess.android.data.SoundType
 import com.bchess.android.data.BoardTheme
@@ -94,7 +94,7 @@ private val PracticeRed = Color(0xFFFF7777)
 
 @Composable
 fun PracticeScreen(
-    engineManager: StockfishEngineManager,
+    engineManager: LocalChessEngine,
     boardTheme: BoardTheme,
     pieceSet: PieceSet,
     showCoordinates: Boolean,
