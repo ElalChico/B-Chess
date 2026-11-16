@@ -19,6 +19,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Brush
@@ -119,7 +120,7 @@ fun GameScreen(
                 }
                 if (ui.gameEnd == null) {
                     Spacer(Modifier.width(6.dp))
-                    OverflowMenu(onResign = onResign)
+                    OverflowMenu(onResign = onResign, onExitFullscreen = onDisconnect)
                 }
             }
             Spacer(Modifier.height(6.dp))
@@ -138,7 +139,19 @@ fun GameScreen(
             )
             Spacer(Modifier.height(6.dp))
         } else {
-            FullscreenHud(ui = ui, remotePhotoBase64 = remoteProfile?.photoBase64, onToggleFullscreen = onToggleFullscreen, onResign = onResign)
+            PlayerBar(
+                name = ui.remoteName.ifBlank { remoteProfile?.name ?: "Rival" },
+                isYou = false,
+                isTurn = ui.snapshot.sideToMove == ui.remoteColor,
+                clockMs = remoteClockMs,
+                totalMs = ui.lobby.timeMs,
+                showClock = ui.lobby.timeMs > 0,
+                inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.remoteColor,
+                sideLabel = if (ui.remoteColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
+                remotePhoto = remoteProfile?.photoBase64,
+                isLowTime = remoteIsLowTime,
+                compact = true
+            )
             Spacer(Modifier.height(4.dp))
         }
 
@@ -188,6 +201,25 @@ fun GameScreen(
             ui.lastError?.let {
                 Text(it, color = Red, fontSize = 12.5.sp, modifier = Modifier.padding(top = 4.dp, start = 4.dp))
             }
+        } else {
+            // Barra local compacta con menú de tres puntos (Salir / Abandonar)
+            PlayerBar(
+                name = ui.localName.ifBlank { "Tú" },
+                isYou = true,
+                isTurn = ui.snapshot.sideToMove == ui.localColor,
+                clockMs = localClockMs,
+                totalMs = ui.lobby.timeMs,
+                showClock = ui.lobby.timeMs > 0,
+                inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.localColor,
+                sideLabel = if (ui.localColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
+                photoBase64 = localPhotoBase64,
+                isLowTime = localIsLowTime,
+                compact = true,
+                showMenu = true,
+                gameEnd = ui.gameEnd,
+                onExitFullscreen = onToggleFullscreen,
+                onResign = onResign
+            )
         }
 
         Spacer(Modifier.height(8.dp))
@@ -256,7 +288,6 @@ fun GameScreen(
                     TextButton(onClick = onToggleSound) {
                         Text(if (ui.soundEnabled) "Desactivar" else "Activar", color = Gold, fontSize = 12.sp)
                     }
-                    TextButton(onClick = onDisconnect) { Text("Salir", color = Red, fontSize = 12.sp) }
                 }
             }
         }
@@ -560,7 +591,11 @@ private fun ActionBtn(label: String, weak: Boolean, modifier: Modifier = Modifie
 }
 
 @Composable
-private fun OverflowMenu(onResign: () -> Unit, compact: Boolean = false) {
+private fun OverflowMenu(
+    onResign: () -> Unit,
+    compact: Boolean = false,
+    onExitFullscreen: (() -> Unit)? = null
+) {
     var expanded by remember { mutableStateOf(false) }
     val buttonSize = if (compact) 30.dp else 34.dp
     val corner = if (compact) 9.dp else 10.dp
@@ -598,6 +633,20 @@ private fun OverflowMenu(onResign: () -> Unit, compact: Boolean = false) {
                 },
                 onClick = { expanded = false; onResign() }
             )
+            if (onExitFullscreen != null) {
+                DropdownMenuItem(
+                    text = { Text("Salir", color = Text1, fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.ExitToApp,
+                            contentDescription = null,
+                            tint = Text1,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    onClick = { expanded = false; onExitFullscreen() }
+                )
+            }
         }
     }
 }
@@ -645,30 +694,30 @@ private fun PlayerBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF141A22), RoundedCornerShape(14.dp))
+            .background(Color(0xFF141A22), RoundedCornerShape(cornerRadius))
             .border(
                 1.dp,
                 if (isTurn) Color(0xFF2E3A26) else Color(0xFF232C38),
-                RoundedCornerShape(14.dp)
+                RoundedCornerShape(cornerRadius)
             )
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = spacing, vertical = padding),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Active-turn accent bar
         Box(
             Modifier
-                .width(3.dp)
-                .height(30.dp)
+                .width(accentBarWidth)
+                .height(accentBarHeight)
                 .background(accentColor, RoundedCornerShape(2.dp))
         )
-        Spacer(Modifier.width(9.dp))
+        Spacer(Modifier.width(spacing))
 
         // Circular avatar + online dot
         val avatarPhoto = if (isYou) photoBase64 else (remotePhoto ?: "")
         val bmp = remember(avatarPhoto) { decodePhoto(avatarPhoto) }
         Box(
             modifier = Modifier
-                .size(42.dp)
+                .size(avatarSize)
                 .clip(CircleShape)
                 .background(if (isYou) Color(0xFF15251D) else Color(0xFF251A1A))
                 .border(
@@ -687,7 +736,7 @@ private fun PlayerBar(
             } else {
                 Text(
                     text = (name.firstOrNull() ?: if (isYou) 'T' else 'R').uppercaseChar().toString(),
-                    fontSize = 16.sp,
+                    fontSize = if (compact) 12.sp else 16.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = if (isYou) Green else Color(0xFFFF9B9B)
                 )
@@ -695,12 +744,12 @@ private fun PlayerBar(
             Box(
                 Modifier
                     .align(Alignment.BottomEnd)
-                    .size(10.dp)
+                    .size(if (compact) 8.dp else 10.dp)
                     .background(Green, CircleShape)
                     .border(2.dp, Color(0xFF12171F), CircleShape)
             )
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(spacing))
 
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -708,7 +757,7 @@ private fun PlayerBar(
                     text = name,
                     color = if (inCheck) Red else Text1,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
+                    fontSize = nameFontSize,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
@@ -734,7 +783,7 @@ private fun PlayerBar(
             Text(
                 text = if (isYou) "TÚ · ${if (isTurn) "Jugando" else "En espera"}"
                        else "RIVAL · ${if (isTurn) "Jugando" else "En espera"}",
-                fontSize = 10.sp,
+                fontSize = statusFontSize,
                 color = if (isTurn) Green else Muted,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -743,14 +792,14 @@ private fun PlayerBar(
         }
 
         if (showClock) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(spacing))
             Column(horizontalAlignment = Alignment.End) {
                 Box(
                     modifier = Modifier
                         .background(
                             if (isTurn) Brush.linearGradient(listOf(Green, Color(0xFF7AF0BC)))
                             else Brush.linearGradient(listOf(Color(0xFF0B1016), Color(0xFF0B1016))),
-                            RoundedCornerShape(10.dp)
+                            RoundedCornerShape(if (compact) 8.dp else 10.dp)
                         )
                         .border(
                             1.dp,
@@ -760,9 +809,9 @@ private fun PlayerBar(
                                 isTurn -> Color(0xFF2FA37E)
                                 else -> Color(0xFF2A3341)
                             },
-                            RoundedCornerShape(10.dp)
+                            RoundedCornerShape(if (compact) 8.dp else 10.dp)
                         )
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                        .padding(horizontal = clockPadding, vertical = if (compact) 3.dp else 5.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -775,14 +824,14 @@ private fun PlayerBar(
                         },
                         modifier = Modifier.alpha(LowTimeBlink(isLowTime)),
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 19.sp
+                        fontSize = clockFontSize
                     )
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(titleSpacing))
                 Box(
                     Modifier
-                        .width(84.dp)
-                        .height(3.dp)
+                        .width(timeBarWidth)
+                        .height(timeBarHeight)
                         .background(Color(0xFF202834), RoundedCornerShape(2.dp))
                 ) {
                     val fraction = if (totalMs > 0) (clockMs.toFloat() / totalMs).coerceIn(0f, 1f) else 1f
@@ -803,6 +852,16 @@ private fun PlayerBar(
                     )
                 }
             }
+        }
+
+        // Menú de tres puntos (Salir / Abandonar) en vista compacta
+        if (showMenu && isYou && gameEnd == null) {
+            Spacer(Modifier.width(spacing))
+            OverflowMenu(
+                onResign = onResign!!,
+                compact = true,
+                onExitFullscreen = onExitFullscreen
+            )
         }
     }
 }
