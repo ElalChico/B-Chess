@@ -83,7 +83,6 @@ enum class PieceSet(
     LICHESS("Lichess · Vector", "Lichess · Vector"),
     CHESS_COM("Moderno", "Modern"),
     OPEN_SOURCE("Trazo abierto", "Open line"),
-
     // --- 12 nuevos conjuntos desde PIEZAS ---
     ALPHA("Alpha", "Alpha", "alpha"),
     ANARCANDY("Anarcandy", "Anarcandy", "anarcandy"),
@@ -108,7 +107,8 @@ enum class PieceSet(
     NUESTRAS_3("Piezas Nuestras 3", "Our Pieces 3", "nuestras3");
 
     companion object {
-        val DEFAULT = LICHESS
+        // Predeterminado: Lichess · Clásico (antes "Vector" estaba glitcheado en pantalla)
+        val DEFAULT = CBURNETT
     }
 }
 
