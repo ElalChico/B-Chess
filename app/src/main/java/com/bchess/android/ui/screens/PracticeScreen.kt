@@ -29,7 +29,11 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,6 +48,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -73,6 +78,7 @@ import com.bchess.android.data.PredefinedControls
 import com.bchess.android.data.LocalChessEngine
 import com.bchess.android.data.SoundManager
 import com.bchess.android.data.SoundType
+import com.bchess.android.data.strengthLevelName
 import com.bchess.android.data.BoardTheme
 import com.bchess.android.data.TimeControlOption
 import com.bchess.android.data.formatClock
@@ -91,6 +97,12 @@ private val PracticeMuted = Color(0xFF8B96A5)
 private val PracticeGold = Color(0xFFC9B15A)
 private val PracticeGreen = Color(0xFF3DDC97)
 private val PracticeRed = Color(0xFFFF7777)
+
+/** Victorias necesarias en el nivel actual para subir de nivel automáticamente. */
+private const val PROGRESSIVE_WINS_NEEDED = 6
+
+/** Cantidad de nivel (en %) que sube la fuerza al completar la progresión. */
+private const val PROGRESSIVE_STEP = 10
 
 @Composable
 fun PracticeScreen(
@@ -115,7 +127,12 @@ fun PracticeScreen(
     val moveHistory = remember { mutableStateListOf<String>() }
     var snapshot by remember { mutableStateOf(engine.snapshot) }
     var selection by remember { mutableStateOf(BoardSelection(null)) }
-    var strengthPercent by remember { mutableStateOf(0) }
+    // Fuerza del motor: se guarda en preferencias para mantenerse entre sesiones
+    var strengthPercent by remember { mutableStateOf(prefs.strengthPercent) }
+    var progressiveEnabled by remember { mutableStateOf(prefs.progressiveLevel) }
+    var progressiveWins by remember { mutableStateOf(prefs.progressiveWins) }
+    // Contador de finales de partida: dispara la lógica progresiva una sola vez por partida
+    var gameEndCount by remember { mutableStateOf(0) }
     var playerColor by remember { mutableStateOf(ChessColor.WHITE) }
     var gameStarted by remember { mutableStateOf(false) }
     var timeControl by remember(initialTimeMs, initialIncrementMs) {
@@ -134,10 +151,35 @@ fun PracticeScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var gameEnd by remember { mutableStateOf<GameEnd?>(null) }
     LaunchedEffect(gameStarted, gameEnd) { onGameStateChange?.invoke(gameStarted && gameEnd == null) }
+
     var showSidePicker by remember { mutableStateOf(false) }
     var lastMove by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var endDialogDismissed by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
+    // Subida progresiva: al ganar 6 partidas con el nivel actual, el nivel sube solo
+    LaunchedEffect(gameEndCount) {
+        if (gameEndCount == 0) return@LaunchedEffect
+        val end = gameEnd ?: return@LaunchedEffect
+        if (end.winner != playerColor) return@LaunchedEffect
+        if (!prefs.progressiveLevel) return@LaunchedEffect
+        val wins = prefs.progressiveWins + 1
+        if (wins >= PROGRESSIVE_WINS_NEEDED) {
+            prefs.setProgressiveWins(0)
+            progressiveWins = 0
+            val next = (strengthPercent + PROGRESSIVE_STEP).coerceAtMost(100)
+            strengthPercent = next
+            prefs.setStrengthPercent(next)
+            android.widget.Toast.makeText(
+                context,
+                "¡Nivel subido a $next% · ${strengthLevelName(next)}!",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        } else {
+            prefs.setProgressiveWins(wins)
+            progressiveWins = wins
+        }
+    }
     val playerName = prefs.profileName
     val clockManager = remember(coroutineScope) {
         ClockManager(
@@ -151,6 +193,7 @@ fun PracticeScreen(
                     reason = GameEndReason.TIMEOUT,
                     message = if (loser == playerColor) "Te quedaste sin tiempo" else "Stockfish se quedó sin tiempo"
                 )
+                gameEndCount++
                 sound?.play(if (loser == playerColor) SoundType.LOSE else SoundType.WIN)
             }
         )
@@ -174,7 +217,10 @@ fun PracticeScreen(
         }
         selection = BoardSelection(null, lastMove = lastMove, checkKingSquare = checkedKing)
         gameEnd = engine.detectEnd()
-        if (gameEnd != null) clockManager.finish()
+        if (gameEnd != null) {
+            clockManager.finish()
+            gameEndCount++
+        }
     }
 
     // Sonido de jugada y de fin de partida: captura/jaque/mate (sin sonido de colocación)
@@ -294,7 +340,21 @@ fun PracticeScreen(
             installState = installState,
             installed = engineManager.isInstalled(),
             strengthPercent = strengthPercent,
-            onStrengthChange = { strengthPercent = it },
+            onStrengthChange = { value ->
+                if (value != strengthPercent) {
+                    prefs.setProgressiveWins(0)
+                    progressiveWins = 0
+                }
+                strengthPercent = value
+                prefs.setStrengthPercent(value)
+            },
+            progressiveEnabled = progressiveEnabled,
+            onProgressiveChange = { enabled ->
+                progressiveEnabled = enabled
+                prefs.setProgressiveLevel(enabled)
+                if (!enabled) { prefs.setProgressiveWins(0); progressiveWins = 0 }
+            },
+            progressiveWins = progressiveWins,
             timeControl = timeControl,
             timeControls = (PredefinedControls.options + timeControl).distinctBy { it.timeMs to it.incrementMs },
             onTimeControlChange = { timeControl = it },
@@ -445,6 +505,9 @@ private fun PracticeSetup(
     installed: Boolean,
     strengthPercent: Int,
     onStrengthChange: (Int) -> Unit,
+    progressiveEnabled: Boolean,
+    onProgressiveChange: (Boolean) -> Unit,
+    progressiveWins: Int,
     timeControl: TimeControlOption,
     timeControls: List<TimeControlOption>,
     onTimeControlChange: (TimeControlOption) -> Unit,
@@ -474,6 +537,11 @@ private fun PracticeSetup(
         EngineStatusRow(installState = installState, installed = installed)
         Text("Configura antes de comenzar", color = PracticeText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         PracticeLevel(strengthPercent, onStrengthChange, enabled = installed)
+        PracticeProgressive(
+            enabled = progressiveEnabled,
+            wins = progressiveWins,
+            onToggle = onProgressiveChange
+        )
         Column(
             modifier = Modifier.fillMaxWidth().background(PracticeCard, RoundedCornerShape(12.dp))
                 .border(1.dp, PracticeLine, RoundedCornerShape(12.dp)).padding(12.dp),
@@ -597,7 +665,11 @@ private fun PracticeHeader(
         }
         Column(Modifier.weight(1f).padding(start = 8.dp)) {
             Text("Practicar", color = PracticeText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("$strengthPercent% · $timeLabel", color = PracticeMuted, fontSize = 11.sp)
+            Text(
+                "${strengthLevelName(strengthPercent)} · $strengthPercent% · $timeLabel",
+                color = PracticeMuted, fontSize = 11.sp,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
         }
         TextButton(onClick = onRestart, enabled = enabled, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
             Text("Reiniciar", color = PracticeGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -700,23 +772,131 @@ private fun EngineStatusRow(
 
 @Composable
 private fun PracticeLevel(strengthPercent: Int, onStrengthChange: (Int) -> Unit, enabled: Boolean) {
+    val levelName = strengthLevelName(strengthPercent)
+    val bandIndex = strengthBandIndex(strengthPercent)
     Column(
         modifier = Modifier.fillMaxWidth().background(PracticeCard, RoundedCornerShape(12.dp))
-            .border(1.dp, PracticeLine, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(1.dp)
+            .border(1.dp, PracticeLine, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Fuerza del motor", color = PracticeText, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
-            Text("$strengthPercent%", color = PracticeGold, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text("Fuerza del motor", color = PracticeText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(
+                    "$levelName · ${strengthBandRange(strengthPercent)}",
+                    color = PracticeMuted, fontSize = 10.sp
+                )
+            }
+            Text("$strengthPercent%", color = PracticeGold, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
         }
         Slider(
             value = strengthPercent.toFloat(),
             onValueChange = { onStrengthChange(it.roundToInt()) },
             valueRange = 0f..100f,
-            steps = 19,
-            enabled = enabled
+            steps = 99,
+            enabled = enabled,
+            colors = SliderDefaults.colors(
+                thumbColor = PracticeGold,
+                activeTrackColor = PracticeGold,
+                inactiveTrackColor = PracticeLine
+            )
         )
-        Text("Porcentaje de fuerza de Stockfish", color = PracticeMuted, fontSize = 10.sp)
+        // Escala de niveles: Principiante es solo 0-15
+        Row(
+            Modifier.fillMaxWidth().padding(top = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            repeat(STRENGTH_BANDS.size) { index ->
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(
+                            if (index <= bandIndex) PracticeGold.copy(alpha = 0.85f) else PracticeLine
+                        )
+                )
+            }
+        }
+        Text(
+            "0% · Principiante  →  100% · Muy difícil",
+            color = PracticeMuted, fontSize = 9.5.sp
+        )
+    }
+}
+
+/** Índice de la banda de nivel (0=Principiante … 5=Muy difícil). */
+private fun strengthBandIndex(percent: Int): Int = when (percent) {
+    in 0..15 -> 0
+    in 16..30 -> 1
+    in 31..50 -> 2
+    in 51..70 -> 3
+    in 71..85 -> 4
+    else -> 5
+}
+
+private val STRENGTH_BANDS = listOf(
+    "Principiante" to 0..15,
+    "Aficionado" to 16..30,
+    "Intermedio" to 31..50,
+    "Avanzado" to 51..70,
+    "Experto" to 71..85,
+    "Muy difícil" to 86..100
+)
+
+private fun strengthBandRange(percent: Int): String =
+    STRENGTH_BANDS.firstOrNull { percent in it.second }?.second?.let { "${it.first}-${it.last}%" } ?: ""
+
+/** Interruptor de subida progresiva de nivel con progreso de victorias. */
+@Composable
+private fun PracticeProgressive(
+    enabled: Boolean,
+    wins: Int,
+    onToggle: (Boolean) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().background(PracticeCard, RoundedCornerShape(12.dp))
+            .border(
+                1.dp,
+                if (enabled) PracticeGold.copy(alpha = 0.55f) else PracticeLine,
+                RoundedCornerShape(12.dp)
+            )
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text("Subida progresiva", color = PracticeText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(
+                    "Sube $PROGRESSIVE_STEP% de nivel tras $PROGRESSIVE_WINS_NEEDED victorias con el nivel actual",
+                    color = PracticeMuted, fontSize = 10.sp
+                )
+            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = onToggle,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = PracticeGold,
+                    checkedTrackColor = PracticeGold.copy(alpha = 0.35f),
+                    uncheckedThumbColor = PracticeMuted,
+                    uncheckedTrackColor = PracticeLine
+                )
+            )
+        }
+        if (enabled) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                LinearProgressIndicator(
+                    progress = { (wins.toFloat() / PROGRESSIVE_WINS_NEEDED).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                    color = PracticeGold,
+                    trackColor = PracticeLine
+                )
+                Text(
+                    "Victorias en el nivel actual: $wins/$PROGRESSIVE_WINS_NEEDED",
+                    color = PracticeGold, fontSize = 10.sp, fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
     }
 }
 

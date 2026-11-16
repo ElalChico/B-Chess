@@ -3,12 +3,17 @@
  *
  * Objetivo
  *   Sustituir al binario Stockfish (arm64) por un motor que funciona en
- *   cualquier móvil y en cualquier arquitectura. Minimax con poda alfa-beta
- *   y tablas de posición por pieza. Tres niveles de dificultad desde el
- *   más principiante hasta el más avanzado:
- *     - Principiante (0-30): búsqueda profundidad 1 + jugadas aleatorias frecuentes
- *     - Intermedio   (31-65): búsqueda profundidad 2
- *     - Avanzado     (66-100): búsqueda profundidad 3
+ *   cualquier móvil y en cualquier arquitectura. Minimax con poda alfa-beta,
+ *   tablas de posición por pieza e iteración profunda con límite de tiempo.
+ *
+ *   Curva de dificultad continua (0-100):
+ *     - Principiante  (0-15):  profundidad 1, jugadas aleatorias frecuentes (hasta 100% en 0%)
+ *     - Aficionado   (16-30): profundidad 1-2, errores ocasionales
+ *     - Intermedio   (31-50): profundidad 2-3, errores raros
+ *     - Avanzado     (51-70): profundidad 3-4, sin errores
+ *     - Experto      (71-85): profundidad 4-5, sin errores
+ *     - Muy difícil  (86-100): profundidad 5, sin errores y más tiempo de cálculo
+ *   Además, a menor nivel la evaluación lleva ruido (el motor "se equivoca").
  *   Sin binarios: funciona en todos los teléfonos, incluidos de bajos recursos.
  */
 
@@ -21,6 +26,7 @@ import com.bchess.android.core.Move
 import com.bchess.android.core.PieceType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 sealed interface EngineInstallState {
     object Idle : EngineInstallState
@@ -35,6 +41,9 @@ class LocalChessEngine {
     // jugadas sobre una posición arbitraria (no muta el estado real).
     private val helper = ChessEngine()
 
+    // Contador de nodos de la búsqueda en curso (para el límite de tiempo).
+    private var nodes = 0L
+
     private val _installState = kotlinx.coroutines.flow.MutableStateFlow<EngineInstallState>(EngineInstallState.Ready)
     val installState: kotlinx.coroutines.flow.StateFlow<EngineInstallState> = _installState
 
@@ -46,6 +55,8 @@ class LocalChessEngine {
     companion object {
         private const val MATE_SCORE = 1_000_000
         private const val SIDE_TO_MOVE_BONUS = 12
+        /** ∞ segura: cualquier evaluation está dentro de ±MATE_SCORE, así que ±2M nunca desborda. */
+        private const val INF = 2_000_000
 
         private val PIECE_VALUE = intArrayOf(100, 320, 330, 500, 900, 0) // ordinal: PAWN..KING
 
@@ -174,20 +185,156 @@ class LocalChessEngine {
 
     private fun evaluate(state: BoardSnapshot): Int {
         var score = 0
+        var whiteBishops = 0
+        var blackBishops = 0
         for (sq in 0..63) {
             val p = state.board[sq] ?: continue
             val idx = sq xor if (p.color == Color.WHITE) 0 else 56
             val v = (PIECE_VALUE.getOrNull(p.type.ordinal) ?: 0) + (PST[p.type]?.getOrNull(idx) ?: 0)
+            if (p.type == PieceType.BISHOP) {
+                if (p.color == Color.WHITE) whiteBishops++ else blackBishops++
+            }
             score += if (p.color == Color.WHITE) v else -v
+        }
+        // Pareja de alfiles: premio ligero pero real
+        if (whiteBishops >= 2) score += 30
+        if (blackBishops >= 2) score -= 30
+        // Peones pasados y torres en columna abierta
+        for (sq in 0..63) {
+            val p = state.board[sq] ?: continue
+            val file = sq % 8
+            val rank = sq / 8
+            when (p.type) {
+                PieceType.PAWN -> {
+                    val white = p.color == Color.WHITE
+                    if (!hasEnemyPawnAhead(state, file, rank, white)) {
+                        val advance = if (white) rank else 7 - rank
+                        val bonus = 8 + advance * 6
+                        score += if (white) bonus else -bonus
+                    }
+                }
+                PieceType.ROOK -> {
+                    if (!hasPawnOnFile(state, file)) {
+                        score += if (p.color == Color.WHITE) 12 else -12
+                    }
+                }
+                else -> {}
+            }
         }
         // Evaluación desde la perspectiva del bando al que le toca mover
         return if (state.sideToMove == Color.WHITE) score + SIDE_TO_MOVE_BONUS else -score + SIDE_TO_MOVE_BONUS
     }
 
+    /** ¿Hay algún peón (de cualquier color) en la columna? */
+    private fun hasPawnOnFile(state: BoardSnapshot, file: Int): Boolean =
+        (0..7).any { r -> state.board[r * 8 + file]?.type == PieceType.PAWN }
+
+    /** ¿Hay un peón enemigo por delante (misma o columna adyacente)? */
+    private fun hasEnemyPawnAhead(state: BoardSnapshot, file: Int, rank: Int, white: Boolean): Boolean {
+        val enemy = if (white) Color.BLACK else Color.WHITE
+        for (f in (file - 1)..(file + 1)) {
+            if (f < 0 || f > 7) continue
+            val rows = if (white) (rank + 1)..7 else 0 until rank
+            for (r in rows) {
+                val p = state.board[r * 8 + f] ?: continue
+                if (p.type == PieceType.PAWN && p.color == enemy) return true
+            }
+        }
+        return false
+    }
+
     private fun orderMoves(moves: List<Move>, state: BoardSnapshot): List<Move> =
         moves.sortedByDescending { moveOrderScore(it, state) }
 
-    private fun negamax(state: BoardSnapshot, depth: Int, alpha: Int, beta: Int): Int {
+    /** Devuelve la mejor jugada (UCI) para la posición alcanzada tras [moves]. */
+    suspend fun bestMove(moves: List<String>, strengthPercent: Int): String = withContext(Dispatchers.Default) {
+        val engine = snapshotOf(moves)
+        val rootState = engine.snapshot
+        val rootMoves = legalMovesOf(rootState)
+        if (rootMoves.isEmpty()) return@withContext ""
+
+        val normalized = strengthPercent.coerceIn(0, 100)
+        val random = kotlin.random.Random
+
+        // 1) Curva de error: a menor nivel, más probabilidad de jugada aleatoria.
+        //    0% es prácticamente un jugador aleatorio; 100% nunca falla.
+        if (random.nextFloat() < errorProbability(normalized)) {
+            return@withContext rootMoves.random(random).uci()
+        }
+
+        // 2) Profundidad objetivo: 1 (principiante) hasta 5 (muy difícil).
+        val targetDepth = depthFor(normalized)
+        // 3) Presupuesto de tiempo: los niveles altos piensan más, como un motor real.
+        val budgetMs = 300L + normalized * 27L
+        val deadline = System.currentTimeMillis() + budgetMs
+
+        // 4) Ruido de evaluación en la raíz: levels bajos eligen a veces una jugada
+        //    peor de lo evaluado (errores típicos de principiante).
+        val noise = ((100 - normalized) * 0.5f).roundToInt()
+
+        var bestMove: Move = rootMoves.first()
+        var completedDepth = 0
+        for (depth in 1..targetDepth) {
+            try {
+                bestMove = searchRoot(rootState, rootMoves, depth, deadline, noise, random)
+                completedDepth = depth
+            } catch (_: SearchTimeout) {
+                break
+            }
+            if (System.currentTimeMillis() >= deadline) break
+        }
+        // Si ni siquiera se completó la profundidad 1 (improbable), jugada legal segura.
+        if (completedDepth == 0) bestMove = rootMoves.random(random)
+        bestMove.uci()
+    }
+
+    /** Probabilidad de jugada aleatoria según el nivel (0% = casi todo aleatorio). */
+    private fun errorProbability(percent: Int): Float = when {
+        percent <= 15 -> 1.00f - percent * 0.0400f        // 1.00 → 0.40  (Principiante)
+        percent <= 30 -> 0.40f - (percent - 15) * 0.0067f  // 0.40 → 0.30  (Aficionado)
+        percent <= 45 -> 0.30f - (percent - 30) * 0.0080f  // 0.30 → 0.18  (Intermedio)
+        percent <= 60 -> 0.18f - (percent - 45) * 0.0087f  // 0.18 → 0.05  (Avanzado)
+        else -> (0.05f - (percent - 60) * 0.00125f).coerceAtLeast(0f) // → 0 (Experto/Muy difícil)
+    }
+
+    /** Profundidad de búsqueda para un nivel dado (1..5). */
+    internal fun depthFor(percent: Int): Int =
+        1 + (percent.coerceIn(0, 100) * 4.0 / 100.0).roundToInt()
+
+    private class SearchTimeout : RuntimeException()
+
+    /** Búsqueda de la mejor jugada en la raíz con [depth] y límite de tiempo. */
+    private fun searchRoot(
+        state: BoardSnapshot,
+        moves: List<Move>,
+        depth: Int,
+        deadline: Long,
+        noise: Int,
+        random: kotlin.random.Random
+    ): Move {
+        nodes = 0
+        var bestScore = -INF
+        var bestMoves = mutableListOf<Move>()
+        var alpha = -INF
+        val ordered = orderMoves(moves, state)
+        for (move in ordered) {
+            val child = helper.applyMove(state, move)
+            val score = -negamax(child, depth - 1, -INF, -alpha, deadline) +
+                if (noise > 0) random.nextInt(-noise, noise + 1) else 0
+            if (score > bestScore) {
+                bestScore = score
+                bestMoves = mutableListOf(move)
+                if (score > alpha) alpha = score
+            } else if (score == bestScore) {
+                bestMoves.add(move)
+            }
+        }
+        return bestMoves.random(random)
+    }
+
+    private fun negamax(state: BoardSnapshot, depth: Int, alpha: Int, beta: Int, deadline: Long): Int {
+        // Comprobación de tiempo cada 1024 nodos: no interrumpe la partida.
+        if ((nodes++ and 1023) == 0L && System.currentTimeMillis() > deadline) throw SearchTimeout()
         val moves = legalMovesOf(state)
         // Fin de la partida: mate o tablas sin jugadas legales
         if (moves.isEmpty()) {
@@ -198,62 +345,16 @@ class LocalChessEngine {
             // Tablas por material insuficiente: 0
             return evaluate(state)
         }
-        var best = Int.MIN_VALUE
+        var best = -INF
         var a = alpha
         val ordered = orderMoves(moves, state)
         for (move in ordered) {
             val child = helper.applyMove(state, move)
-            val score = -negamax(child, depth - 1, -beta, -a)
+            val score = -negamax(child, depth - 1, -beta, -a, deadline)
             if (score > best) best = score
             if (best > a) a = best
             if (a >= beta) break
         }
         return best
-    }
-
-    /** Devuelve la mejor jugada (UCI) para la posición alcanzada tras [moves]. */
-    suspend fun bestMove(moves: List<String>, strengthPercent: Int): String = withContext(Dispatchers.Default) {
-        val engine = snapshotOf(moves)
-        val rootState = engine.snapshot
-        val rootMoves = legalMovesOf(rootState)
-        if (rootMoves.isEmpty()) return@withContext ""
-
-        val normalized = strengthPercent.coerceIn(0, 100)
-
-        // Principiante: con frecuencia juega al azar (el motor "se equivoca")
-        val random = kotlin.random.Random
-        if (normalized <= 30 && random.nextFloat() < 0.35f) {
-            return@withContext rootMoves.random(random).uci()
-        }
-
-        val depth = when {
-            normalized <= 30 -> 1
-            normalized <= 65 -> 2
-            else -> 3
-        }
-
-        // Intermedio: pequeña probabilidad de error por variedad
-        if (normalized <= 65 && random.nextFloat() < 0.08f) {
-            return@withContext rootMoves.random(random).uci()
-        }
-
-        // Ordena y evalúa las jugadas raíz con poda alfa-beta
-        var bestScore = Int.MIN_VALUE
-        var bestMoves = mutableListOf<Move>()
-        var alpha = Int.MIN_VALUE
-        val ordered = orderMoves(rootMoves, rootState)
-        for (move in ordered) {
-            val child = helper.applyMove(rootState, move)
-            val score = -negamax(child, depth - 1, Int.MIN_VALUE, -alpha)
-            if (score > bestScore) {
-                bestScore = score
-                bestMoves = mutableListOf(move)
-                alpha = score
-            } else if (score == bestScore) {
-                bestMoves.add(move)
-            }
-        }
-        val chosen = bestMoves.random(random)
-        chosen.uci()
     }
 }

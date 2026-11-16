@@ -193,6 +193,33 @@ class AppPreferences(context: Context) {
     private var _defaultIncrementMs by mutableLongStateOf(p.getLong("inc_ms", 0L))
     val defaultIncrementMs: Long get() = _defaultIncrementMs
 
+    // ==== Motor local (Stockfish): fuerza y progresión ====
+    private var _strengthPercent by mutableStateOf(p.getInt("strength_percent", 15))
+    val strengthPercent: Int get() = _strengthPercent
+
+    private var _progressiveLevel by mutableStateOf(p.getBoolean("progressive_level", false))
+    val progressiveLevel: Boolean get() = _progressiveLevel
+
+    private var _progressiveWins by mutableStateOf(p.getInt("progressive_wins", 0))
+    val progressiveWins: Int get() = _progressiveWins
+
+    fun setStrengthPercent(v: Int) {
+        val c = v.coerceIn(0, 100)
+        _strengthPercent = c
+        p.edit().putInt("strength_percent", c).apply()
+    }
+
+    fun setProgressiveLevel(v: Boolean) {
+        _progressiveLevel = v
+        p.edit().putBoolean("progressive_level", v).apply()
+    }
+
+    fun setProgressiveWins(v: Int) {
+        val c = v.coerceAtLeast(0)
+        _progressiveWins = c
+        p.edit().putInt("progressive_wins", c).apply()
+    }
+
     private var _checkSignal by mutableStateOf(p.getBoolean("check_sig", true))
     val checkSignal: Boolean get() = _checkSignal
 
@@ -247,4 +274,27 @@ class AppPreferences(context: Context) {
     fun setShowCoordinates(v: Boolean) { _showCoordinates = v; p.edit().putBoolean("show_coordinates", v).apply() }
 
     fun t(es: String, en: String): String = if (language == AppLanguage.EN) en else es
+}
+
+/**
+ * Nombre del nivel según el porcentaje de fuerza del motor.
+ * Principiante queda solo entre 0 y 15, como pidió el usuario.
+ */
+fun strengthLevelName(percent: Int, isEn: Boolean = false): String = when {
+    isEn -> when {
+        percent <= 15 -> "Beginner"
+        percent <= 30 -> "Amateur"
+        percent <= 50 -> "Intermediate"
+        percent <= 70 -> "Advanced"
+        percent <= 85 -> "Expert"
+        else -> "Very hard"
+    }
+    else -> when {
+        percent <= 15 -> "Principiante"
+        percent <= 30 -> "Aficionado"
+        percent <= 50 -> "Intermedio"
+        percent <= 70 -> "Avanzado"
+        percent <= 85 -> "Experto"
+        else -> "Muy difícil"
+    }
 }
