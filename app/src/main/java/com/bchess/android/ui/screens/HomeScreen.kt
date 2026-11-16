@@ -65,7 +65,8 @@ fun HomeScreen(
     onFinishConnection: () -> Unit = {},
     onOpenConexiones: () -> Unit = {},
     remoteName: String = "",
-    versionUpToDate: Boolean = true
+    versionUpToDate: Boolean = true,
+    onExit: () -> Unit = {}
 ) {
     val avatar = remember(profilePhotoBase64) {
         try {
@@ -374,6 +375,19 @@ fun HomeScreen(
             onAbout = { showAboutDeveloper = true },
             onProfile = { openUrl(GitHubProfile.PROFILE_URL) }
         )
+
+        Spacer(Modifier.height(10.dp))
+
+        // ============ SALIR (finalizar la app completamente) ============
+        OutlinedButton(
+            onClick = onExit,
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4A2626)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF6B6B), containerColor = Color(0xFF1A1212))
+        ) {
+            Text("SALIR", fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, letterSpacing = 2.sp)
+        }
     }
 
     if (showAboutDeveloper) {

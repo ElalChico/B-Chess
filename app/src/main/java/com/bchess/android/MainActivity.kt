@@ -405,6 +405,10 @@ class MainActivity : ComponentActivity() {
                         vm.sendDisconnect()
                         screen = Screen.HOME
                     },
+                    onExit = {
+                        try { vm.sendDisconnect() } catch (_: Exception) { }
+                        activity.finishAffinity()
+                    },
                 )
 
                 Screen.CONNECT -> ConnectionFlowScreen(
