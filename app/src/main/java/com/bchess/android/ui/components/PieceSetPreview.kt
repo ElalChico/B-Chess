@@ -64,12 +64,12 @@ fun PieceSetDial(
             .padding(horizontal = 4.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = { step(-1) }, modifier = Modifier.size(36.dp)) {
+        IconButton(onClick = { step(-1) }, modifier = Modifier.size(48.dp)) {
             Icon(
                 imageVector = Icons.Default.ChevronLeft,
                 contentDescription = if (isEn) "Previous set" else "Conjunto anterior",
                 tint = Gold,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(28.dp)
             )
         }
         Column(
@@ -92,12 +92,12 @@ fun PieceSetDial(
                 fontWeight = FontWeight.SemiBold
             )
         }
-        IconButton(onClick = { step(1) }, modifier = Modifier.size(36.dp)) {
+        IconButton(onClick = { step(1) }, modifier = Modifier.size(48.dp)) {
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = if (isEn) "Next set" else "Conjunto siguiente",
                 tint = Gold,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(28.dp)
             )
         }
     }
