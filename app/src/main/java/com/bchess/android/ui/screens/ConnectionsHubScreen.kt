@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -70,6 +71,8 @@ private val Blue = Color(0xFF6FA8FF)
 private val Green = Color(0xFF5FD3A0)
 
 private val CardShape = RoundedCornerShape(18.dp)
+private val CardColor = Color(0xFF101416)
+private val Divider2 = Color(0xFF4A4A4A)
 
 @Composable
 fun ConnectionsHubScreen(
@@ -242,74 +245,126 @@ fun ConnectionsHubScreen(
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
         } else {
-            // ===== Sin conexión: accesos por transporte, con identidad propia =====
-            Text(
-                "ELIGE CÓMO JUGAR",
-                color = ScreenMuted,
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.4.sp
-            )
-            Text(
-                "Crea una sala o únete a una partida. Elige el transporte según cómo juegues.",
-                color = ScreenText,
-                fontSize = 13.5.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ConnectionCard(
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Outlined.AddCircle,
-                    title = "Crear sala",
-                    subtitle = "Bluetooth · ser anfitrión",
-                    accent = Green,
-                    background = Color(0xFF13241C),
-                    highlighted = true,
-                    onClick = onCreateMatch
-                )
-                ConnectionCard(
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Outlined.Groups,
-                    title = "Unirme",
-                    subtitle = "Bluetooth · buscar sala",
-                    accent = ScreenAccent,
-                    background = Color(0xFF161D1F),
-                    highlighted = false,
-                    onClick = onSearchMatch
-                )
+            // Bloque "Crear sala / Unirme" en una tarjeta vertical
+            Surface(
+                shape = CardShape,
+                color = CardColor,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Divider2)
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        TouchableOpacity(onClick = onCreateMatch) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Green.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Outlined.AddCircle, null, tint = Green, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                        TouchableOpacity(onClick = onSearchMatch) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        Color(0xFF232E2A).copy(alpha = 0.6f)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Outlined.Groups, null, tint = Color(0xFF8CA08B), modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+                }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ConnectionCard(
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Outlined.Link,
-                    title = "Peer-to-Peer",
-                    subtitle = "Internet · código de sala",
-                    accent = Blue,
-                    background = Color(0xFF101E33),
-                    highlighted = false,
-                    onClick = onPlayOnline
-                )
-                ConnectionCard(
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Outlined.Computer,
-                    title = "PC · Red local",
-                    subtitle = "IP:puerto · cross-play",
-                    accent = ScreenGold,
-                    background = Color(0xFF272217),
-                    highlighted = false,
-                    onClick = onPlayLan
+
+            // Separador
+            Surface(
+                shape = CardShape,
+                color = CardColor
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
                 )
             }
 
-            // ===== Torneos: datos guardados y creación eligiendo transporte =====
+            TouchableOpacity(onClick = onPlayOnline) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Blue.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.Link, null, tint = Blue, modifier = Modifier.size(20.dp))
+                    }
+                    Text(
+                        "Peer-to-Peer",
+                        color = ScreenText,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            TouchableOpacity(onClick = onPlayLan) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(ScreenGold.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.Computer, null, tint = ScreenGold, modifier = Modifier.size(20.dp))
+                    }
+                    Text(
+                        "Red local/PC",
+                        color = ScreenGold,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            // Separador
+            Surface(
+                shape = CardShape,
+                color = CardColor
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                )
+            }
+
+            // ===== TORNEOS =====
             Text(
                 "TORNEOS",
                 color = ScreenMuted,
                 fontSize = 10.5.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 1.4.sp,
-                modifier = Modifier.padding(top = 6.dp)
+                letterSpacing = 1.4.sp
             )
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -347,51 +402,21 @@ fun ConnectionsHubScreen(
     }
 }
 
-/** Tarjeta de transporte con identidad de color e icono propios. */
+/** Wrapper simplificado para TouchableOpacity. */
 @Composable
-private fun ConnectionCard(
-    modifier: Modifier = Modifier,
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    accent: Color,
-    background: Color,
-    highlighted: Boolean,
-    onClick: () -> Unit
+private fun TouchableOpacity(
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
 ) {
-    Surface(
-        modifier = modifier
-            .height(130.dp)
-            .clickable(onClick = onClick),
-        shape = CardShape,
-        color = background,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            accent.copy(alpha = if (highlighted) 0.75f else 0.35f)
-        )
+    Box(
+        modifier = Modifier
+            .size(80.dp)
+            .clickable(onClick = onClick)
+            .clip(RoundedCornerShape(10.dp))
+            .background(CardColor),
+        contentAlignment = Alignment.Center
     ) {
-        Column(
-            Modifier.fillMaxWidth().padding(12.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Box(
-                Modifier.size(34.dp).clip(RoundedCornerShape(10.dp))
-                    .background(accent.copy(alpha = 0.18f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, null, tint = accent, modifier = Modifier.size(19.dp))
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, color = ScreenText, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text(
-                    subtitle,
-                    color = ScreenMuted,
-                    fontSize = 10.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
+        content()
     }
 }
 
