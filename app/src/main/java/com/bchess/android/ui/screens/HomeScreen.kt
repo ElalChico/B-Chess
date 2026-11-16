@@ -11,10 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AddCircle
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.EmojiEvents
-import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.*
@@ -26,7 +23,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -57,7 +53,6 @@ private val Accent = Color(0xFF7FA795)
 private val AccentSoft = Color(0xFF23302B)
 private val Green = Color(0xFF5FD3A0)
 private val Gold = Color(0xFFC9B15A)
-private val GoldSoft = Color(0xFF272217)
 private val Danger = Color(0xFFFF7A7A)
 private val DangerSoft = Color(0xFF201416)
 
@@ -73,10 +68,7 @@ fun HomeScreen(
     profilePhotoBase64: String,
     clockSummary: String,
     onProfile: () -> Unit,
-    onCreate: () -> Unit,
-    onSearch: () -> Unit,
     onPractice: () -> Unit,
-    onTournament: () -> Unit = {},
     onFinishConnection: () -> Unit = {},
     onOpenConexiones: () -> Unit = {},
     remoteName: String = "",
@@ -186,47 +178,10 @@ fun HomeScreen(
                 onClick = onProfile
             )
 
-            // ================= TÍTULO DE SECCIÓN =================
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    "SIGUIENTE PASO",
-                    color = Muted2,
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.4.sp
-                )
-                Text(
-                    if (profileConfigured) "Elige cómo jugar" else "Completa tu perfil para empezar",
-                    color = Text1,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // ================= ACCIONES PRINCIPALES =================
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                HomeAction(
-                    title = "Crear partida",
-                    subtitle = "Ser anfitrión",
-                    icon = Icons.Outlined.AddCircle,
-                    primary = true,
-                    modifier = Modifier.weight(1f),
-                    onClick = onCreate
-                )
-                HomeAction(
-                    title = "Unirse",
-                    subtitle = "Buscar anfitrión",
-                    icon = Icons.Outlined.Groups,
-                    primary = false,
-                    modifier = Modifier.weight(1f),
-                    onClick = onSearch
-                )
-            }
-
-            // ================= MODOS DE JUEGO =================
+            // ================= JUEGO =================
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "MODOS DE JUEGO",
+                    "JUEGO",
                     color = Muted2,
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Bold,
@@ -240,25 +195,17 @@ fun HomeScreen(
                 ) {
                     Column {
                         ModeRow(
-                            icon = { Icon(Icons.Outlined.EmojiEvents, null, tint = Gold, modifier = Modifier.size(21.dp)) },
-                            iconBackground = GoldSoft,
-                            title = "Torneo",
-                            subtitle = "Partidas múltiples · gana la serie",
-                            onClick = onTournament
-                        )
-                        HorizontalDivider(color = LineSoft)
-                        ModeRow(
                             icon = {
-                                Icon(
-                                    painter = painterResource(com.bchess.android.R.drawable.ic_stockfish),
+                                Image(
+                                    painter = painterResource(com.bchess.android.R.drawable.stockfish_fish),
                                     contentDescription = "Stockfish",
-                                    tint = Accent,
-                                    modifier = Modifier.size(21.dp)
+                                    modifier = Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)),
+                                    contentScale = ContentScale.Crop
                                 )
                             },
                             iconBackground = AccentSoft,
                             title = "Practicar contra Stockfish",
-                            subtitle = "Motor local con fuerza ajustable",
+                            subtitle = "Motor local con fuerza ajustable · principiante a muy difícil",
                             onClick = onPractice
                         )
                         HorizontalDivider(color = LineSoft)
@@ -266,7 +213,7 @@ fun HomeScreen(
                             icon = { Icon(Icons.Outlined.Link, null, tint = Green, modifier = Modifier.size(21.dp)) },
                             iconBackground = Color(0xFF16261F),
                             title = "Conexiones",
-                            subtitle = "Crear sala, unirse o ver el perfil del rival · BT · P2P · red local",
+                            subtitle = "Crear sala, unirse, torneos o ver el perfil del rival · BT · P2P · red local",
                             onClick = onOpenConexiones
                         )
                     }
@@ -304,8 +251,8 @@ fun HomeScreen(
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Reloj por defecto", color = Text1, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
                         Text(
-                            if (inSession) "Se usa en las nuevas partidas y torneos"
-                            else "Individual o torneo · el rival se conecta cerca",
+                            if (inSession) "Se aplica a las nuevas partidas"
+                            else "Configurable en Ajustes",
                             color = Muted,
                             fontSize = 11.sp
                         )
@@ -458,72 +405,7 @@ private fun ProfileHero(
     }
 }
 
-/** Botón de acción principal (crear / unirse). */
-@Composable
-private fun HomeAction(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    primary: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = modifier
-            .heightIn(min = 104.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        color = if (primary) Color(0xFF1B2622) else Card,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (primary) Accent.copy(alpha = 0.45f) else Line
-        )
-    ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    if (primary) Brush.verticalGradient(
-                        listOf(Accent.copy(alpha = 0.16f), Color.Transparent)
-                    ) else Brush.verticalGradient(
-                        listOf(Color.Transparent, Color.Transparent)
-                    )
-                )
-                .padding(horizontal = 15.dp, vertical = 15.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(if (primary) Accent.copy(alpha = 0.20f) else CardDeep),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = if (primary) Accent else Muted,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    title,
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Text1
-                )
-                Text(
-                    subtitle,
-                    color = if (primary) Accent else Muted,
-                    fontSize = 11.sp
-                )
-            }
-        }
-    }
-}
-
-/** Fila dentro de la lista de modos de juego. */
+/** Fila dentro de la lista de juego. */
 @Composable
 private fun ModeRow(
     icon: @Composable () -> Unit,

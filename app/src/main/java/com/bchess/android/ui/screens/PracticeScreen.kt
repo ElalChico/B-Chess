@@ -1,5 +1,6 @@
 package com.bchess.android.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +51,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -535,6 +538,8 @@ private fun PracticeSetup(
             }
         }
         EngineStatusRow(installState = installState, installed = installed)
+        // Presentación del rival con su imagen
+        StockfishPresentation()
         Text("Configura antes de comenzar", color = PracticeText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         PracticeLevel(strengthPercent, onStrengthChange, enabled = installed)
         PracticeProgressive(
@@ -744,6 +749,30 @@ private fun PracticeSidePicker(onDismiss: () -> Unit, onChoose: (ChessColor) -> 
 }
 
 @Composable
+private fun StockfishPresentation() {
+    Row(
+        modifier = Modifier.fillMaxWidth().background(PracticeCard, RoundedCornerShape(12.dp))
+            .border(1.dp, PracticeLine, RoundedCornerShape(12.dp)).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Image(
+            painter = painterResource(com.bchess.android.R.drawable.stockfish_fish),
+            contentDescription = "Stockfish",
+            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(14.dp)),
+            contentScale = ContentScale.Crop
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("Stockfish", color = PracticeText, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+            Text(
+                "Tu rival de práctica. Ajusta su fuerza de 0% a 100%.",
+                color = PracticeMuted, fontSize = 11.sp
+            )
+        }
+    }
+}
+
+@Composable
 private fun EngineStatusRow(
     installState: EngineInstallState,
     installed: Boolean
@@ -753,6 +782,14 @@ private fun EngineStatusRow(
             .border(1.dp, PracticeLine, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Avatar del motor sobre el tablero
+        Image(
+            painter = painterResource(com.bchess.android.R.drawable.stockfish_fish),
+            contentDescription = "Stockfish",
+            modifier = Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(Modifier.width(8.dp))
         Box(Modifier.size(7.dp).background(if (installed) PracticeGreen else PracticeMuted, CircleShape))
         Spacer(Modifier.width(7.dp))
         Text(

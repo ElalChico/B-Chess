@@ -350,30 +350,6 @@ class MainActivity : ComponentActivity() {
                         profileNextScreen = Screen.HOME
                         screen = Screen.PROFILE
                     },
-                    onCreate = {
-                        vm.setNetworkMode(NetworkMode.BT)
-                        isHostMode = true
-                        vm.setIsHost(true)
-                        if (prefs.profileConfigured) {
-                            screen = Screen.CONNECT
-                            startHostListening()
-                        } else {
-                            profileNextScreen = Screen.CONNECT
-                            screen = Screen.PROFILE
-                        }
-                    },
-                    onSearch = {
-                        vm.setNetworkMode(NetworkMode.BT)
-                        isHostMode = false
-                        vm.setIsHost(false)
-                        if (prefs.profileConfigured) {
-                            screen = Screen.CONNECT
-                            startGuestScanning()
-                        } else {
-                            profileNextScreen = Screen.CONNECT
-                            screen = Screen.PROFILE
-                        }
-                    },
                     onPractice = {
                         if (prefs.profileConfigured) {
                             screen = Screen.PRACTICE
@@ -384,19 +360,6 @@ class MainActivity : ComponentActivity() {
                     },
                     onOpenConexiones = { screen = Screen.CONEXIONES },
                     remoteName = ui.remoteName,
-                    onTournament = {
-                        roomTournament = true
-                        vm.setNetworkMode(NetworkMode.BT)
-                        isHostMode = true
-                        vm.setIsHost(true)
-                        if (prefs.profileConfigured) {
-                            screen = Screen.CONNECT
-                            startHostListening()
-                        } else {
-                            profileNextScreen = Screen.CONNECT
-                            screen = Screen.PROFILE
-                        }
-                    },
                     onFinishConnection = {
                         vm.sendDisconnect()
                         screen = Screen.HOME
@@ -682,6 +645,38 @@ class MainActivity : ComponentActivity() {
                     onPlayLan = {
                         internetInitialTab = "lan"
                         screen = Screen.INTERNET
+                    },
+                    onTournamentHistory = {
+                        profileNextScreen = Screen.CONEXIONES
+                        screen = Screen.PROFILE
+                    },
+                    onStartTournament = { kind ->
+                        roomTournament = true
+                        when (kind) {
+                            "p2p" -> {
+                                internetInitialTab = "web"
+                                vm.setNetworkMode(NetworkMode.INTERNET)
+                                if (prefs.profileConfigured) screen = Screen.INTERNET
+                                else { profileNextScreen = Screen.INTERNET; screen = Screen.PROFILE }
+                            }
+                            "lan" -> {
+                                internetInitialTab = "lan"
+                                if (prefs.profileConfigured) screen = Screen.INTERNET
+                                else { profileNextScreen = Screen.INTERNET; screen = Screen.PROFILE }
+                            }
+                            else -> {
+                                vm.setNetworkMode(NetworkMode.BT)
+                                isHostMode = true
+                                vm.setIsHost(true)
+                                if (prefs.profileConfigured) {
+                                    screen = Screen.CONNECT
+                                    startHostListening()
+                                } else {
+                                    profileNextScreen = Screen.CONNECT
+                                    screen = Screen.PROFILE
+                                }
+                            }
+                        }
                     },
                     onBack = { screen = Screen.HOME }
                 )
