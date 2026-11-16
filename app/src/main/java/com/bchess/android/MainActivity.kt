@@ -303,12 +303,6 @@ class MainActivity : ComponentActivity() {
         var dismissedUpdateCode by remember { mutableStateOf<Long?>(null) }
         LaunchedEffect(Unit) {
             updateScope.launch { updateManager.checkForUpdate() }
-            // Comprobaciones silenciosas periódicas mientras la app está abierta:
-            // el aviso de actualización aparece en el pie sin cerrar ni abrir la app.
-            while (true) {
-                kotlinx.coroutines.delay(15 * 60 * 1000L)
-                updateManager.checkForUpdate(quiet = true)
-            }
         }
 
         Column(Modifier.fillMaxSize().background(Color(0xFF0B0D10))) {
