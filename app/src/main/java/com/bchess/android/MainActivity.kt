@@ -712,7 +712,8 @@ class MainActivity : ComponentActivity() {
 
             }
 
-            UpdateFooter(
+            if (screen == Screen.HOME || screen == Screen.SETTINGS) {
+                UpdateFooter(
                 isEn = isEn,
                 currentVersion = updateManager.getCurrentVersion(),
                 latestVersion = updateManager.getLatestKnownVersion(),
@@ -737,6 +738,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             )
+            }
 
             if (!(screen == Screen.GAME && fullscreen) && screen != Screen.CONNECT && screen != Screen.ROOM) {
                 BottomNav(current = if (screen == Screen.REPLAY) Screen.PROFILE else screen, isEn = isEn, onSelect = { target ->
@@ -821,14 +823,10 @@ private fun UpdateFooter(
                 fontWeight = if (available != null) FontWeight.ExtraBold else FontWeight.Bold
             )
         }
-        if (available != null) {
+        if (available != null && !isDeferred) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    if (isDeferred) {
-                        if (isEn) "Postponed" else "Pospuesta"
-                    } else {
-                        available.releaseName
-                    },
+                    available.releaseName,
                     modifier = Modifier.weight(1f), color = Color(0xFFD6F3EE), fontSize = 10.sp, maxLines = 1
                 )
                 Button(
@@ -844,6 +842,11 @@ private fun UpdateFooter(
                     Text(if (isEn) "Not now" else "Ahora no", color = Color(0xFF8AA7AD), fontSize = 10.sp)
                 }
             }
+        } else if (available != null && isDeferred) {
+            Text(
+                if (isEn) "Update postponed · Ajustes → Actualizaciones" else "Actualización pospuesta · Ajustes → Actualizaciones",
+                color = Color(0xFF5EEAD4), fontSize = 10.sp, fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }

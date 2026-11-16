@@ -94,21 +94,21 @@ fun GameScreen(
         val remoteClockMs = if (ui.remoteColor == ChessColor.WHITE) ui.clock.whiteMs else ui.clock.blackMs
         val remoteIsLowTime = ui.lobby.timeMs > 0 && remoteClockMs < 30000
 
-        if (!isFullscreen) {
-            // Top status line + fullscreen control + overflow menu
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(Modifier.size(7.dp).background(Green, CircleShape))
-                Spacer(Modifier.width(7.dp))
-                Text(
-                    text = statusText(ui),
-                    color = Muted,
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
-                )
+        // Fila superior: estado + control + menú de tres puntos
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(7.dp).background(Green, CircleShape))
+            Spacer(Modifier.width(7.dp))
+            Text(
+                text = statusText(ui),
+                color = Muted,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+            if (!isFullscreen) {
                 Box(
                     modifier = Modifier
                         .background(Color(0xFF161C24), RoundedCornerShape(10.dp))
@@ -118,42 +118,28 @@ fun GameScreen(
                 ) {
                     Text("Pantalla completa", color = Color(0xFFC9D2DE), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
-                if (ui.gameEnd == null) {
-                    Spacer(Modifier.width(6.dp))
-                    OverflowMenu(onResign = onResign, onExitFullscreen = onDisconnect)
-                }
             }
-            Spacer(Modifier.height(6.dp))
-
-            PlayerBar(
-                name = ui.remoteName.ifBlank { remoteProfile?.name ?: "Rival" },
-                isYou = false,
-                isTurn = ui.snapshot.sideToMove == ui.remoteColor,
-                clockMs = remoteClockMs,
-                totalMs = ui.lobby.timeMs,
-                showClock = ui.lobby.timeMs > 0,
-                inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.remoteColor,
-                sideLabel = if (ui.remoteColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
-                remotePhoto = remoteProfile?.photoBase64,
-                isLowTime = remoteIsLowTime
-            )
-            Spacer(Modifier.height(6.dp))
-        } else {
-            PlayerBar(
-                name = ui.remoteName.ifBlank { remoteProfile?.name ?: "Rival" },
-                isYou = false,
-                isTurn = ui.snapshot.sideToMove == ui.remoteColor,
-                clockMs = remoteClockMs,
-                totalMs = ui.lobby.timeMs,
-                showClock = ui.lobby.timeMs > 0,
-                inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.remoteColor,
-                sideLabel = if (ui.remoteColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
-                remotePhoto = remoteProfile?.photoBase64,
-                isLowTime = remoteIsLowTime,
-                compact = true
-            )
-            Spacer(Modifier.height(4.dp))
+            if (ui.gameEnd == null) {
+                Spacer(Modifier.width(6.dp))
+                OverflowMenu(onResign = onResign, onExitFullscreen = onDisconnect)
+            }
         }
+        Spacer(Modifier.height(6.dp))
+
+        // Oponenta arriba: username + reloj grande
+        StackedBar(
+            name = ui.remoteName.ifBlank { remoteProfile?.name ?: "Rival" },
+            isYou = false,
+            isTurn = ui.snapshot.sideToMove == ui.remoteColor,
+            clockMs = remoteClockMs,
+            totalMs = ui.lobby.timeMs,
+            showClock = ui.lobby.timeMs > 0,
+            inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.remoteColor,
+            sideLabel = if (ui.remoteColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
+            remotePhoto = remoteProfile?.photoBase64,
+            isLowTime = remoteIsLowTime
+        )
+        Spacer(Modifier.height(4.dp))
 
         // Board sized to the smallest available dimension -> never overflows
         BoxWithConstraints(
@@ -184,42 +170,26 @@ fun GameScreen(
 
         Spacer(Modifier.height(6.dp))
 
-        if (!isFullscreen) {
-            PlayerBar(
-                name = ui.localName.ifBlank { "Jugador" },
-                isYou = true,
-                isTurn = ui.snapshot.sideToMove == ui.localColor,
-                clockMs = localClockMs,
-                totalMs = ui.lobby.timeMs,
-                showClock = ui.lobby.timeMs > 0,
-                inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.localColor,
-                sideLabel = if (ui.localColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
-                photoBase64 = localPhotoBase64,
-                isLowTime = localIsLowTime
-            )
+        // Tu barra abajo
+        StackedBar(
+            name = ui.localName.ifBlank { "Jugador" },
+            isYou = true,
+            isTurn = ui.snapshot.sideToMove == ui.localColor,
+            clockMs = localClockMs,
+            totalMs = ui.lobby.timeMs,
+            showClock = ui.lobby.timeMs > 0,
+            inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.localColor,
+            sideLabel = if (ui.localColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
+            photoBase64 = localPhotoBase64,
+            isLowTime = localIsLowTime,
+            showMenu = false,
+            gameEnd = ui.gameEnd,
+            onExitFullscreen = onToggleFullscreen,
+            onResign = onResign
+        )
 
-            ui.lastError?.let {
-                Text(it, color = Red, fontSize = 12.5.sp, modifier = Modifier.padding(top = 4.dp, start = 4.dp))
-            }
-        } else {
-            // Barra local compacta con menú de tres puntos (Salir / Abandonar)
-            PlayerBar(
-                name = ui.localName.ifBlank { "Tú" },
-                isYou = true,
-                isTurn = ui.snapshot.sideToMove == ui.localColor,
-                clockMs = localClockMs,
-                totalMs = ui.lobby.timeMs,
-                showClock = ui.lobby.timeMs > 0,
-                inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.localColor,
-                sideLabel = if (ui.localColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
-                photoBase64 = localPhotoBase64,
-                isLowTime = localIsLowTime,
-                compact = true,
-                showMenu = true,
-                gameEnd = ui.gameEnd,
-                onExitFullscreen = onToggleFullscreen,
-                onResign = onResign
-            )
+        ui.lastError?.let {
+            Text(it, color = Red, fontSize = 12.5.sp, modifier = Modifier.padding(top = 4.dp, start = 4.dp))
         }
 
         Spacer(Modifier.height(8.dp))
@@ -378,6 +348,144 @@ private fun statusText(ui: UiGameState): String = when {
     ui.inCheck -> if (ui.snapshot.sideToMove == ui.localColor) "¡Jaque! Protege a tu rey" else "¡Jaque! Ataca"
     ui.snapshot.sideToMove == ui.localColor -> "Tu turno · mueve una pieza"
     else -> "Turno del rival"
+}
+
+@Composable
+private fun StackedBar(
+    name: String,
+    isYou: Boolean,
+    isTurn: Boolean,
+    clockMs: Long,
+    totalMs: Long,
+    showClock: Boolean,
+    inCheck: Boolean,
+    sideLabel: String,
+    photoBase64: String = "",
+    remotePhoto: String? = null,
+    isLowTime: Boolean = false,
+    showMenu: Boolean = false,
+    gameEnd: com.bchess.android.core.GameEnd? = null,
+    onExitFullscreen: (() -> Unit)? = null,
+    onResign: (() -> Unit)? = null
+) {
+    val accentColor = if (isTurn) Gold else Color(0xFF2B3542)
+    val clockBg = if (isTurn) Brush.linearGradient(listOf(Green, Color(0xFF7AF0BC)))
+                  else Brush.linearGradient(listOf(Color(0xFF0B1016), Color(0xFF0B1016)))
+    val clockBorder = when {
+        isLowTime && isTurn -> Color(0xFF8A2E2E)
+        isLowTime -> Color(0xFF4A2626)
+        isTurn -> Color(0xFF2FA37E)
+        else -> Color(0xFF2A3341)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF141A22), RoundedCornerShape(14.dp))
+            .border(
+                1.dp,
+                if (isTurn) Color(0xFF2E3A26) else Color(0xFF232C38),
+                RoundedCornerShape(14.dp)
+            )
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        // Fila del nombre + avatar
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .width(3.dp)
+                    .height(24.dp)
+                    .background(accentColor, RoundedCornerShape(2.dp))
+            )
+            Spacer(Modifier.width(8.dp))
+
+            val avatarPhoto = if (isYou) photoBase64 else (remotePhoto ?: "")
+            val bmp = remember(avatarPhoto) { decodePhoto(avatarPhoto) }
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .background(if (isYou) Color(0xFF15251D) else Color(0xFF251A1A))
+                    .border(
+                        2.dp,
+                        if (isYou) Green.copy(alpha = 0.75f) else Color(0xFFFF8A8A).copy(alpha = 0.75f),
+                        CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (bmp != null) {
+                    androidx.compose.foundation.Image(
+                        bitmap = bmp.asImageBitmap(),
+                        contentDescription = "Foto de perfil",
+                        modifier = Modifier.fillMaxSize().clip(CircleShape)
+                    )
+                } else {
+                    Text(
+                        text = (name.firstOrNull() ?: if (isYou) 'T' else 'R').uppercaseChar().toString(),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (isYou) Green else Color(0xFFFF9B9B)
+                    )
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+
+            Text(
+                text = name,
+                color = if (inCheck) Red else Text1,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.5.sp,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = sideLabel,
+                fontSize = 7.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = if (isYou) Color(0xFF9BE3BD) else Color(0xFF8FD3FF),
+                modifier = Modifier
+                    .background(if (isYou) Color(0xFF12241B) else Color(0xFF122033), RoundedCornerShape(4.dp))
+                    .border(1.dp, if (isYou) Color(0xFF1E3B2B) else Color(0xFF1E3A54), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 5.dp, vertical = 1.dp)
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            if (showMenu && isYou && gameEnd == null) {
+                OverflowMenu(
+                    onResign = onResign!!,
+                    compact = true,
+                    onExitFullscreen = onExitFullscreen
+                )
+            }
+        }
+
+        // Fila del reloj (grande)
+        if (showClock) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp)
+                    .background(clockBg, RoundedCornerShape(12.dp))
+                    .border(1.dp, clockBorder, RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = formatClock(clockMs),
+                    color = when {
+                        isTurn -> Color(0xFF06231A)
+                        isLowTime -> Color(0xFFFF8A8A)
+                        else -> Color(0xFFDCE3EC)
+                    },
+                    modifier = Modifier.alpha(LowTimeBlink(isLowTime)),
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 26.sp
+                )
+            }
+        }
+    }
 }
 
 @Composable
