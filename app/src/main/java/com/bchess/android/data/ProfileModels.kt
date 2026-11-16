@@ -52,6 +52,7 @@ data class RemoteProfile(
     val name: String = "Rival",
     val color: String = "",
     val photoBase64: String? = null,
+    val bio: String = "", // Mini descripción / bio
     val total: Int = 0,
     val wins: Int = 0,
     val draws: Int = 0,

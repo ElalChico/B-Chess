@@ -84,6 +84,16 @@ fun SettingsScreen(
     var downloading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    // Detección de actualización en tiempo real mientras Ajustes está abierto:
+    // chequeo inmediato al entrar y uno silencioso cada 90 s hasta salir.
+    LaunchedEffect(Unit) {
+        updateManager.checkForUpdate(quiet = true)
+        while (true) {
+            kotlinx.coroutines.delay(90_000)
+            updateManager.checkForUpdate(quiet = true)
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()

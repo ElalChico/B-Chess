@@ -153,14 +153,17 @@ data class ProfileMessage(
     val draws: Int,
     val losses: Int,
     /** Historial resumido (PGN en JSON): sólo si el usuario comparte historial/PGN */
-    val gamesJson: String
+    val gamesJson: String,
+    /** Descripción / bio del jugador (máx 160 caracteres) */
+    val bio: String = ""
 ) : BtMessage {
     override val type = "PROFILE"
     override fun toJsonLine(): String = JSONObject()
         .put("v", ProtocolVersion.V).put("type", type)
         .put("name", name).put("color", color).put("photo", photoBase64)
         .put("total", total).put("wins", wins).put("draws", draws).put("losses", losses)
-        .put("games", gamesJson).toString()
+        .put("games", gamesJson)
+        .put("bio", bio.take(160)).toString()
 }
 
 data class PingMessage(val ts: Long) : BtMessage {
@@ -229,7 +232,8 @@ object MessageParser {
                     o.optInt("wins").coerceAtLeast(0),
                     o.optInt("draws").coerceAtLeast(0),
                     o.optInt("losses").coerceAtLeast(0),
-                    o.optString("games").take(100000)
+                    o.optString("games").take(100000),
+                    o.optString("bio").take(160)
                 )
                 "PING" -> PingMessage(o.optLong("ts"))
                 "PONG" -> PongMessage(o.optLong("ts"))

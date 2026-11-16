@@ -63,14 +63,26 @@ fun RivalProfileScreen(
     val drawRate = if (profile.total > 0) (profile.draws * 100) / profile.total else 0
     val lossRate = if (profile.total > 0) (profile.losses * 100) / profile.total else 0
 
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Bg)
+    ) {
+        // Resplandor dorado suave en la parte superior
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(340.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0x2EC9B15A), Color(0x0AC9B15A), Color(0x00000000))
+                    )
+                )
+        )
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Bg, Color(0xFF111821), Bg)
-                )
-            )
             .verticalScroll(rememberScrollState())
     ) {
         // ==== HEADER CON BOTÓN VOLVER ====
@@ -112,13 +124,29 @@ fun RivalProfileScreen(
                     .clickable { onBack() },
                 contentAlignment = Alignment.Center
             ) {
-                Text("✕", color = Muted, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("✕", color = Color(0xFF8B96A5), fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         }
 
         Spacer(Modifier.height(8.dp))
 
-        // ==== SECCIÓN PRINCIPAL - FOTO Y NOMBRE ====
+        // ==== SECCIÓN PRINCIPAL - HÉROE DEL PERFIL ====
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFF1E2634), Color(0xFF131922))))
+                .border(1.dp, Color(0x59C9B15A), RoundedCornerShape(24.dp))
+                .padding(vertical = 22.dp, horizontal = 18.dp)
+        ) {
+            // Caballo de ajedrez decorativo (marca de agua sutil)
+            Text(
+                "♞",
+                color = Color(0x10FFFFFF),
+                fontSize = 130.sp,
+                modifier = Modifier.align(Alignment.CenterEnd)
+            )
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -135,7 +163,7 @@ fun RivalProfileScreen(
                         if (showPhoto && profile.photoBase64?.isNotBlank() == true) Gold else Line,
                         CircleShape
                     )
-                    .shadow(8.dp, CircleShape),
+                    .shadow(16.dp, CircleShape, ambientColor = Color(0x66C9B15A), spotColor = Color(0x66C9B15A)),
                 contentAlignment = Alignment.Center
             ) {
                 if (showPhoto) {
@@ -190,16 +218,51 @@ fun RivalProfileScreen(
             Text(
                 profile.name.ifBlank { "Rival sin nombre" },
                 color = Text1,
-                fontSize = 28.sp,
+                fontSize = 27.sp,
                 fontWeight = FontWeight.ExtraBold,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                letterSpacing = 0.3.sp
             )
+
+            // Insignia de RIVAL
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0x1FC9B15A))
+                    .border(1.dp, Color(0x66C9B15A), RoundedCornerShape(50))
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    "RIVAL",
+                    color = GoldLight,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 2.5.sp
+                )
+            }
+
+            // Bio / descripción del rival
+            if (profile.bio.isNotBlank()) {
+                Text(
+                    "“${profile.bio}”",
+                    color = Color(0xFFB9C4D1),
+                    fontSize = 13.5.sp,
+                    lineHeight = 19.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 3,
+                    modifier = Modifier.padding(top = 2.dp, start = 12.dp, end = 12.dp)
+                )
+            }
 
             // Color de juego
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xFF141A22))
+                    .border(1.dp, Line, RoundedCornerShape(50))
+                    .padding(start = 6.dp, end = 18.dp, top = 6.dp, bottom = 6.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -238,12 +301,13 @@ fun RivalProfileScreen(
                         "random" -> "Color aleatorio"
                         else -> "Color por definir"
                     },
-                    color = Muted,
+                    color = Color(0xFF8B96A5),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
                 )
             }
         }
+        } // fin héroe del perfil
 
         Spacer(Modifier.height(24.dp))
 
@@ -256,7 +320,7 @@ fun RivalProfileScreen(
         ) {
             Text(
                 "ESTADÍSTICAS",
-                color = Muted,
+                color = Color(0xFF8B96A5),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.5.sp
@@ -280,7 +344,7 @@ fun RivalProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Tasa de victoria:", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text("Tasa de victoria:", color = Color(0xFF8B96A5), fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.weight(1f))
                 Text(
                     "$winRate%",
@@ -317,7 +381,7 @@ fun RivalProfileScreen(
                 ) {
                     Text(
                         "HISTORIAL RECIENTE",
-                        color = Muted,
+                        color = Color(0xFF8B96A5),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.5.sp
@@ -413,6 +477,7 @@ fun RivalProfileScreen(
 
         Spacer(Modifier.height(40.dp))
     }
+    } // fin Box del fondo
 }
 
 /** Tarjeta de estadística profesional */
@@ -425,21 +490,21 @@ private fun StatCardPro(
 ) {
     Column(
         modifier = modifier
-            .background(Card, RoundedCornerShape(16.dp))
-            .border(1.dp, Line, RoundedCornerShape(16.dp))
-            .padding(vertical = 18.dp, horizontal = 12.dp),
+            .background(Card, RoundedCornerShape(18.dp))
+            .border(1.dp, Line, RoundedCornerShape(18.dp))
+            .padding(vertical = 20.dp, horizontal = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(
             value,
             color = valueColor,
-            fontSize = 24.sp,
+            fontSize = 26.sp,
             fontWeight = FontWeight.ExtraBold
         )
         Text(
             label,
-            color = Muted,
+            color = Color(0xFF8B96A5),
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
             letterSpacing = 0.5.sp
@@ -456,7 +521,7 @@ private fun ProgressRow(label: String, percent: Float, color: Color) {
     ) {
         Text(
             label,
-            color = Muted,
+            color = Color(0xFF8B96A5),
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.width(60.dp)
@@ -465,14 +530,17 @@ private fun ProgressRow(label: String, percent: Float, color: Color) {
         Box(
             modifier = Modifier
                 .weight(1f)
-                .height(8.dp)
-                .background(Color(0xFF10151C), RoundedCornerShape(4.dp))
+                .height(10.dp)
+                .background(Color(0xFF10151C), RoundedCornerShape(5.dp))
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth(percent / 100f)
                     .fillMaxHeight()
-                    .background(color, RoundedCornerShape(4.dp))
+                    .background(
+                        Brush.horizontalGradient(listOf(color.copy(alpha = 0.55f), color)),
+                        RoundedCornerShape(5.dp)
+                    )
             )
         }
         Spacer(Modifier.width(8.dp))
@@ -520,7 +588,7 @@ private fun PrivacyNoticeCard(
             )
             Text(
                 message,
-                color = Muted,
+                color = Color(0xFF8B96A5),
                 fontSize = 12.sp,
                 lineHeight = 18.sp
             )
@@ -561,7 +629,7 @@ private fun EmptyStateCard(
         )
         Text(
             message,
-            color = Muted,
+            color = Color(0xFF8B96A5),
             fontSize = 13.sp,
             textAlign = TextAlign.Center,
             lineHeight = 20.sp
@@ -663,14 +731,14 @@ private fun HistoryGameCard(
             ) {
                 Text(
                     game.dateLabel(),
-                    color = Muted,
+                    color = Color(0xFF8B96A5),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1
                 )
                 Text(
                     "· ${game.moves} jugadas · ${game.timeLabel.ifBlank { "—" }}",
-                    color = Muted,
+                    color = Color(0xFF8B96A5),
                     fontSize = 10.sp
                 )
                 Row(

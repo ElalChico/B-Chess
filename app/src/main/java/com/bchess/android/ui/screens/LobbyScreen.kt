@@ -121,10 +121,13 @@ fun LobbyScreen(
     remoteProfile: com.bchess.android.data.RemoteProfile? = null,
     connected: Boolean = false,
     profileSetupRequired: Boolean = false,
+    profileBio: String = "",
     onViewRivalProfile: () -> Unit = {},
     continueLabel: String = "Continuar",
     onContinue: () -> Unit = {},
     onNameChange: (String) -> Unit,
+    onBioChange: (String) -> Unit = {},
+    onProfileSaved: () -> Unit = {},
     onReplay: (GameRecord) -> Unit = {},
     onDeleteGame: (GameRecord) -> Unit = {},
     onClearHistory: () -> Unit = {},
@@ -133,6 +136,7 @@ fun LobbyScreen(
     onBack: () -> Unit
 ) {
     var nameText by remember { mutableStateOf("") }
+    var bioText by remember(profileBio) { mutableStateOf(profileBio) }
     var pendingCrop by remember { mutableStateOf<Bitmap?>(null) }
     var photoError by remember { mutableStateOf<String?>(null) }
     var pgnMessage by remember { mutableStateOf<String?>(null) }
@@ -305,6 +309,16 @@ fun LobbyScreen(
                             "${remoteProfile.total} jugadas · ${remoteProfile.wins}V · ${remoteProfile.losses}D · ${remoteProfile.draws}E",
                             color = Muted, fontSize = 11.sp
                         )
+                        if (remoteProfile.bio.isNotBlank()) {
+                            Text(
+                                remoteProfile.bio,
+                                color = Color(0xFFB9C4D1),
+                                fontSize = 10.sp,
+                                maxLines = 2,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
                     }
                     Text("→", color = Gold, fontWeight = FontWeight.ExtraBold)
                 }
@@ -334,11 +348,21 @@ fun LobbyScreen(
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                     Text(
-                        "Toca el engranaje para editar tu foto y nombre",
+                        "Toca el engranaje para editar tu foto, nombre y descripción",
                         color = Muted,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 2.dp)
                     )
+                    if (profileBio.isNotBlank()) {
+                        Text(
+                            profileBio,
+                            color = Color(0xFFB9C4D1),
+                            fontSize = 12.sp,
+                            maxLines = 2,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
                 }
             }
         } else {
@@ -374,6 +398,35 @@ fun LobbyScreen(
                 photoError?.let { Text(it, color = Color(0xFFFF9B9B), fontSize = 10.sp, fontWeight = FontWeight.SemiBold) }
             }
         }
+
+        // Bio / Descripción
+        SectionLabel("DESCRIPCIÓN / BIO")
+        OutlinedTextField(
+            value = bioText,
+            onValueChange = {
+                if (it.length <= 160) {
+                    bioText = it
+                    onBioChange(it)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            maxLines = 3,
+            shape = RoundedCornerShape(12.dp),
+            label = { Text("Tu descripción", color = Muted) },
+            placeholder = { Text("Ej.: Maestro de ritmos rápidos, me gusta el juego posicional…", color = Muted) },
+            supportingText = { Text("${bioText.length}/160", color = Muted) },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Text1, unfocusedTextColor = Text1,
+                cursorColor = Gold, focusedBorderColor = Gold, unfocusedBorderColor = Line2,
+                focusedContainerColor = Color(0xFF0F141B), unfocusedContainerColor = Color(0xFF0F141B)
+            )
+        )
+        Text(
+            "Añade una frase sobre ti; la verán tus rivales en tu perfil compartido.",
+            color = Muted,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(start = 4.dp)
+        )
 
         // Name field
         SectionLabel("NOMBRE DEL PERFIL")
@@ -414,7 +467,13 @@ fun LobbyScreen(
         Button(
             onClick = {
                 // Editando desde el engranaje: guardar y permanecer en el perfil.
-                if (profileSetupRequired) onContinue() else editMode = false
+                if (profileSetupRequired) {
+                    onProfileSaved()
+                    onContinue()
+                } else {
+                    onProfileSaved()
+                    editMode = false
+                }
             },
             modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
             enabled = canContinue,
@@ -427,7 +486,7 @@ fun LobbyScreen(
             ),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
         ) {
-            Text(continueLabel, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(if (profileSetupRequired) continueLabel else "Guardar cambios", fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
         } // fin edición del perfil
 

@@ -182,6 +182,8 @@ class AppPreferences(context: Context) {
     )
     val profileConfigured: Boolean get() = _profileConfigured
 
+    private var _profileBio by mutableStateOf(p.getString("profile_bio", "") ?: "")
+    val profileBio: String get() = _profileBio
     private var _profilePhotoBase64 by mutableStateOf(p.getString("profile_photo", "") ?: "")
     val profilePhotoBase64: String get() = _profilePhotoBase64
 
@@ -214,6 +216,7 @@ class AppPreferences(context: Context) {
     }
     fun setProfileName(v: String) { val n = v.trim().ifBlank { "Jugador" }.take(20); _profileName = n; p.edit().putString("profile_name", n).apply() }
     fun completeProfile() { _profileConfigured = true; p.edit().putBoolean("profile_configured", true).apply() }
+    fun setProfileBio(v: String) { _profileBio = v.trim().take(160); p.edit().putString("profile_bio", _profileBio).apply() }
     fun setProfilePhotoBase64(v: String) {
         val clean = v.trim()
         // Nunca guardar un base64 truncado o incompleto: al decodificarlo

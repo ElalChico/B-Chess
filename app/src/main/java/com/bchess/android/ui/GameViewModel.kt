@@ -318,11 +318,12 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                 val gamesJson = if (prefs.privacy.shareHistory) buildHistoryJson(records, prefs.privacy.sharePgn) else "[]"
                 val photo = if (prefs.privacy.sharePhoto) downscaledPhotoBase64(prefs.profilePhotoBase64) else ""
                 val color = if (_ui.value.lobby.colorRandom) "random" else MessageParser.stringFromColor(_ui.value.lobby.localColor)
-                val profile = ProfileMessage(localName, color, photo, records.size, wins, draws, losses, gamesJson)
+                val bio = prefs.profileBio.take(160)
+                val profile = ProfileMessage(localName, color, photo, records.size, wins, draws, losses, gamesJson, bio)
                 // Nunca desbordes el límite del canal (64 KB): si el historial con PGN no cabe,
                 // reenvía solo estadísticas y foto para que el rival siempre reciba el perfil.
                 netSend(if (profile.toJsonLine().length <= 60000) profile
-                        else ProfileMessage(localName, color, photo, records.size, wins, draws, losses, "[]"))
+                        else ProfileMessage(localName, color, photo, records.size, wins, draws, losses, "[]", bio))
             } catch (_: Exception) { }
         }
     }
@@ -404,6 +405,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             name = msg.name.ifBlank { "Rival" },
             color = msg.color,
             photoBase64 = msg.photoBase64.ifBlank { null },
+            bio = msg.bio,
             total = msg.total,
             wins = msg.wins,
             draws = msg.draws,

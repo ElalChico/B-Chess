@@ -211,6 +211,7 @@ class MainActivity : ComponentActivity() {
         }
         val continueFromProfile: () -> Unit = {
             prefs.completeProfile()
+            vm.sendProfile() // asegura que el rival reciba nombre + bio + foto
             when (profileNextScreen) {
                 Screen.ROOM -> {
                     screen = Screen.ROOM
@@ -470,6 +471,7 @@ class MainActivity : ComponentActivity() {
                     lobby = ui.lobby, localName = ui.localName, remoteName = ui.remoteName,
                     photoBase64 = prefs.profilePhotoBase64, history = history,
                     profileSetupRequired = !prefs.profileConfigured,
+                    profileBio = prefs.profileBio,
                     remoteProfile = remoteProfile,
                     connected = netConnected,
                     onViewRivalProfile = { rivalProfileFromScreen = screen; screen = Screen.RIVAL_PROFILE },
@@ -481,6 +483,8 @@ class MainActivity : ComponentActivity() {
                     },
                     onContinue = continueFromProfile,
                     onNameChange = { prefs.setProfileName(it); vm.setLocalName(it); vm.sendHello(); vm.sendProfile() },
+                    onBioChange = { prefs.setProfileBio(it) },
+                    onProfileSaved = { vm.sendProfile() },
                     onReplay = { replayRecord = it; screen = Screen.REPLAY },
                     onDeleteGame = { rec -> GameHistoryStore.remove(activity, rec.id); history = GameHistoryStore.load(activity) },
                     onClearHistory = { GameHistoryStore.clear(activity); history = emptyList() },
@@ -537,10 +541,13 @@ class MainActivity : ComponentActivity() {
                         photoBase64 = prefs.profilePhotoBase64, history = history,
                         remoteProfile = remoteProfile,
                         connected = netConnected,
+                        profileBio = prefs.profileBio,
                         onViewRivalProfile = { rivalProfileFromScreen = screen; screen = Screen.RIVAL_PROFILE },
                         continueLabel = "Volver al perfil",
                         onContinue = { screen = Screen.PROFILE },
                         onNameChange = { prefs.setProfileName(it); vm.setLocalName(it); vm.sendHello(); vm.sendProfile() },
+                        onBioChange = { prefs.setProfileBio(it) },
+                        onProfileSaved = { vm.sendProfile() },
                         onReplay = { replayRecord = it; screen = Screen.REPLAY },
                         onDeleteGame = { r -> GameHistoryStore.remove(activity, r.id); history = GameHistoryStore.load(activity) },
                         onClearHistory = { GameHistoryStore.clear(activity); history = emptyList() },
