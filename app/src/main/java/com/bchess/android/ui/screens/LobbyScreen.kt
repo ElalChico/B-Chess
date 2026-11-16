@@ -408,16 +408,15 @@ fun LobbyScreen(
         if (hasChanges && nameText.isNotBlank()) {
             Text("Nombre guardado automáticamente", color = Green, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, start = 4.dp))
         }
-        } // fin edición del perfil
 
+        // Botón principal: solo dentro del engranaje (edición)
         val canContinue = nameText.isNotBlank() && (!profileSetupRequired || photoBase64.isNotBlank())
         Button(
             onClick = {
                 // Editando desde el engranaje: guardar y permanecer en el perfil.
-                // Si no está en modo edición, el botón realiza la acción de continuación.
-                if (editMode) editMode = false else onContinue()
+                if (profileSetupRequired) onContinue() else editMode = false
             },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
             enabled = canContinue,
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
@@ -430,14 +429,8 @@ fun LobbyScreen(
         ) {
             Text(continueLabel, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
-        if (profileSetupRequired && !canContinue) {
-            Text(
-                if (nameText.isBlank()) "Escribe tu nombre para continuar."
-                else "Agrega una foto para completar el perfil.",
-                color = Muted,
-                fontSize = 11.sp
-            )
-        }
+        } // fin edición del perfil
+
 
         // History (PGN) — each entry replays with its captured data
         if (!profileSetupRequired) Row(verticalAlignment = Alignment.CenterVertically) {

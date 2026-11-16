@@ -80,7 +80,9 @@ fun GameScreen(
     onNewTournament: () -> Unit = {},
     onReplayPgn: () -> Unit = {},
     showEndDialog: Boolean = true,
-    onViewEndResult: () -> Unit = {}
+    onViewEndResult: () -> Unit = {},
+    onBackToHome: () -> Unit = {},
+    onBackToConnections: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -196,13 +198,49 @@ fun GameScreen(
 
         if (ui.gameEnd != null && !showEndDialog) {
             Spacer(Modifier.height(8.dp))
-            Button(
-                onClick = onViewEndResult,
-                modifier = Modifier.fillMaxWidth().height(46.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Color(0xFF17130A))
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Ver resultado de la partida", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                Button(
+                    onClick = onViewEndResult,
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Color(0xFF17130A))
+                ) {
+                    Text("Ver resultado de la partida", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                }
+                if (ui.lobby.isHost) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onBackToHome,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Line2)
+                        ) {
+                            Text("Inicio", color = Text1, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                        OutlinedButton(
+                            onClick = onBackToConnections,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Line2)
+                        ) {
+                            Text("Conexiones", color = Text1, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+                } else {
+                    Text(
+                        "Esperando al anfitrión… pulsa «Comenzar nueva partida» cuando esté listo.",
+                        color = Muted,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                    )
+                }
             }
         }
 

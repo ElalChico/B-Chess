@@ -580,6 +580,8 @@ class MainActivity : ComponentActivity() {
                     showEndDialog = showEndDialog,
                     onViewEndResult = { vm.showEndDialog() },
                     onNewTournament = { screen = Screen.ROOM },
+                    onBackToHome = { fullscreen = false; screen = Screen.HOME },
+                    onBackToConnections = { fullscreen = false; screen = Screen.CONEXIONES },
                     onReplayPgn = {
                         // Get the last finished game record for replay
                         val history = GameHistoryStore.load(activity)

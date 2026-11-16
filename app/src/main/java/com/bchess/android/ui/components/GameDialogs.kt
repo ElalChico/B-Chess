@@ -208,20 +208,40 @@ fun GameEndDialog(
                     Spacer(Modifier.height(4.dp))
                 }
 
-                EndGameOption(
-                    title = "Repetir partida",
-                    subtitle = "Mismo color · misma cuenta",
-                    enabled = true,
-                    highlight = false,
-                    onClick = onNewGameSame
-                )
-                EndGameOption(
-                    title = "Nuevo color",
-                    subtitle = "Aleatorio · siguiente partida",
-                    enabled = true,
-                    highlight = false,
-                    onClick = onNewGameRandom
-                )
+                if (!isHost && !tournamentActive) {
+                    // Invitado: no puede iniciar la siguiente partida; espera al anfitrión
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF26200F), RoundedCornerShape(12.dp))
+                            .border(1.dp, Color(0xFFC9B15A), RoundedCornerShape(12.dp))
+                            .padding(10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Esperando al anfitrión… pulsa «Comenzar nueva partida» cuando esté listo.",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFFC9B15A),
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    EndGameOption(
+                        title = "Repetir partida",
+                        subtitle = "Mismo color · misma cuenta",
+                        enabled = true,
+                        highlight = false,
+                        onClick = onNewGameSame
+                    )
+                    EndGameOption(
+                        title = "Nuevo color",
+                        subtitle = "Aleatorio · siguiente partida",
+                        enabled = true,
+                        highlight = false,
+                        onClick = onNewGameRandom
+                    )
+                }
 
                 if (tournamentActive && !tournamentFinished) {
                     EndGameOption(
