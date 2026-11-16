@@ -9,6 +9,8 @@ import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import android.os.PowerManager
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.input.pointer.pointerInput
@@ -171,6 +173,7 @@ class MainActivity : ComponentActivity() {
         var fullscreen by remember { mutableStateOf(false) }
         var roomTournament by remember { mutableStateOf(false) }
         var internetInitialTab by remember { mutableStateOf("web") }
+        var practiceInProgress by remember { mutableStateOf(false) }
         var history by remember { mutableStateOf(GameHistoryStore.load(activity)) }
         var replayRecord by remember { mutableStateOf<GameRecord?>(null) }
         var rivalProfileFromScreen by remember { mutableStateOf<Screen?>(null) }
@@ -275,6 +278,26 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Mantener pantalla encendida durante la partida
+        // Mantener pantalla encendida durante la partida
+        var wakeLock by remember { mutableStateOf<PowerManager.WakeLock?>(null) }
+        DisposableEffect(ui.lobby.gameStarted, ui.gameEnd) {
+            val pm = activity.getSystemService(Context.POWER_SERVICE) as PowerManager
+            val shouldKeepOn = ui.lobby.gameStarted && ui.gameEnd == null
+            if (shouldKeepOn) {
+                val wl = pm.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, "B-Chess::GameWakeLock")
+                wl.acquire()
+                wakeLock = wl
+            } else {
+                wakeLock?.release()
+                wakeLock = null
+            }
+            onDispose {
+                wakeLock?.release()
+                wakeLock = null
+            }
+        }
+
         val updateManager = remember { UpdateManager.getInstance(activity) }
         val engineManager = remember { StockfishEngineManager.getInstance(activity) }
         val updateState by updateManager.updateState.collectAsStateWithLifecycle()
@@ -317,7 +340,8 @@ class MainActivity : ComponentActivity() {
                     onReplay = { record ->
                         replayRecord = record
                         screen = Screen.REPLAY
-                    }
+                    },
+                    onGameStateChange = { practiceInProgress = it }
                 )
             }
             when (screen) {
@@ -570,14 +594,14 @@ class MainActivity : ComponentActivity() {
                 )
 
                 Screen.SETTINGS -> Box(
-                    // Capa que consume los toques sobrantes: no llegan al tablero oculto
-                    Modifier.fillMaxSize().pointerInput(Unit) {
+                    // Capa que consume toques sobrantes (sólo con partida detrás): no llegan al tablero oculto
+                    modifier = if (keepPractice) Modifier.fillMaxSize().pointerInput(Unit) {
                         awaitPointerEventScope {
                             while (true) {
                                 awaitPointerEvent(PointerEventPass.Final).changes.forEach { it.consume() }
                             }
                         }
-                    }
+                    } else Modifier
                 ) {
                     SettingsScreen(
                     prefs = prefs,
@@ -739,6 +763,10 @@ class MainActivity : ComponentActivity() {
                             if (ui.lobby.gameStarted && ui.gameEnd == null) {
                                 fullscreen = true // vuelve a la partida en grande
                                 screen = Screen.GAME
+                            } else if (practiceInProgress) {
+                                // Partida contra Stockfish en curso: volver a ella
+                                fullscreen = false
+                                screen = Screen.PRACTICE
                             }
                         }
                         Screen.CONEXIONES -> {
@@ -751,7 +779,7 @@ class MainActivity : ComponentActivity() {
                         }
                         else -> { /* ROOM not in bottom nav */ }
                     }
-                }, gameEnabled = ui.lobby.gameStarted && ui.gameEnd == null)
+                }, gameEnabled = (ui.lobby.gameStarted && ui.gameEnd == null) || practiceInProgress)
             }
         }
 

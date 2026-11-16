@@ -138,7 +138,7 @@ fun GameScreen(
             )
             Spacer(Modifier.height(6.dp))
         } else {
-            CompactHud(ui = ui, remotePhotoBase64 = remoteProfile?.photoBase64, onExit = onToggleFullscreen, onResign = onResign)
+            FullscreenHud(ui = ui, remotePhotoBase64 = remoteProfile?.photoBase64, onToggleFullscreen = onToggleFullscreen, onResign = onResign)
             Spacer(Modifier.height(4.dp))
         }
 
@@ -409,6 +409,61 @@ private fun CompactHud(ui: UiGameState, remotePhotoBase64: String?, onExit: () -
 }
 
 @Composable
+private fun FullscreenHud(
+    ui: UiGameState,
+    remotePhotoBase64: String?,
+    onToggleFullscreen: () -> Unit,
+    onResign: () -> Unit
+) {
+    val remoteTurn = ui.snapshot.sideToMove == ui.remoteColor
+    val remoteClockMs = if (ui.remoteColor == ChessColor.WHITE) ui.clock.whiteMs else ui.clock.blackMs
+    val localClockMs = if (ui.localColor == ChessColor.WHITE) ui.clock.whiteMs else ui.clock.blackMs
+    val remoteIsLowTime = ui.lobby.timeMs > 0 && remoteClockMs < 30000
+    val localIsLowTime = ui.lobby.timeMs > 0 && localClockMs < 30000
+
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
+    ) {
+        // TOP: Opponent clock bar
+        PlayerBar(
+            name = ui.remoteName.ifBlank { "Rival" },
+            isYou = false,
+            isTurn = ui.snapshot.sideToMove == ui.remoteColor,
+            clockMs = remoteClockMs,
+            totalMs = ui.lobby.timeMs,
+            showClock = ui.lobby.timeMs > 0,
+            inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.remoteColor,
+            sideLabel = if (ui.remoteColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
+            remotePhoto = remotePhotoBase64,
+            isLowTime = remoteIsLowTime,
+            compact = true
+        )
+
+        // BOARD AREA - spacer to push local clock to bottom
+        Spacer(modifier = Modifier.weight(1f))
+
+        // BOTTOM: Local clock bar with three-dots menu (Salir, Abandonar)
+        PlayerBar(
+            name = ui.localName.ifBlank { "Tú" },
+            isYou = true,
+            isTurn = ui.snapshot.sideToMove == ui.localColor,
+            clockMs = localClockMs,
+            totalMs = ui.lobby.timeMs,
+            showClock = ui.lobby.timeMs > 0,
+            inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.localColor,
+            sideLabel = if (ui.localColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
+            photoBase64 = "",
+            isLowTime = localIsLowTime,
+            compact = true,
+            showMenu = true,
+            onExitFullscreen = onToggleFullscreen,
+            onResign = onResign
+        )
+    }
+}
+
+@Composable
 private fun HudAvatar(photoBase64: String?, name: String, tint: Color) {
     val bmp = remember(photoBase64) { decodePhoto(photoBase64) }
     Box(
@@ -559,7 +614,12 @@ private fun PlayerBar(
     sideLabel: String,
     photoBase64: String = "",
     remotePhoto: String? = null,
-    isLowTime: Boolean = false
+    isLowTime: Boolean = false,
+    compact: Boolean = false,
+    showMenu: Boolean = false,
+    gameEnd: com.bchess.android.core.GameEnd? = null,
+    onExitFullscreen: (() -> Unit)? = null,
+    onResign: (() -> Unit)? = null
 ) {
     val accentColor = if (isTurn) Gold else Color(0xFF2B3542)
     val clockColor = when {
@@ -568,6 +628,20 @@ private fun PlayerBar(
         isTurn -> Color(0xFFC9B15A)
         else -> Color(0xFF8B96A5)
     }
+    val padding = if (compact) 6.dp else 8.dp
+    val avatarSize = if (compact) 32.dp else 42.dp
+    val clockFontSize = if (compact) 15.sp else 19.sp
+    val nameFontSize = if (compact) 11.sp else 14.sp
+    val statusFontSize = if (compact) 8.sp else 10.sp
+    val clockPadding = if (compact) 8.dp else 10.dp
+    val cornerRadius = if (compact) 10.dp else 14.dp
+    val accentBarWidth = if (compact) 2.dp else 3.dp
+    val accentBarHeight = if (compact) 20.dp else 30.dp
+    val clockBoxPadding = if (compact) 6.dp else 10.dp
+    val timeBarWidth = if (compact) 60.dp else 84.dp
+    val timeBarHeight = if (compact) 2.dp else 3.dp
+    val spacing = if (compact) 4.dp else 6.dp
+    val titleSpacing = if (compact) 2.dp else 4.dp
     Row(
         modifier = Modifier
             .fillMaxWidth()

@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -78,6 +79,7 @@ import com.bchess.android.data.formatClock
 import com.bchess.android.data.buildOgn
 import com.bchess.android.ui.components.BoardSelection
 import com.bchess.android.ui.components.ChessBoard
+import com.bchess.android.ui.components.GameEndDialog
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -104,7 +106,8 @@ fun PracticeScreen(
     onOpenSettings: () -> Unit,
     prefs: AppPreferences,
     onReplay: (GameRecord) -> Unit,
-    sound: SoundManager? = null
+    sound: SoundManager? = null,
+    onGameStateChange: ((Boolean) -> Unit)? = null
 ) {
     val engine = remember { ChessEngine() }
     val coroutineScope = rememberCoroutineScope()
@@ -130,9 +133,9 @@ fun PracticeScreen(
     var thinking by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var gameEnd by remember { mutableStateOf<GameEnd?>(null) }
+    LaunchedEffect(gameStarted, gameEnd) { onGameStateChange?.invoke(gameStarted && gameEnd == null) }
     var showSidePicker by remember { mutableStateOf(false) }
     var lastMove by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    var ognSaved by remember { mutableStateOf(false) }
     var endDialogDismissed by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val playerName = prefs.profileName
@@ -153,38 +156,6 @@ fun PracticeScreen(
         )
     }
     val clock by clockManager.state.collectAsState()
-    val saveOgnLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/x-chess-ogn")
-    ) { uri: Uri? ->
-        if (uri != null) {
-            val result = when (gameEnd?.winner) {
-                null -> "1/2-1/2"
-                playerColor -> "1-0"
-                else -> "0-1"
-            }
-            val localWon = gameEnd?.winner?.let { it == playerColor }
-            context.contentResolver.openOutputStream(uri).use { output ->
-                output?.write(buildOgn(
-                    GameRecord(
-                        opponent = "Stockfish",
-                        playerName = playerName,
-                        result = result,
-                        localWon = localWon,
-                        localColorWhite = playerColor == ChessColor.WHITE,
-                        timeLabel = timeControl.label,
-                        movesSan = moveHistory.toList(),
-                        pgn = "",
-                        finalFen = engine.toFEN(),
-                        uciMoves = moveHistory.toList(),
-                        gameType = GAME_TYPE_PRACTICE
-                    ),
-                    if (playerColor == ChessColor.WHITE) playerName else "Stockfish",
-                    if (playerColor == ChessColor.WHITE) "Stockfish" else playerName
-                ).toByteArray())
-            }
-            ognSaved = true
-        }
-    }
     DisposableEffect(engineManager, clockManager) {
         onDispose {
             clockManager.stop()
@@ -411,16 +382,15 @@ fun PracticeScreen(
 
             if (gameEnd != null && !endDialogDismissed) {
                 val end = gameEnd!!
-                val result = when (end.winner) {
-                    null -> "1/2-1/2"
-                    playerColor -> "1-0"
-                    else -> "0-1"
-                }
                 val localWon = end.winner?.let { it == playerColor }
                 val record = GameRecord(
                     opponent = "Stockfish",
                     playerName = playerName,
-                    result = result,
+                    result = when (end.winner) {
+                        null -> "1/2-1/2"
+                        playerColor -> "1-0"
+                        else -> "0-1"
+                    },
                     localWon = localWon,
                     localColorWhite = playerColor == ChessColor.WHITE,
                     timeLabel = timeControl.label,
@@ -430,17 +400,29 @@ fun PracticeScreen(
                     uciMoves = moveHistory.toList(),
                     gameType = GAME_TYPE_PRACTICE
                 )
-                PracticeEndDialog(
-                    message = end.message,
-                    onNewGame = { startNewGame(playerColor) },
-                    onChooseSide = { showSidePicker = true },
-                    onOpenSettings = onOpenSettings,
-                    onSaveOgn = { saveOgnLauncher.launch("b-chess-partida-vs-stockfish.ogn") },
-                    onClose = { endDialogDismissed = true },
-                    onReplay = {
+                GameEndDialog(
+                    end = end,
+                    isHost = true,
+                    tournamentActive = false,
+                    tournamentFinished = false,
+                    localName = playerName,
+                    remoteName = "Stockfish",
+                    localPhotoBase64 = "",
+                    remotePhotoBase64 = null,
+                    winnerName = when (end.winner) {
+                        null -> null
+                        playerColor -> playerName
+                        else -> "Stockfish"
+                    },
+                    onNewGameSame = { startNewGame(playerColor) },
+                    onNewGameRandom = { startNewGame(if (kotlin.random.Random.nextBoolean()) ChessColor.WHITE else ChessColor.BLACK) },
+                    onTournamentNext = { },
+                    onBackToRoom = { resetGame() },
+                    onReplayPgn = {
                         GameHistoryStore.append(context, record)
                         onReplay(record)
-                    }
+                    },
+                    onDismiss = { endDialogDismissed = true }
                 )
             }
 
@@ -651,57 +633,6 @@ private fun PracticeClockTile(label: String, time: String, active: Boolean, modi
     ) {
         Text(label, color = PracticeMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         Text(time, color = if (active) PracticeGold else PracticeText, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
-    }
-}
-
-@Composable
-private fun PracticeEndDialog(
-    message: String,
-    onNewGame: () -> Unit,
-    onChooseSide: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onSaveOgn: () -> Unit,
-    onReplay: () -> Unit,
-    onClose: () -> Unit
-) {
-    Dialog(
-        onDismissRequest = onClose,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
-                .background(PracticeCard, RoundedCornerShape(18.dp))
-                .border(1.dp, PracticeLine, RoundedCornerShape(18.dp))
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("Partida terminada", color = PracticeGold, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
-            Text(message, color = PracticeMuted, fontSize = 13.sp)
-            Button(
-                onClick = onNewGame,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-                shape = RoundedCornerShape(11.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PracticeGold, contentColor = Color(0xFF17130A))
-            ) {
-                Text("Nueva partida", fontWeight = FontWeight.ExtraBold)
-            }
-            OutlinedButton(onClick = onChooseSide, modifier = Modifier.fillMaxWidth()) {
-                Text("Elegir lado", color = PracticeText)
-            }
-            OutlinedButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
-                Text("Ajustes del tablero", color = PracticeText)
-            }
-            OutlinedButton(onClick = onSaveOgn, modifier = Modifier.fillMaxWidth()) {
-                Text("Guardar como OGN", color = PracticeGreen)
-            }
-            OutlinedButton(onClick = onReplay, modifier = Modifier.fillMaxWidth()) {
-                Text("Reproducir partida", color = PracticeText)
-            }
-            OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
-                Text("Cerrar · ver tablero", color = PracticeGreen)
-            }
-        }
     }
 }
 

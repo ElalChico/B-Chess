@@ -412,7 +412,11 @@ fun LobbyScreen(
 
         val canContinue = nameText.isNotBlank() && (!profileSetupRequired || photoBase64.isNotBlank())
         Button(
-            onClick = onContinue,
+            onClick = {
+                // Editando desde el engranaje: guardar y permanecer en el perfil.
+                // Si no está en modo edición, el botón realiza la acción de continuación.
+                if (editMode) editMode = false else onContinue()
+            },
             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
             enabled = canContinue,
             shape = RoundedCornerShape(12.dp),

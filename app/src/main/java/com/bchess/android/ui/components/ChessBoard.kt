@@ -7,6 +7,7 @@ package com.bchess.android.ui.components
 
 import android.content.Context
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,6 +19,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -119,8 +125,47 @@ fun ChessBoard(
     showMoveIndicators: Boolean = true,
     showCoordinates: Boolean = true
 ) {
+    var dragSquare by remember { mutableStateOf<Int?>(null) }
+    var dragPosition by remember { mutableStateOf<Offset?>(null) }
+
     Layout(
-        modifier = modifier.background(theme.boardBackground),
+        modifier = modifier
+            .background(theme.boardBackground)
+            .pointerInput(perspective, snapshot) {
+                detectDragGestures(
+                    onDragStart = { pos ->
+                        val cell = size.width / 8f
+                        val row = (pos.y / cell).toInt().coerceIn(0, 7)
+                        val col = (pos.x / cell).toInt().coerceIn(0, 7)
+                        val sq = displayToSquare(row, col, perspective)
+                        val piece = snapshot.board.getOrNull(sq)
+                        if (piece != null && piece.color == perspective) {
+                            dragSquare = sq
+                            dragPosition = pos
+                            onSquareTap(sq)
+                        }
+                    },
+                    onDrag = { change, _ ->
+                        dragPosition = change.position
+                    },
+                    onDragEnd = {
+                        val from = dragSquare
+                        val target = dragPosition
+                        if (from != null && target != null) {
+                            val row = (target.y / (size.width / 8f)).toInt().coerceIn(0, 7)
+                            val col = (target.x / (size.width / 8f)).toInt().coerceIn(0, 7)
+                            val to = displayToSquare(row, col, perspective)
+                            if (to != from) onSquareTap(to)
+                        }
+                        dragSquare = null
+                        dragPosition = null
+                    },
+                    onDragCancel = {
+                        dragSquare = null
+                        dragPosition = null
+                    }
+                )
+            },
         content = {
             for (row in 0 until 8) {
                 for (col in 0 until 8) {
@@ -139,9 +184,33 @@ fun ChessBoard(
                         lastMoveSq = selection.lastMove?.let { it.first == sq || it.second == sq } == true,
                         checkKing = selection.checkKingSquare == sq,
                         errorSq = selection.errorSquare == sq,
-                        onSquareTap = onSquareTap
+                        onSquareTap = onSquareTap,
+                        dragOrigin = dragSquare == sq
                     )
                 }
+            }
+            // Pieza arrastrada (fantasma sobre el dedo)
+            if (dragSquare != null) {
+                val sq = dragSquare!!
+                val piece = snapshot.board.getOrNull(sq)
+                if (piece != null) {
+                    Box(modifier = Modifier) {
+                        if (pieceSet == PieceSet.LICHESS || pieceSet.resKey != null) {
+                            Image(
+                                painter = painterResource(id = pieceResource(LocalContext.current, piece, pieceSet)),
+                                contentDescription = piece.symbol(),
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+                        } else {
+                            PieceIcon(piece, Modifier.fillMaxSize(), pieceSet)
+                        }
+                    }
+                } else {
+                    Box(modifier = Modifier)
+                }
+            } else {
+                Box(modifier = Modifier)
             }
         }
     ) { measurables, constraints ->
@@ -150,16 +219,32 @@ fun ChessBoard(
         val cells = measurables.mapIndexed { index, measurable ->
             val row = index / 8
             val col = index % 8
-            measurable.measure(
+            val cellSize = coordinates[1] - coordinates[0]
+            val box = if (index >= 64) {
+                // Fantasma de la pieza arrastrada: misma medida que una casilla
+                androidx.compose.ui.unit.Constraints.fixed(cellSize, cellSize)
+            } else {
                 androidx.compose.ui.unit.Constraints.fixed(
                     coordinates[col + 1] - coordinates[col],
                     coordinates[row + 1] - coordinates[row]
                 )
-            )
+            }
+            measurable.measure(box)
         }
         layout(boardSize, boardSize) {
+            val cellSize = coordinates[1] - coordinates[0]
             cells.forEachIndexed { index, cell ->
-                cell.place(coordinates[index % 8], coordinates[index / 8])
+                if (index < 64) {
+                    cell.place(coordinates[index % 8], coordinates[index / 8])
+                } else {
+                    val dp = dragPosition
+                    if (dragSquare != null && dp != null) {
+                        cell.place(
+                            (dp.x - cellSize / 2f).toInt(),
+                            (dp.y - cellSize / 2f).toInt()
+                        )
+                    }
+                }
             }
         }
     }
@@ -181,7 +266,8 @@ private fun BoardSquare(
     checkKing: Boolean,
     errorSq: Boolean,
     onSquareTap: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    dragOrigin: Boolean = false
 ) {
     val base = if (isLight) theme.lightSquare else theme.darkSquare
     BoxWithConstraints(
@@ -235,7 +321,7 @@ private fun BoardSquare(
                 }
             }
         }
-        piece?.let {
+        piece?.takeIf { !dragOrigin }?.let {
             if (pieceSet == PieceSet.LICHESS || pieceSet.resKey != null) {
                 Image(
                     painter = painterResource(id = pieceResource(ctx, it, pieceSet)),
