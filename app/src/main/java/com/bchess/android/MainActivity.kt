@@ -382,11 +382,6 @@ class MainActivity : ComponentActivity() {
                             screen = Screen.PROFILE
                         }
                     },
-                    onPlayOnline = {
-                        internetInitialTab = "web"
-                        vm.setNetworkMode(NetworkMode.INTERNET)
-                        screen = Screen.INTERNET
-                    },
                     onOpenConexiones = { screen = Screen.CONEXIONES },
                     remoteName = ui.remoteName,
                     onTournament = {
