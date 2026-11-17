@@ -329,6 +329,10 @@ class MainActivity : ComponentActivity() {
                         returnToPracticeFromSettings = true
                         screen = Screen.SETTINGS
                     },
+                    onOpenStockfishSettings = {
+                        returnToPracticeFromSettings = true
+                        screen = Screen.SETTINGS
+                    },
                     prefs = prefs,
                     sound = vm.sound,
                     onReplay = { record ->

@@ -37,6 +37,11 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Shuffle
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +56,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +68,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import android.content.Intent
 import android.net.Uri
+import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -69,6 +78,7 @@ import com.bchess.android.core.GameEnd
 import com.bchess.android.core.GameEndReason
 import com.bchess.android.core.Move
 import com.bchess.android.core.PieceType
+import com.bchess.android.Screen
 import com.bchess.android.data.AppPreferences
 import com.bchess.android.data.ClockManager
 import com.bchess.android.data.ClockState
@@ -119,6 +129,7 @@ fun PracticeScreen(
     initialIncrementMs: Long = 0L,
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenStockfishSettings: () -> Unit,
     prefs: AppPreferences,
     onReplay: (GameRecord) -> Unit,
     sound: SoundManager? = null,
@@ -136,7 +147,8 @@ fun PracticeScreen(
     var progressiveWins by remember { mutableStateOf(prefs.progressiveWins) }
     // Contador de finales de partida: dispara la lógica progresiva una sola vez por partida
     var gameEndCount by remember { mutableStateOf(0) }
-    var playerColor by remember { mutableStateOf(ChessColor.WHITE) }
+    // null = aleatorio
+    var playerColor by remember { mutableStateOf<ChessColor?>(ChessColor.WHITE) }
     var gameStarted by remember { mutableStateOf(false) }
     var timeControl by remember(initialTimeMs, initialIncrementMs) {
         mutableStateOf(
@@ -164,7 +176,8 @@ fun PracticeScreen(
     LaunchedEffect(gameEndCount) {
         if (gameEndCount == 0) return@LaunchedEffect
         val end = gameEnd ?: return@LaunchedEffect
-        if (end.winner != playerColor) return@LaunchedEffect
+        val currentColor = playerColor ?: return@LaunchedEffect
+        if (end.winner != currentColor) return@LaunchedEffect
         if (!prefs.progressiveLevel) return@LaunchedEffect
         val wins = prefs.progressiveWins + 1
         if (wins >= PROGRESSIVE_WINS_NEEDED) {
@@ -278,26 +291,27 @@ fun PracticeScreen(
         error = null
     }
 
-    fun startNewGame(side: ChessColor) {
+    fun startNewGame(side: ChessColor?) {
         if (!engineManager.isInstalled()) {
             error = (installState as? EngineInstallState.Error)?.message ?: "Stockfish no está disponible"
             return
         }
-        playerColor = side
+        playerColor = side ?: (if (kotlin.random.Random.nextBoolean()) ChessColor.WHITE else ChessColor.BLACK)
         resetGame()
         gameStarted = true
         clockManager.start()
         if (side == ChessColor.BLACK) requestEngineMove()
     }
 
-    fun prepareNewGame(side: ChessColor) {
+    fun prepareNewGame(side: ChessColor?) {
         playerColor = side
         gameStarted = false
         resetGame()
     }
 
     fun onSquareTap(square: Int) {
-        if (!gameStarted || thinking || gameEnd != null || engine.sideToMove() != playerColor) return
+        val currentColor = playerColor ?: return
+        if (!gameStarted || thinking || gameEnd != null || engine.sideToMove() != currentColor) return
         if (!engineManager.isInstalled()) {
             error = (installState as? EngineInstallState.Error)?.message ?: "Stockfish no está disponible"
             return
@@ -328,7 +342,8 @@ fun PracticeScreen(
                 return
             }
             moveHistory.add(move.uci())
-            clockManager.onMovePlayed(playerColor)
+            val currentColor = playerColor ?: ChessColor.WHITE
+            clockManager.onMovePlayed(currentColor)
             refreshAfterMove(move)
             playMoveSound(captured)
             if (gameEnd == null) requestEngineMove()
@@ -378,7 +393,16 @@ fun PracticeScreen(
                         Modifier.weight(0.44f).fillMaxHeight(),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        PracticeHeader(onBack, { startNewGame(playerColor) }, !thinking, strengthPercent, timeControl.label)
+                        PracticeHeader(
+                            onBack = onBack,
+                            onRestart = { startNewGame(playerColor) },
+                            enabled = !thinking,
+                            strengthPercent = strengthPercent,
+                            timeLabel = timeControl.label,
+                            onOpenSettings = { onOpenStockfishSettings() },
+                            profilePhoto = prefs.profilePhotoBase64,
+                            playerColor = playerColor
+                        )
                         EngineStatusRow(
                             installState = installState,
                             installed = engineManager.isInstalled()
@@ -413,7 +437,16 @@ fun PracticeScreen(
                     Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    PracticeHeader(onBack, { startNewGame(playerColor) }, !thinking, strengthPercent, timeControl.label)
+                    PracticeHeader(
+                        onBack = onBack,
+                        onRestart = { startNewGame(playerColor) },
+                        enabled = !thinking,
+                        strengthPercent = strengthPercent,
+                        timeLabel = timeControl.label,
+                        onOpenSettings = { onOpenStockfishSettings() },
+                        profilePhoto = prefs.profilePhotoBase64,
+                        playerColor = playerColor
+                    )
                     EngineStatusRow(
                         installState = installState,
                         installed = engineManager.isInstalled()
@@ -514,8 +547,8 @@ private fun PracticeSetup(
     timeControl: TimeControlOption,
     timeControls: List<TimeControlOption>,
     onTimeControlChange: (TimeControlOption) -> Unit,
-    playerColor: ChessColor,
-    onPlayerColorChange: (ChessColor) -> Unit,
+    playerColor: ChessColor?,
+    onPlayerColorChange: (ChessColor?) -> Unit,
     onBack: () -> Unit,
     onStart: () -> Unit,
     error: String?
@@ -573,6 +606,9 @@ private fun PracticeSetup(
                 }
                 PracticeColorOption("Negras", playerColor == ChessColor.BLACK, Modifier.weight(1f)) {
                     onPlayerColorChange(ChessColor.BLACK)
+                }
+                PracticeColorOption("Aleatorio", playerColor == null, Modifier.weight(1f)) {
+                    onPlayerColorChange(null)
                 }
             }
         }
@@ -646,7 +682,15 @@ private fun PracticeColorOption(
             if (selected) PracticeGold else PracticeLine
         )
     ) {
-        Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (label == "Aleatorio") {
+                Icon(Icons.Outlined.Shuffle, null, tint = if (selected) PracticeGold else PracticeMuted, modifier = Modifier.size(16.dp).padding(end = 4.dp))
+            }
+            Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+        }
     }
 }
 
@@ -656,8 +700,22 @@ private fun PracticeHeader(
     onRestart: () -> Unit,
     enabled: Boolean,
     strengthPercent: Int,
-    timeLabel: String
+    timeLabel: String,
+    onOpenSettings: () -> Unit,
+    profilePhoto: String,
+    playerColor: ChessColor?
 ) {
+    val avatar = remember(profilePhoto) {
+        try {
+            profilePhoto.substringAfter("base64,", profilePhoto).takeIf { it.isNotBlank() }?.let {
+                val bytes = android.util.Base64.decode(it, android.util.Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -668,15 +726,60 @@ private fun PracticeHeader(
         ) {
             Text("← Inicio", color = PracticeMuted, fontSize = 12.sp)
         }
-        Column(Modifier.weight(1f).padding(start = 8.dp)) {
-            Text("Practicar", color = PracticeText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text(
-                "${strengthLevelName(strengthPercent)} · $strengthPercent% · $timeLabel",
-                color = PracticeMuted, fontSize = 11.sp,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        // Foto del usuario + icono Stockfish + nombre
+        Column(Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Foto del usuario
+                Box(
+                    Modifier.size(32.dp).clip(CircleShape)
+                        .background(PracticeCard, CircleShape)
+                        .border(1.5.dp, PracticeGold.copy(alpha = 0.7f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (avatar != null) {
+                        Image(
+                            painter = BitmapPainter(avatar),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text("T", color = PracticeGold, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                // Icono Stockfish
+                Box(
+                    Modifier.size(28.dp).clip(RoundedCornerShape(8.dp))
+                        .background(PracticeGold.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(com.bchess.android.R.drawable.stockfish_fish),
+                        contentDescription = "Stockfish",
+                        modifier = Modifier.size(22.dp).clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                Column {
+                    Text("Practicar", color = PracticeText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "${strengthLevelName(strengthPercent)} · $strengthPercent% · ${if (playerColor == null) "Aleatorio" else playerColor.toString().uppercase()} · $timeLabel",
+                        color = PracticeMuted, fontSize = 10.5.sp,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+        // Botón ajustes (volver a configuración)
+        IconButton(onClick = onOpenSettings, enabled = enabled, modifier = Modifier.size(40.dp)) {
+            Icon(
+                Icons.Outlined.Settings,
+                contentDescription = "Configuración",
+                tint = PracticeGold,
+                modifier = Modifier.size(24.dp)
             )
         }
-        TextButton(onClick = onRestart, enabled = enabled, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
+        TextButton(onClick = { /* reiniciar */ }, enabled = enabled, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
             Text("Reiniciar", color = PracticeGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }
@@ -946,14 +1049,15 @@ private fun PracticeBoard(
     boardTheme: BoardTheme,
     pieceSet: PieceSet,
     showCoordinates: Boolean,
-    playerColor: ChessColor,
+    playerColor: ChessColor?,
     moveIndicators: Boolean,
     highlightLastMove: Boolean = false
 ) {
+    val perspective = playerColor ?: ChessColor.WHITE
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         ChessBoard(
             snapshot = snapshot,
-            perspective = playerColor,
+            perspective = perspective,
             selection = selection,
             onSquareTap = onSquareTap,
             modifier = Modifier.size(minOf(maxWidth, maxHeight)),
@@ -970,9 +1074,10 @@ private fun PracticeGameStatus(
     gameEnd: GameEnd?,
     thinking: Boolean,
     sideToMove: ChessColor,
-    playerColor: ChessColor,
+    playerColor: ChessColor?,
     error: String?
 ) {
+    val perspective = playerColor ?: ChessColor.WHITE
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -985,7 +1090,7 @@ private fun PracticeGameStatus(
                     when {
                         gameEnd != null -> gameEnd.message
                         thinking -> "Stockfish está pensando…"
-                        sideToMove == playerColor -> if (playerColor == ChessColor.WHITE) {
+                        sideToMove == perspective -> if (perspective == ChessColor.WHITE) {
                             "Tu turno · juegas con blancas"
                         } else {
                             "Tu turno · juegas con negras"
