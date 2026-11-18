@@ -150,6 +150,8 @@ fun PracticeScreen(
     // null = aleatorio
     var playerColor by remember { mutableStateOf<ChessColor?>(ChessColor.WHITE) }
     var gameStarted by remember { mutableStateOf(false) }
+    // Cuando se pulsa el engranaje durante una partida, se muestra la configuración de Stockfish
+    var forceSetup by remember { mutableStateOf(false) }
     var timeControl by remember(initialTimeMs, initialIncrementMs) {
         mutableStateOf(
             PredefinedControls.options.firstOrNull {
@@ -296,11 +298,15 @@ fun PracticeScreen(
             error = (installState as? EngineInstallState.Error)?.message ?: "Stockfish no está disponible"
             return
         }
-        playerColor = side ?: (if (kotlin.random.Random.nextBoolean()) ChessColor.WHITE else ChessColor.BLACK)
+        // Asigna color real (aleatorio si aplica) ANTES de inicializar el reloj/motor
+        val resolved = side ?: (if (kotlin.random.Random.nextBoolean()) ChessColor.WHITE else ChessColor.BLACK)
+        playerColor = resolved
+        forceSetup = false
         resetGame()
         gameStarted = true
         clockManager.start()
-        if (side == ChessColor.BLACK) requestEngineMove()
+        // Si la IA juega con Blancas (el usuario es Negras), la IA mueve primero
+        if (resolved == ChessColor.BLACK) requestEngineMove()
     }
 
     fun prepareNewGame(side: ChessColor?) {
@@ -353,7 +359,7 @@ fun PracticeScreen(
         }
     }
 
-    if (!gameStarted) {
+    if (!gameStarted || forceSetup) {
         PracticeSetup(
             installState = installState,
             installed = engineManager.isInstalled(),
@@ -380,6 +386,8 @@ fun PracticeScreen(
             onPlayerColorChange = { playerColor = it },
             onBack = onBack,
             onStart = { startNewGame(playerColor) },
+            gameInProgress = gameStarted,
+            onBackToGame = { forceSetup = false },
             error = error
         )
     } else {
@@ -399,7 +407,7 @@ fun PracticeScreen(
                             enabled = !thinking,
                             strengthPercent = strengthPercent,
                             timeLabel = timeControl.label,
-                            onOpenSettings = { onOpenStockfishSettings() },
+                            onOpenSettings = { forceSetup = true },
                             profilePhoto = prefs.profilePhotoBase64,
                             playerColor = playerColor
                         )
@@ -443,7 +451,7 @@ fun PracticeScreen(
                         enabled = !thinking,
                         strengthPercent = strengthPercent,
                         timeLabel = timeControl.label,
-                        onOpenSettings = { onOpenStockfishSettings() },
+                        onOpenSettings = { forceSetup = true },
                         profilePhoto = prefs.profilePhotoBase64,
                         playerColor = playerColor
                     )
@@ -551,6 +559,8 @@ private fun PracticeSetup(
     onPlayerColorChange: (ChessColor?) -> Unit,
     onBack: () -> Unit,
     onStart: () -> Unit,
+    gameInProgress: Boolean,
+    onBackToGame: () -> Unit,
     error: String?
 ) {
     Column(
@@ -560,14 +570,25 @@ private fun PracticeSetup(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedButton(
-                onClick = onBack,
+                onClick = if (gameInProgress) onBackToGame else onBack,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text("← Inicio", color = PracticeMuted, fontSize = 12.sp)
+                Text(if (gameInProgress) "← Volver" else "← Inicio", color = PracticeMuted, fontSize = 12.sp)
             }
             Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                Text("Preparar partida", color = PracticeText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("Contra Stockfish", color = PracticeMuted, fontSize = 11.sp)
+                Text("Configuración de Stockfish", color = PracticeText, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(if (gameInProgress) "Partida en curso" else "Contra Stockfish", color = PracticeMuted, fontSize = 11.sp)
+            }
+        }
+        if (gameInProgress) {
+            Button(
+                onClick = onBackToGame,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = PracticeGold, contentColor = Color(0xFF17130A)),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
+            ) {
+                Text("Volver a la partida", fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
             }
         }
         EngineStatusRow(installState = installState, installed = installed)

@@ -190,11 +190,11 @@ class AppPreferences(context: Context) {
     private var _defaultTimeMs by mutableLongStateOf(p.getLong("time_ms", 300_000L))
     val defaultTimeMs: Long get() = _defaultTimeMs
 
-    private var _defaultIncrementMs by mutableLongStateOf(p.getLong("inc_ms", 0L))
+    private var _defaultIncrementMs by mutableLongStateOf(p.getLong("inc_ms", 10_000L))
     val defaultIncrementMs: Long get() = _defaultIncrementMs
 
     // ==== Motor local (Stockfish): fuerza y progresión ====
-    private var _strengthPercent by mutableStateOf(p.getInt("strength_percent", 15))
+    private var _strengthPercent by mutableStateOf(p.getInt("strength_percent", 25))
     val strengthPercent: Int get() = _strengthPercent
 
     private var _progressiveLevel by mutableStateOf(p.getBoolean("progressive_level", false))
