@@ -58,7 +58,8 @@ fun RoomScreen(
     onStartGame: () -> Unit,
     onStartTournament: (Int) -> Unit = {},
     onBack: () -> Unit,
-    startInTournamentMode: Boolean = false
+    startInTournamentMode: Boolean = false,
+    isStartingGame: Boolean = false
 ) {
     val isHost = lobby.isHost
     val rivalOk = remoteName.isNotBlank() && lobby.connected
@@ -324,7 +325,7 @@ fun RoomScreen(
                     onClick = {
                         if (tournamentMode) onStartTournament(tournamentGames) else onStartGame()
                     },
-                    enabled = rivalOk && modeSelected && clockSelected,
+                    enabled = rivalOk && modeSelected && clockSelected && !isStartingGame,
                     modifier = Modifier.fillMaxWidth().height(68.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF789889),
@@ -337,6 +338,7 @@ fun RoomScreen(
                 ) {
                     Text(
                         when {
+                            isStartingGame -> "Iniciando…"
                             !rivalOk -> "Esperando contrincante"
                             !modeSelected -> "Selecciona el modo"
                             !clockSelected -> "Selecciona el reloj"

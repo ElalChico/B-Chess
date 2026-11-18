@@ -471,6 +471,7 @@ class MainActivity : ComponentActivity() {
                     onColorPick = { color -> vm.setLocalColor(color) },
                     onRandomColor = { vm.setRandomColor() },
                     startInTournamentMode = roomTournament,
+                    isStartingGame = ui.isStartingGame,
                     onConnect = {
                         if (vm.networkMode != NetworkMode.INTERNET) {
                             isHostMode = true

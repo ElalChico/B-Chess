@@ -40,7 +40,8 @@ data class UiGameState(
     val promotionPending: Pair<Int, Int>? = null, // from->to awaiting promotion choice
     val countdown: Int? = null, // null = jugando/terminado · 3..1 = cuenta regresiva en curso
     val tournament: TournamentState = TournamentState(),
-    val sessionGames: Int = 0 // partidas jugadas en esta sesión (nueva partida)
+    val sessionGames: Int = 0, // partidas jugadas en esta sesión (nueva partida)
+    val isStartingGame: Boolean = false // evita clicks múltiples en "Comenzar partida"
 )
 
 /**
@@ -428,25 +429,34 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
 
     fun startGameAsHost() {
         if (!isHost) return
+        if (_ui.value.isStartingGame) return // evita clicks múltiples
         if (!_ui.value.connected) {
             showError("Conecta con el rival antes de comenzar")
             return
         }
-        if (!colorChosen) {
-            val randomColor = randomSide()
-            _ui.value = _ui.value.copy(
-                localColor = randomColor,
-                remoteColor = randomColor.opposite(),
-                lobby = _ui.value.lobby.copy(localColor = randomColor, remoteColor = randomColor.opposite())
-            )
+        // Resetea el estado para forzar que el observador detecte el cambio de gameStarted
+        backToRoom()
+        _ui.value = _ui.value.copy(isStartingGame = true)
+        try {
+            if (!colorChosen) {
+                val randomColor = randomSide()
+                _ui.value = _ui.value.copy(
+                    localColor = randomColor,
+                    remoteColor = randomColor.opposite(),
+                    lobby = _ui.value.lobby.copy(localColor = randomColor, remoteColor = randomColor.opposite())
+                )
+            }
+            val lobby = _ui.value.lobby
+            startGameInternal(lobby.localColor, lobby.timeMs, lobby.incrementMs)
+        } finally {
+            _ui.value = _ui.value.copy(isStartingGame = false)
         }
-        val lobby = _ui.value.lobby
-        startGameInternal(lobby.localColor, lobby.timeMs, lobby.incrementMs)
     }
 
     /** Nueva partida tras terminar: "same" (mismo color y tiempo), "random" o "tournament". */
     fun requestNewGame(mode: String) {
         val lobby = _ui.value.lobby
+        if (isHost && _ui.value.isStartingGame) return // evita clicks múltiples
         when (mode) {
             "same" -> if (isHost) startGameInternal(lastLocalColor, lobby.timeMs, lobby.incrementMs)
                       else netSend(RematchMessage("same", localName))
@@ -471,20 +481,26 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     /** El anfitrión crea un torneo: N partidas seguidas con colores alternos. */
     fun startTournament(games: Int, timeMs: Long, incMs: Long) {
         if (!isHost) return
+        if (_ui.value.isStartingGame) return // evita clicks múltiples
         if (_ui.value.remoteName.isBlank() || !_ui.value.connected) {
             showError("Conecta con el rival antes de crear el torneo")
             return
         }
-        val hostWhite = if (colorChosen) _ui.value.localColor == Color.WHITE else kotlin.random.Random.nextBoolean()
-        _ui.value = _ui.value.copy(
-            tournament = TournamentState(
-                config = TournamentConfig(games, timeMs, incMs),
-                localColorWhite = hostWhite,
-                active = true
+        _ui.value = _ui.value.copy(isStartingGame = true)
+        try {
+            val hostWhite = if (colorChosen) _ui.value.localColor == Color.WHITE else kotlin.random.Random.nextBoolean()
+            _ui.value = _ui.value.copy(
+                tournament = TournamentState(
+                    config = TournamentConfig(games, timeMs, incMs),
+                    localColorWhite = hostWhite,
+                    active = true
+                )
             )
-        )
-        netSend(TournamentStartMessage(games, timeMs, incMs, hostWhite))
-        startGameInternal(if (hostWhite) Color.WHITE else Color.BLACK, timeMs, incMs)
+            netSend(TournamentStartMessage(games, timeMs, incMs, hostWhite))
+            startGameInternal(if (hostWhite) Color.WHITE else Color.BLACK, timeMs, incMs)
+        } finally {
+            _ui.value = _ui.value.copy(isStartingGame = false)
+        }
     }
 
     /** Siguiente partida del torneo: los colores se alternan. */
