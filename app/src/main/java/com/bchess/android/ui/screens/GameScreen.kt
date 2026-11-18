@@ -110,6 +110,21 @@ fun GameScreen(
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f)
             )
+            if (ui.premoves.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .background(Color(0xFF1A1F2E), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color(0xFF3A4460), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = "PREMUEVE (${ui.premoves.size})",
+                        color = Color(0xFF8AB4FF),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
             if (!isFullscreen) {
                 Box(
                     modifier = Modifier

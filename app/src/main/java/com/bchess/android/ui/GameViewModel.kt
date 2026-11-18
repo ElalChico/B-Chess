@@ -41,7 +41,9 @@ data class UiGameState(
     val countdown: Int? = null, // null = jugando/terminado · 3..1 = cuenta regresiva en curso
     val tournament: TournamentState = TournamentState(),
     val sessionGames: Int = 0, // partidas jugadas en esta sesión (nueva partida)
-    val isStartingGame: Boolean = false // evita clicks múltiples en "Comenzar partida"
+    val isStartingGame: Boolean = false, // evita clicks múltiples en "Comenzar partida"
+    val lastGameWasRandom: Boolean = false, // si la última partida fue en modo aleatorio
+    val premoves: List<Pair<Int, Int>> = emptyList() // cola de premueves
 )
 
 /**
@@ -472,7 +474,8 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         _ui.value = _ui.value.copy(
             gameEnd = null, paused = false, promotionPending = null, countdown = null,
             inCheck = false, checkKing = null, selection = BoardSelection(null),
-            lobby = _ui.value.lobby.copy(gameStarted = false)
+            lobby = _ui.value.lobby.copy(gameStarted = false),
+            premoves = emptyList()
         )
     }
 
@@ -572,9 +575,11 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             lobby = _ui.value.lobby.copy(
                 gameStarted = true, connected = true,
                 localColor = myColor, remoteColor = myColor.opposite(),
-                timeMs = timeMs, incrementMs = incMs,                 colorRandom = false,
+                timeMs = timeMs, incrementMs = incMs,
+                colorRandom = false,
                 isHost = _ui.value.lobby.isHost // preserve host role
-            )
+            ),
+            premoves = emptyList()
         )
         if (isHost) {
             netSend(StartGameMessage(fen, timeMs, incMs,
@@ -639,33 +644,64 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         if (_ui.value.gameEnd != null || _ui.value.paused) { showError("Partida en pausa o terminada"); return }
         if (_ui.value.countdown != null) return // cuenta regresiva activa · no tocar
         if (_ui.value.promotionPending != null) return
-        if (!isMyTurn()) return
         val sel = _ui.value.selection
-        // If tapping own piece -> select
+        // Si es mi turno, selecciono/muevo normalmente; si no, encolo como premove
+        if (isMyTurn()) {
+            val piece = engine.pieceAt(sq)
+            if (piece != null && piece.color == _ui.value.localColor) {
+                val targets = engine.legalMovesFrom(sq).map { it.to }.distinct()
+                _ui.value = _ui.value.copy(selection = sel.copy(from = sq, legalTargets = targets, errorSquare = null))
+                return
+            }
+            if (sel.from != null && sel.legalTargets.contains(sq)) {
+                attemptMove(sel.from, sq)
+                executePremoveIfAny()
+                return
+            }
+            if (sel.from != null) {
+                _ui.value = _ui.value.copy(
+                    selection = sel.copy(from = null, legalTargets = emptyList(), errorSquare = sq),
+                    lastError = "Movimiento ilegal"
+                )
+                sound.play(SoundType.ILLEGAL)
+                viewModelScope.launch { delay(900); _ui.value = _ui.value.copy(selection = _ui.value.selection.copy(errorSquare = null), lastError = null) }
+            } else if (piece != null && piece.color != _ui.value.localColor) {
+                _ui.value = _ui.value.copy(selection = sel.copy(errorSquare = sq))
+                sound.play(SoundType.ILLEGAL)
+                viewModelScope.launch { delay(700); _ui.value = _ui.value.copy(selection = _ui.value.selection.copy(errorSquare = null)) }
+            }
+            return
+        }
+        // NO es mi turno: selecciona pieza para premove
         val piece = engine.pieceAt(sq)
         if (piece != null && piece.color == _ui.value.localColor) {
             val targets = engine.legalMovesFrom(sq).map { it.to }.distinct()
             _ui.value = _ui.value.copy(selection = sel.copy(from = sq, legalTargets = targets, errorSquare = null))
             return
         }
-        // If tapping legal target -> try move
+        // Si hay selección y tocas un objetivo válido, encola premove
         if (sel.from != null && sel.legalTargets.contains(sq)) {
-            attemptMove(sel.from, sq)
+            _ui.value = _ui.value.copy(
+                premoves = _ui.value.premoves + (sel.from to sq),
+                selection = sel.copy(from = null, legalTargets = emptyList(), errorSquare = null)
+            )
             return
         }
-        // Else clear + error if we had selection
         if (sel.from != null) {
-            _ui.value = _ui.value.copy(
-                selection = sel.copy(from = null, legalTargets = emptyList(), errorSquare = sq),
-                lastError = "Movimiento ilegal"
-            )
-            sound.play(SoundType.ILLEGAL)
-            viewModelScope.launch { delay(900); _ui.value = _ui.value.copy(selection = _ui.value.selection.copy(errorSquare = null), lastError = null) }
-        } else if (piece != null && piece.color != _ui.value.localColor) {
-            _ui.value = _ui.value.copy(selection = sel.copy(errorSquare = sq))
-            sound.play(SoundType.ILLEGAL)
-            viewModelScope.launch { delay(700); _ui.value = _ui.value.copy(selection = _ui.value.selection.copy(errorSquare = null)) }
+            _ui.value = _ui.value.copy(selection = sel.copy(from = null, legalTargets = emptyList(), errorSquare = sq))
         }
+    }
+
+    private fun executePremoveIfAny() {
+        if (_ui.value.premoves.isEmpty() || !isMyTurn() || _ui.value.gameEnd != null) return
+        val (from, to) = _ui.value.premoves.first()
+        _ui.value = _ui.value.copy(premoves = _ui.value.premoves.drop(1))
+        val piece = engine.pieceAt(from)
+        if (piece == null || piece.color != _ui.value.localColor) return
+        val legal = engine.legalMovesFrom(from).map { it.to }.distinct()
+        if (!legal.contains(to)) return
+        attemptMove(from, to)
+        executePremoveIfAny()
     }
 
     private fun isMyTurn(): Boolean = engine.sideToMove() == _ui.value.localColor
@@ -723,7 +759,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         if (inCheck) sound.play(SoundType.CHECK) else if (isCapture) sound.play(SoundType.CAPTURE)
         netSend(MoveMessage(from, to, promotion?.name?.take(1) ?: "", san, uci, fenAfter, System.currentTimeMillis()))
         if (end != null) {
-            _ui.value = _ui.value.copy(gameEnd = end)
+            _ui.value = _ui.value.copy(gameEnd = end, premoves = emptyList())
             sound.play(SoundType.CHECKMATE)
             netSend(GameEndMessage(
                 if (end.winner == null) "draw" else MessageParser.stringFromColor(end.winner),
@@ -803,12 +839,14 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                         // Rival pieces NEVER play move/capture sounds here; only check/mate alerts.
                         if (inCheck) sound.play(SoundType.CHECK)
                         if (end != null) {
-                            _ui.value = _ui.value.copy(gameEnd = end)
+                            _ui.value = _ui.value.copy(gameEnd = end, premoves = emptyList())
                             sound.play(SoundType.CHECKMATE)
                             clock.finish()
                             saveGameRecord(end)
                             recordTournamentResult(end)
                             _showGameEndDialog.value = true
+                        } else {
+                            executePremoveIfAny()
                         }
                     }
                 } catch (e: Exception) { Log_w("move", e) }
@@ -826,7 +864,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             is DrawResponseMessage -> {
                 if (msg.accepted) {
                     val end = GameEnd(null, GameEndReason.DRAW_AGREED, "Tablas acordadas")
-                    _ui.value = _ui.value.copy(gameEnd = end)
+                    _ui.value = _ui.value.copy(gameEnd = end, premoves = emptyList())
                     sound.play(SoundType.DRAW)
                     clock.finish()
                     saveGameRecord(end)
@@ -839,7 +877,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             is ResignMessage -> {
                 val winner = MessageParser.colorFromString(msg.loserColor).opposite()
                 val end = GameEnd(winner, GameEndReason.RESIGNATION, "${msg.byName} se rinde")
-                _ui.value = _ui.value.copy(gameEnd = end)
+                _ui.value = _ui.value.copy(gameEnd = end, premoves = emptyList())
                 sound.play(if (winner == _ui.value.localColor) SoundType.WIN else SoundType.LOSE)
                 clock.finish()
                 saveGameRecord(end)
@@ -855,7 +893,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                 }
                 val reason = try { GameEndReason.valueOf(msg.reason) } catch (_: Exception) { GameEndReason.DRAW_AGREED }
                 val end = GameEnd(winner, reason, msg.message.ifBlank { "Partida terminada" })
-                _ui.value = _ui.value.copy(gameEnd = end)
+                _ui.value = _ui.value.copy(gameEnd = end, premoves = emptyList())
                 sound.play(SoundType.CHECKMATE)
                 clock.finish()
                 saveGameRecord(end)
@@ -960,7 +998,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         netSend(DrawResponseMessage(accepted, localName))
         if (accepted) {
             val end = GameEnd(null, GameEndReason.DRAW_AGREED, "Tablas acordadas")
-            _ui.value = _ui.value.copy(gameEnd = end)
+            _ui.value = _ui.value.copy(gameEnd = end, premoves = emptyList())
             clock.finish()
             saveGameRecord(end)
             recordTournamentResult(end)
