@@ -600,6 +600,31 @@ private fun StatPill(label: String, value: String, valueColor: Color, modifier: 
     }
 }
 
+/**
+ * Chip de resumen estilo B-Chess Desktop: punto de color, etiqueta y conteo.
+ * Categorías: Blancas, Negras, vs IA, En línea.
+ */
+@Composable
+private fun SummaryChip(label: String, value: Int, color: Color, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .background(color.copy(alpha = 0.10f), RoundedCornerShape(9.dp))
+            .border(1.dp, color.copy(alpha = 0.45f), RoundedCornerShape(9.dp))
+            .padding(horizontal = 6.dp, vertical = 5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Box(Modifier.size(6.dp).background(color, CircleShape))
+            Text(label, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+        Text(value.toString(), color = color, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+    }
+}
+
 @Composable
 private fun StatsHud(records: List<GameRecord>, tournamentTab: Boolean) {
     if (records.isEmpty()) return
@@ -623,6 +648,18 @@ private fun StatsHud(records: List<GameRecord>, tournamentTab: Boolean) {
             StatPill("Ganadas", wins.toString(), Green, Modifier.weight(1f))
             StatPill("Empates", draws.toString(), Gold, Modifier.weight(1f))
             StatPill("Perdidas", losses.toString(), Color(0xFFFF9B9B), Modifier.weight(1f))
+        }
+        // ==== CHIPS DE RESUMEN (estilo B-Chess Desktop) ====
+        // Blancas / Negras / vs IA / En línea con el color de cada categoría
+        val whites = records.count { it.localColorWhite }
+        val blacks = total - whites
+        val aiGames = records.count { it.gameType == "practice" }
+        val onlineGames = total - aiGames
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            SummaryChip("Blancas", whites, Color(0xFF58A6FF), Modifier.weight(1f))
+            SummaryChip("Negras", blacks, Color(0xFFA371F7), Modifier.weight(1f))
+            SummaryChip("vs IA", aiGames, Color(0xFFF0883E), Modifier.weight(1f))
+            SummaryChip("En línea", onlineGames, Color(0xFF39D2C0), Modifier.weight(1f))
         }
         // Balance W/D/L en una sola barra proporcional (gráfico visual)
         Row(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(8.dp)).background(Card)) {
@@ -808,15 +845,36 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
         rec.opponent to (rec.playerName.ifBlank { "Tú" })
     }
 
+    // Resultado con color (estilo B-Chess Desktop: Victoria / Derrota / Tablas)
     val resultColor = when {
         rec.localWon == true -> Green
         rec.localWon == false -> Color(0xFFFF6B6B)
         else -> Gold
     }
-    val outcome = when {
-        rec.localWon == true -> "V"
-        rec.localWon == false -> "D"
-        else -> "E"
+    val resultLabel = when {
+        rec.localWon == true -> "Victoria"
+        rec.localWon == false -> "Derrota"
+        else -> "Tablas"
+    }
+
+    // Rol local en la partida: Anfitrión (principal) / Invitado.
+    // Null = práctica vs IA o partida importada sin rol conocido.
+    val roleLabel = when (rec.localIsHost) {
+        true -> "Anfitrión"
+        false -> "Invitado"
+        null -> null
+    }
+    val roleColor = if (rec.localIsHost == true) Gold else Color(0xFF8B96A5)
+
+    // Color con el que se jugó (chips con color, como en Desktop)
+    val sideLabel = if (rec.localColorWhite) "Blancas" else "Negras"
+    val sideColor = if (rec.localColorWhite) Color(0xFF58A6FF) else Color(0xFFA371F7)
+
+    val modeLabel = when (rec.gameType) {
+        "practice" -> "vs IA"
+        "tournament" -> "Torneo"
+        "internet" -> "En línea"
+        else -> "Bluetooth"
     }
 
     // Marcador estilo lichess: ganador resaltado, perdedor atenuado
@@ -836,17 +894,10 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
             .padding(horizontal = 6.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .background(resultColor.copy(alpha = 0.16f), RoundedCornerShape(7.dp))
-                .border(1.dp, resultColor.copy(alpha = 0.45f), RoundedCornerShape(7.dp)),
-            contentAlignment = Alignment.Center
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            Text(outcome, color = resultColor, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
-        }
-        Spacer(Modifier.width(7.dp))
-        Column(Modifier.weight(1f)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -879,25 +930,21 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
                     modifier = Modifier.weight(1f)
                 )
             }
+            // Fila de chips: resultado (con color), rol (anfitrión/invitado) y color jugado
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(
-                    "${rec.dateLabel()} · ${rec.movesSan.size} jugadas" +
-                        (if (rec.gameType == "practice") " · Stockfish" else ""),
-                    fontSize = 9.5.sp,
-                    color = Muted,
-                    maxLines = 1
-                )
-                Text(
-                    if (rec.localColorWhite) "Blancas" else "Negras",
-                    fontSize = 9.sp,
-                    color = Muted,
-                    maxLines = 1
-                )
+                HistoryChip(resultLabel, resultColor)
+                if (roleLabel != null) HistoryChip(roleLabel, roleColor)
+                HistoryChip(sideLabel, sideColor)
             }
+            Text(
+                "${rec.dateLabel()} · ${rec.movesSan.size} jugadas · $modeLabel",
+                fontSize = 9.5.sp,
+                color = Muted,
+                maxLines = 1
+            )
         }
         IconButton(onClick = onReplay, modifier = Modifier.size(30.dp)) {
             Icon(
@@ -916,6 +963,22 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
             )
         }
     }
+}
+
+/** Chip pequeño con borde y fondo teñidos del color del resultado/rol/color. */
+@Composable
+private fun HistoryChip(text: String, color: Color) {
+    Text(
+        text,
+        fontSize = 9.sp,
+        fontWeight = FontWeight.Bold,
+        color = color,
+        maxLines = 1,
+        modifier = Modifier
+            .background(color.copy(alpha = 0.14f), RoundedCornerShape(5.dp))
+            .border(1.dp, color.copy(alpha = 0.45f), RoundedCornerShape(5.dp))
+            .padding(horizontal = 5.dp, vertical = 2.dp)
+    )
 }
 
 @Composable

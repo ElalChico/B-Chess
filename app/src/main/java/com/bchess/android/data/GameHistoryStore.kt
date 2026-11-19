@@ -53,7 +53,8 @@ object GameHistoryStore {
                         gameType = o.optString(
                             "gameType",
                             if (o.optString("opp", "").equals("Stockfish", ignoreCase = true)) GAME_TYPE_PRACTICE else GAME_TYPE_BT
-                        )
+                        ),
+                        localIsHost = if (o.has("role")) o.optBoolean("role") else null
                     )
                 )
             }
@@ -139,6 +140,7 @@ object GameHistoryStore {
             o.put("uci", JSONArray(r.uciMoves))
             o.put("clocks", JSONArray(r.moveClocks))
             o.put("gameType", r.gameType)
+            if (r.localIsHost != null) o.put("role", r.localIsHost)
             if (r.opponentPhotoBase64 != null) o.put("oppPhoto", r.opponentPhotoBase64)
             arr.put(o)
         }

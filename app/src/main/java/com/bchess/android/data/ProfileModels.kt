@@ -26,7 +26,10 @@ data class GameRecord(
     val uciMoves: List<String> = emptyList(),
     val moveClocks: List<Long> = emptyList(), // remaining ms of the mover after each move
     val opponentPhotoBase64: String? = null, // foto del rival para historial/replay
-    val gameType: String = GAME_TYPE_PRACTICE // practice | bt | internet | tournament
+    val gameType: String = GAME_TYPE_PRACTICE, // practice | bt | internet | tournament
+    // Rol local en la partida: true = anfitrión (principal), false = invitado,
+    // null = desconocido (práctica vs IA, partidas importadas antiguas).
+    val localIsHost: Boolean? = null
 ) {
     fun dateLabel(): String = SimpleDateFormat("dd/MM/yy HH:mm", Locale.getDefault()).format(Date(dateMs))
 }
@@ -68,6 +71,9 @@ fun buildPgn(record: GameRecord, white: String, black: String): String {
     sb.appendLine("[Black \"${escapePgnTag(black)}\"]")
     sb.appendLine("[Result \"${record.result}\"]")
     sb.appendLine("[TimeControl \"${escapePgnTag(record.timeLabel)}\"]")
+    record.localIsHost?.let {
+        sb.appendLine("[BChessRole \"${if (it) "host" else "guest"}\"]")
+    }
     if (record.uciMoves.isNotEmpty()) {
         sb.appendLine("[CHESSXUCI \"${record.uciMoves.joinToString(" ")}\"]")
     }
@@ -96,6 +102,9 @@ fun buildOgn(record: GameRecord, white: String, black: String): String {
     sb.appendLine("[Black \"${escapePgnTag(black)}\"]")
     sb.appendLine("[Result \"${record.result}\"]")
     sb.appendLine("[TimeControl \"${escapePgnTag(record.timeLabel)}\"]")
+    record.localIsHost?.let {
+        sb.appendLine("[BChessRole \"${if (it) "host" else "guest"}\"]")
+    }
     if (record.uciMoves.isNotEmpty()) {
         sb.appendLine("[UCI \"${record.uciMoves.joinToString(" ")}\"]")
     }

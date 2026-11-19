@@ -98,7 +98,8 @@ object PgnArchive {
             pgn = "",
             finalFen = engine.toFEN(),
             playerName = white,
-            uciMoves = uciMoves
+            uciMoves = uciMoves,
+            localIsHost = tags["BChessRole"]?.let { it.equals("host", ignoreCase = true) }
         )
         return record.copy(pgn = buildPgn(record, white, black))
     }

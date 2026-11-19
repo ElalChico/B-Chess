@@ -237,8 +237,12 @@ class UpdateManager private constructor(context: Context) {
             lastCheckResult = if (result.hasUpdate) result else null
             // No pisar el estado de una descarga/instalación en curso: si no, el temporizador
             // silencioso de Ajustes (90 s) devolvería la UI a "Actualización disponible"
-            // mientras el instalador sigue trabajando.
-            if (!transferInProgress) {
+            // mientras el instalador sigue trabajando. Se comprueba el estado además del
+            // candado por si un chequeo concurrente lo liberó a mitad de la transferencia.
+            val st = _updateState.value
+            if (!transferInProgress &&
+                st !is UpdateState.Downloading && st !is UpdateState.Downloaded && st !is UpdateState.Installing
+            ) {
                 _updateState.value = if (result.hasUpdate) UpdateState.UpdateAvailable(result) else UpdateState.UpToDate
             }
             return Result.success(result)
@@ -314,7 +318,14 @@ class UpdateManager private constructor(context: Context) {
         expectedSize: Long = 0L
     ): Result<Unit> {
         // Evita dos descargas simultáneas escribiendo el mismo archivo (APK corrupto).
-        if (transferInProgress) return Result.failure(IllegalStateException("Descarga ya en curso"))
+        // Se comprueba también el estado: cierra la pequeña ventana de carrera en la que
+        // un chequeo concurrente podría liberar el candado antes de marcar la transferencia.
+        val st0 = _updateState.value
+        if (transferInProgress ||
+            st0 is UpdateState.Downloading || st0 is UpdateState.Downloaded || st0 is UpdateState.Installing
+        ) {
+            return Result.failure(IllegalStateException("Descarga ya en curso"))
+        }
 
         // Limpia APKs viejos ANTES de marcar la transferencia como activa
         cleanupStaleDownloads()

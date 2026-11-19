@@ -1155,7 +1155,8 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                 uciMoves = uciHistory.toList(),
                 moveClocks = moveClockHistory.toList(),
                 opponentPhotoBase64 = opponentPhoto,
-                gameType = gameType
+                gameType = gameType,
+                localIsHost = lobby.isHost
             )
             GameHistoryStore.append(appContext, base.copy(pgn = buildPgn(base, whiteName, blackName)))
         } catch (_: Exception) { }
