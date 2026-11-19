@@ -493,7 +493,7 @@ fun PracticeScreen(
                             installState = installState,
                             installed = engineManager.isInstalled()
                         )
-                        PracticeClockBar(clock, timeControl, engine.sideToMove())
+                        PracticeClockBar(clock, timeControl, engine.sideToMove(), playerColor)
                         Spacer(Modifier.weight(1f))
                         if (gameEnd != null && endDialogDismissed) {
                             PracticeReopenResultButton { endDialogDismissed = false }
@@ -541,7 +541,7 @@ fun PracticeScreen(
                         installState = installState,
                         installed = engineManager.isInstalled()
                     )
-                    PracticeClockBar(clock, timeControl, engine.sideToMove())
+                    PracticeClockBar(clock, timeControl, engine.sideToMove(), playerColor)
                     PracticeBoard(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                         snapshot = snapshot,
@@ -911,18 +911,37 @@ private fun PracticeHeader(
 }
 
 @Composable
-private fun PracticeClockBar(clock: ClockState, timeControl: TimeControlOption, sideToMove: ChessColor) {
+private fun PracticeClockBar(
+    clock: ClockState,
+    timeControl: TimeControlOption,
+    sideToMove: ChessColor,
+    playerColor: ChessColor?
+) {
+    // El oponente siempre arriba, el jugador siempre abajo
+    val opponentColor = playerColor?.opposite() ?: sideToMove.opposite()
+    val (topColor, bottomColor) = if (opponentColor == ChessColor.WHITE) {
+        ChessColor.WHITE to ChessColor.BLACK
+    } else {
+        ChessColor.BLACK to ChessColor.WHITE
+    }
+    val topLabel = if (topColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS"
+    val bottomLabel = if (bottomColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS"
+    val topTime = if (topColor == ChessColor.WHITE) clock.whiteMs else clock.blackMs
+    val bottomTime = if (bottomColor == ChessColor.WHITE) clock.whiteMs else clock.blackMs
+    val topActive = sideToMove == topColor
+    val bottomActive = sideToMove == bottomColor
+
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         PracticeClockTile(
-            label = "BLANCAS",
-            time = if (timeControl.timeMs == 0L) "Ilimitado" else formatClock(clock.whiteMs),
-            active = sideToMove == ChessColor.WHITE,
+            label = topLabel,
+            time = if (timeControl.timeMs == 0L) "Ilimitado" else formatClock(topTime),
+            active = topActive,
             modifier = Modifier.weight(1f)
         )
         PracticeClockTile(
-            label = "NEGRAS",
-            time = if (timeControl.timeMs == 0L) "Ilimitado" else formatClock(clock.blackMs),
-            active = sideToMove == ChessColor.BLACK,
+            label = bottomLabel,
+            time = if (timeControl.timeMs == 0L) "Ilimitado" else formatClock(bottomTime),
+            active = bottomActive,
             modifier = Modifier.weight(1f)
         )
     }
