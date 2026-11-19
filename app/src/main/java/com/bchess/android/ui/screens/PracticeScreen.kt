@@ -40,6 +40,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shuffle
+import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -152,6 +153,9 @@ fun PracticeScreen(
     var gameStarted by remember { mutableStateOf(false) }
     // Cuando se pulsa el engranaje durante una partida, se muestra la configuración de Stockfish
     var forceSetup by remember { mutableStateOf(false) }
+    // Cola de premueves del jugador
+    var premoves by remember { mutableStateOf<List<Pair<Int, Int>>>(emptyList()) }
+    var premoveMode by remember { mutableStateOf(false) }
     var timeControl by remember(initialTimeMs, initialIncrementMs) {
         mutableStateOf(
             PredefinedControls.options.firstOrNull {
@@ -255,11 +259,36 @@ fun PracticeScreen(
         }
     }
 
+    var callEngineMove: (() -> Unit)? = null
+
+    fun executePremoveIfAny() {
+        if (premoves.isEmpty() || !gameStarted || gameEnd != null) return
+        val currentColor = playerColor ?: return
+        if (engine.sideToMove() != currentColor) return
+        val (from, to) = premoves.first()
+        premoves = premoves.drop(1)
+        val piece = engine.pieceAt(from)
+        if (piece == null || piece.color != currentColor) return
+        val legal = engine.legalMovesFrom(from).map { it.to }.distinct()
+        if (to !in legal) return
+        val move = engine.legalMoves().firstOrNull { it.from == from && it.to == to } ?: return
+        val captured = engine.pieceAt(to) != null
+        if (!engine.doMove(move)) return
+        moveHistory.add(move.uci())
+        clockManager.onMovePlayed(currentColor)
+        snapshot = engine.snapshot
+        selection = BoardSelection(null, lastMove = from to to, checkKingSquare = null)
+        refreshAfterMove(move)
+        playMoveSound(captured)
+        if (gameEnd == null) callEngineMove?.invoke()
+    }
+
     fun requestEngineMove() {
         if (gameEnd != null || !gameStarted) return
         thinking = true
         error = null
         coroutineScope.launch {
+
             try {
                 val response = engineManager.bestMove(moveHistory.toList(), strengthPercent)
                 if (gameEnd != null) return@launch
@@ -272,6 +301,8 @@ fun PracticeScreen(
                 clockManager.onMovePlayed(mover)
                 refreshAfterMove(move)
                 playMoveSound(captured)
+                // Ejecutar premueves en cadena cuando es el turno del jugador
+                executePremoveIfAny()
             } catch (e: Exception) {
                 error = e.message ?: "No se pudo obtener el movimiento del motor"
             } finally {
@@ -280,8 +311,11 @@ fun PracticeScreen(
         }
     }
 
+    callEngineMove = ::requestEngineMove
+
     fun resetGame() {
         endDialogDismissed = false
+        premoves = emptyList()
         clockManager.stop()
         clockManager.configure(timeControl.timeMs, timeControl.incrementMs)
         engine.reset()
@@ -315,9 +349,38 @@ fun PracticeScreen(
         resetGame()
     }
 
+    // (los estados premoves/premoveMode se declaran arriba)
+
+
+
     fun onSquareTap(square: Int) {
         val currentColor = playerColor ?: return
-        if (!gameStarted || thinking || gameEnd != null || engine.sideToMove() != currentColor) return
+        val myTurn = gameStarted && !thinking && gameEnd == null && engine.sideToMove() == currentColor
+        if (!myTurn && !gameStarted) return
+        if (gameEnd != null) return
+        if (thinking) return
+        val premoveModeActive = premoveMode || !myTurn
+        // ---- Flujo de premueve (modo activo o no es tu turno) ----
+        if (premoveModeActive) {
+            if (!engineManager.isInstalled()) return
+            val piece = engine.pieceAt(square)
+            val selected = selection
+            if (piece?.color == playerColor) {
+                selection = BoardSelection(
+                    from = square,
+                    legalTargets = engine.legalMovesFrom(square).map { it.to }.distinct(),
+                    lastMove = lastMove
+                )
+                return
+            }
+            val from = selected.from
+            if (from != null && square in selected.legalTargets) {
+                premoves = premoves + (from to square)
+                selection = BoardSelection(null, lastMove = lastMove)
+            }
+            return
+        }
+        // ---- Flujo normal (es tu turno) ----
         if (!engineManager.isInstalled()) {
             error = (installState as? EngineInstallState.Error)?.message ?: "Stockfish no está disponible"
             return
@@ -330,7 +393,6 @@ fun PracticeScreen(
                 legalTargets = engine.legalMovesFrom(square).map { it.to }.distinct(),
                 lastMove = lastMove
             )
-            // Selección de pieza: sin sonido (desactivado a petición del usuario)
             error = null
             return
         }
@@ -353,6 +415,8 @@ fun PracticeScreen(
             refreshAfterMove(move)
             playMoveSound(captured)
             if (gameEnd == null) requestEngineMove()
+            // Ejecutar premueves en cadena
+            executePremoveIfAny()
         } else {
             if (selected.from != null) sound?.play(SoundType.ILLEGAL)
             selection = BoardSelection(null, lastMove = lastMove)
@@ -409,7 +473,10 @@ fun PracticeScreen(
                             timeLabel = timeControl.label,
                             onOpenSettings = { forceSetup = true },
                             profilePhoto = prefs.profilePhotoBase64,
-                            playerColor = playerColor
+                            playerColor = playerColor,
+                            premoveMode = premoveMode,
+                            onTogglePremoveMode = { premoveMode = !premoveMode },
+                            premoveCount = premoves.size
                         )
                         EngineStatusRow(
                             installState = installState,
@@ -453,7 +520,10 @@ fun PracticeScreen(
                         timeLabel = timeControl.label,
                         onOpenSettings = { forceSetup = true },
                         profilePhoto = prefs.profilePhotoBase64,
-                        playerColor = playerColor
+                        playerColor = playerColor,
+                        premoveMode = premoveMode,
+                        onTogglePremoveMode = { premoveMode = !premoveMode },
+                        premoveCount = premoves.size
                     )
                     EngineStatusRow(
                         installState = installState,
@@ -724,7 +794,10 @@ private fun PracticeHeader(
     timeLabel: String,
     onOpenSettings: () -> Unit,
     profilePhoto: String,
-    playerColor: ChessColor?
+    playerColor: ChessColor?,
+    premoveMode: Boolean,
+    onTogglePremoveMode: () -> Unit,
+    premoveCount: Int
 ) {
     val avatar = remember(profilePhoto) {
         try {
@@ -789,6 +862,24 @@ private fun PracticeHeader(
                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
+            }
+        }
+        // Botón de modo premove (PREMUEVE)
+        IconButton(onClick = onTogglePremoveMode, enabled = enabled, modifier = Modifier.size(40.dp)) {
+            Icon(
+                Icons.Outlined.SkipNext,
+                contentDescription = if (premoveMode) "Premueve activado" else "Premueve desactivado",
+                tint = if (premoveMode) Color(0xFF3DDC97) else PracticeMuted,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        if (premoveCount > 0) {
+            Box(
+                modifier = Modifier
+                    .background(Color(0xFF1A2E1F), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
+            ) {
+                Text("$premoveCount", color = Color(0xFF3DDC97), fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
         // Botón ajustes (volver a configuración)

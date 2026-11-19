@@ -43,7 +43,8 @@ data class UiGameState(
     val sessionGames: Int = 0, // partidas jugadas en esta sesión (nueva partida)
     val isStartingGame: Boolean = false, // evita clicks múltiples en "Comenzar partida"
     val lastGameWasRandom: Boolean = false, // si la última partida fue en modo aleatorio
-    val premoves: List<Pair<Int, Int>> = emptyList() // cola de premueves
+    val premoves: List<Pair<Int, Int>> = emptyList(), // cola de premueves
+    val premoveMode: Boolean = false // si está activado, los taps se encolan como premueves
 )
 
 /**
@@ -640,13 +641,19 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     }
 
     // ---------- Moves ----------
+    fun togglePremoveMode() {
+        _ui.value = _ui.value.copy(premoveMode = !_ui.value.premoveMode)
+    }
+
     fun onSquareTap(sq: Int) {
         if (_ui.value.gameEnd != null || _ui.value.paused) { showError("Partida en pausa o terminada"); return }
         if (_ui.value.countdown != null) return // cuenta regresiva activa · no tocar
         if (_ui.value.promotionPending != null) return
         val sel = _ui.value.selection
-        // Si es mi turno, selecciono/muevo normalmente; si no, encolo como premove
-        if (isMyTurn()) {
+        val premoveMode = _ui.value.premoveMode || !isMyTurn()
+        // Si es mi turno y el modo premove está desactivado, selecciono/muevo normalmente;
+        // en modo premove todo tap encola como premove.
+        if (!premoveMode) {
             val piece = engine.pieceAt(sq)
             if (piece != null && piece.color == _ui.value.localColor) {
                 val targets = engine.legalMovesFrom(sq).map { it.to }.distinct()
@@ -672,7 +679,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             }
             return
         }
-        // NO es mi turno: selecciona pieza para premove
+        // MODO PREMOVE: selecciona pieza para premove (también en tu turno)
         val piece = engine.pieceAt(sq)
         if (piece != null && piece.color == _ui.value.localColor) {
             val targets = engine.legalMovesFrom(sq).map { it.to }.distinct()

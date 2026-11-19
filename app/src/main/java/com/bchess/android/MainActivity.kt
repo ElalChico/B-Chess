@@ -541,6 +541,7 @@ class MainActivity : ComponentActivity() {
                     onPromotion = vm::confirmPromotion,
                     onCancelPromotion = vm::cancelPromotion,
                     onToggleSound = { prefs.setSoundEnabled(!prefs.soundEnabled) },
+                    onTogglePremoveMode = vm::togglePremoveMode,
                     onDisconnect = { fullscreen = false; vm.disconnect(); screen = Screen.HOME },
                     onNewGameSame = { vm.requestNewGame("same") },
                     onNewGameRandom = { vm.requestNewGame("random") },

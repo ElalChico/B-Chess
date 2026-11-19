@@ -72,6 +72,7 @@ fun GameScreen(
     onCancelPromotion: () -> Unit,
     onToggleSound: () -> Unit,
     onDisconnect: () -> Unit,
+    onTogglePremoveMode: () -> Unit = {},
     onNewGameSame: () -> Unit = {},
     onNewGameRandom: () -> Unit = {},
     onTournamentNext: () -> Unit = {},
@@ -124,6 +125,21 @@ fun GameScreen(
                         fontWeight = FontWeight.Bold
                     )
                 }
+            }
+            // Botón de modo premove: en este modo puedes encolar premueves incluso en tu turno
+            Box(
+                modifier = Modifier
+                    .background(if (ui.premoveMode) Color(0xFF1A2E1F) else Color(0xFF1A1F2E), RoundedCornerShape(8.dp))
+                    .border(1.dp, if (ui.premoveMode) Color(0xFF3DDC97) else Color(0xFF3A4460), RoundedCornerShape(8.dp))
+                    .clickable { onTogglePremoveMode() }
+                    .padding(horizontal = 8.dp, vertical = 5.dp)
+            ) {
+                Text(
+                    text = if (ui.premoveMode) "PREMOVE ON" else "PREMOVE OFF",
+                    color = if (ui.premoveMode) Color(0xFF3DDC97) else Color(0xFF8AB4FF),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
             if (!isFullscreen) {
                 Box(
