@@ -257,6 +257,21 @@ fun SettingsScreen(
             }
         }
 
+        // ============ VIBRACIÓN ============
+        Section(t("VIBRACIÓN", "VIBRATION"))
+        SectionBody {
+            ToggleRow(
+                t("Vibrar en jaque", "Vibrate on check"),
+                t("Vibra cuando tu rey está en jaque", "Vibrate when your king is in check"),
+                prefs.vibrateOnCheck
+            ) { prefs.setVibrateOnCheck(it) }
+            ToggleRow(
+                t("Vibrar en mi turno", "Vibrate on my turn"),
+                t("Vibra cuando te toca mover", "Vibrate when it's your turn to move"),
+                prefs.vibrateOnMyTurn
+            ) { prefs.setVibrateOnMyTurn(it) }
+        }
+
         // ============ RELOJ POR DEFECTO ============
         Section(t("RELOJ POR DEFECTO", "DEFAULT CLOCK"))
         SectionBody {

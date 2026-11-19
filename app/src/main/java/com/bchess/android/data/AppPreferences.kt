@@ -197,6 +197,12 @@ class AppPreferences(context: Context) {
     private var _strengthPercent by mutableStateOf(p.getInt("strength_percent", 25))
     val strengthPercent: Int get() = _strengthPercent
 
+    private var _vibrateOnCheck by mutableStateOf(p.getBoolean("vibrate_on_check", true))
+    val vibrateOnCheck: Boolean get() = _vibrateOnCheck
+
+    private var _vibrateOnMyTurn by mutableStateOf(p.getBoolean("vibrate_on_my_turn", true))
+    val vibrateOnMyTurn: Boolean get() = _vibrateOnMyTurn
+
     private var _progressiveLevel by mutableStateOf(p.getBoolean("progressive_level", false))
     val progressiveLevel: Boolean get() = _progressiveLevel
 
@@ -219,6 +225,9 @@ class AppPreferences(context: Context) {
         _progressiveWins = c
         p.edit().putInt("progressive_wins", c).apply()
     }
+
+    fun setVibrateOnCheck(v: Boolean) { _vibrateOnCheck = v; p.edit().putBoolean("vibrate_on_check", v).apply() }
+    fun setVibrateOnMyTurn(v: Boolean) { _vibrateOnMyTurn = v; p.edit().putBoolean("vibrate_on_my_turn", v).apply() }
 
     private var _checkSignal by mutableStateOf(p.getBoolean("check_sig", true))
     val checkSignal: Boolean get() = _checkSignal

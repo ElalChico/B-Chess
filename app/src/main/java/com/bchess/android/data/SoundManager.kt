@@ -23,6 +23,7 @@ class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEF
     private var enabled: Boolean = true
     private var volumePercent: Int = 80
     private var soundPack: SoundPack = pack
+    private var vibrator: android.os.Vibrator? = (context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator)
 
     private val resourceIds: Map<SoundPack, Map<SoundType, Int>> = mapOf(
         SoundPack.LICHESS to mapOf(
@@ -142,5 +143,19 @@ class SoundManager(private val context: Context, pack: SoundPack = SoundPack.DEF
 
     fun release() {
         // Los MediaPlayer se liberan al terminar cada sonido; nada queda reservado.
+    }
+
+    /** Vibración para jaque. */
+    fun vibrateCheck() {
+        vibrator?.let {
+            if (it.hasVibrator()) it.vibrate(android.os.VibrationEffect.createOneShot(200, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+        }
+    }
+
+    /** Vibración para cuando es nuestro turno. */
+    fun vibrateMyTurn() {
+        vibrator?.let {
+            if (it.hasVibrator()) it.vibrate(android.os.VibrationEffect.createOneShot(150, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+        }
     }
 }

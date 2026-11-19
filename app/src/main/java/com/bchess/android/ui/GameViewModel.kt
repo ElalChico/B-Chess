@@ -100,6 +100,9 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     private val _promotionPending = MutableStateFlow<Pair<Int, Int>?>(null)
     val promotionPending: StateFlow<Pair<Int, Int>?> = _promotionPending.asStateFlow()
 
+    // Preferencias de la app (para acceso a vibración, sonido, etc.)
+    private val prefs = AppPreferences(appContext)
+
     // Callbacks para diálogos
     var onGameEndOptionSameGame: (() -> Unit)? = null
     var onGameEndOptionRandomGame: (() -> Unit)? = null
@@ -347,6 +350,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                 paused = false,
                 disconnectedSide = null
             )
+            if (engine.sideToMove() == lastColor && prefs.vibrateOnMyTurn) sound.vibrateMyTurn()
             clock.start()
             true
         } catch (e: Exception) {
@@ -455,7 +459,6 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     fun sendProfile() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val prefs = AppPreferences(appContext)
                 val records = GameHistoryStore.load(appContext)
                 var wins = 0; var draws = 0; var losses = 0
                 records.forEach { r -> when (r.localWon) { true -> wins++; false -> losses++; null -> draws++ } }
@@ -921,7 +924,10 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             lastError = null
         )
         // Sonido de colocación eliminado: solo captura, jaque (mate se suena aparte)
-        if (inCheck) sound.play(SoundType.CHECK) else if (isCapture) sound.play(SoundType.CAPTURE)
+        if (inCheck) {
+            sound.play(SoundType.CHECK)
+            if (prefs.vibrateOnCheck) sound.vibrateCheck()
+        } else if (isCapture) sound.play(SoundType.CAPTURE)
         saveGameStateLocally()
         netSend(MoveMessage(from, to, promotion?.name?.take(1) ?: "", san, uci, fenAfter, System.currentTimeMillis()))
         if (end != null) {
@@ -1003,10 +1009,15 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                             lastMoveSan = san, history = moveHistory.toList()
                         )
                         // Rival pieces NEVER play move/capture sounds here; only check/mate alerts.
-                        if (inCheck) sound.play(SoundType.CHECK)
+                        if (inCheck) {
+                            sound.play(SoundType.CHECK)
+                            if (prefs.vibrateOnCheck) sound.vibrateCheck()
+                        }
                         // Si el rival te pone en jaque, cancela los premueves encolados
                         if (inCheck) cancelPremovesOnCheck()
                         saveGameStateLocally()
+                        // Tras el movimiento del rival, ahora es nuestro turno
+                        if (prefs.vibrateOnMyTurn) sound.vibrateMyTurn()
                         if (end != null) {
                             _ui.value = _ui.value.copy(gameEnd = end, premoves = emptyList())
                             sound.play(SoundType.CHECKMATE)
