@@ -645,6 +645,18 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         _ui.value = _ui.value.copy(premoveMode = !_ui.value.premoveMode)
     }
 
+    /** Limpia la selección y los premueves encolados (clic fuera del tablero). */
+    fun clearSelection() {
+        _ui.value = _ui.value.copy(selection = BoardSelection(null), premoves = emptyList())
+    }
+
+    /** Cancela los premueves encolados (p. ej., al quedar en jaque). */
+    fun cancelPremovesOnCheck() {
+        if (_ui.value.premoves.isNotEmpty()) {
+            _ui.value = _ui.value.copy(premoves = emptyList())
+        }
+    }
+
     fun onSquareTap(sq: Int) {
         if (_ui.value.gameEnd != null || _ui.value.paused) { showError("Partida en pausa o terminada"); return }
         if (_ui.value.countdown != null) return // cuenta regresiva activa · no tocar
@@ -845,6 +857,8 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                         )
                         // Rival pieces NEVER play move/capture sounds here; only check/mate alerts.
                         if (inCheck) sound.play(SoundType.CHECK)
+                        // Si el rival te pone en jaque, cancela los premueves encolados
+                        if (inCheck) cancelPremovesOnCheck()
                         if (end != null) {
                             _ui.value = _ui.value.copy(gameEnd = end, premoves = emptyList())
                             sound.play(SoundType.CHECKMATE)

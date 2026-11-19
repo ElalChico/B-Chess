@@ -533,6 +533,7 @@ class MainActivity : ComponentActivity() {
                     remoteProfile = remoteProfile,
                     onToggleFullscreen = { fullscreen = !fullscreen },
                     onSquareTap = vm::onSquareTap,
+                    onClearSelection = vm::clearSelection,
                     onTogglePause = vm::togglePause,
                     onOfferDraw = vm::offerDraw,
                     onAcceptDraw = { vm.respondDraw(true) },

@@ -63,6 +63,7 @@ fun GameScreen(
     remoteProfile: com.bchess.android.data.RemoteProfile? = null,
     onToggleFullscreen: () -> Unit,
     onSquareTap: (Int) -> Unit,
+    onClearSelection: () -> Unit = {},
     onTogglePause: () -> Unit,
     onOfferDraw: () -> Unit,
     onAcceptDraw: () -> Unit,
@@ -178,7 +179,8 @@ fun GameScreen(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
+                .weight(1f)
+                .clickable { onClearSelection() },
             contentAlignment = Alignment.Center
         ) {
             val boardSize = minOf(maxWidth, maxHeight)

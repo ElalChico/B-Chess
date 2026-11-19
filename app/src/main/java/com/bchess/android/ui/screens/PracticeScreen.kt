@@ -1,5 +1,6 @@
 package com.bchess.android.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -156,6 +157,11 @@ fun PracticeScreen(
     // Cola de premueves del jugador
     var premoves by remember { mutableStateOf<List<Pair<Int, Int>>>(emptyList()) }
     var premoveMode by remember { mutableStateOf(false) }
+    // Limpia selección y premueves (clic fuera del tablero)
+    fun clearSelection() {
+        selection = BoardSelection(null, lastMove = selection.lastMove, checkKingSquare = selection.checkKingSquare)
+        premoves = emptyList()
+    }
     var timeControl by remember(initialTimeMs, initialIncrementMs) {
         mutableStateOf(
             PredefinedControls.options.firstOrNull {
@@ -239,6 +245,11 @@ fun PracticeScreen(
         }
         selection = BoardSelection(null, lastMove = lastMove, checkKingSquare = checkedKing)
         gameEnd = engine.detectEnd()
+        // Si el jugador queda en jaque, cancela los premueves
+        val current = playerColor
+        if (current != null && engine.sideToMove() == current && engine.isInCheck(current)) {
+            premoves = emptyList()
+        }
         if (gameEnd != null) {
             clockManager.finish()
             gameEndCount++
@@ -500,6 +511,7 @@ fun PracticeScreen(
                         snapshot = snapshot,
                         selection = selection,
                         onSquareTap = ::onSquareTap,
+                        onClearSelection = ::clearSelection,
                         boardTheme = boardTheme,
                         pieceSet = pieceSet,
                         showCoordinates = showCoordinates,
@@ -535,6 +547,7 @@ fun PracticeScreen(
                         snapshot = snapshot,
                         selection = selection,
                         onSquareTap = ::onSquareTap,
+                        onClearSelection = ::clearSelection,
                         boardTheme = boardTheme,
                         pieceSet = pieceSet,
                         showCoordinates = showCoordinates,
@@ -1158,6 +1171,7 @@ private fun PracticeBoard(
     snapshot: com.bchess.android.core.BoardSnapshot,
     selection: BoardSelection,
     onSquareTap: (Int) -> Unit,
+    onClearSelection: () -> Unit,
     boardTheme: BoardTheme,
     pieceSet: PieceSet,
     showCoordinates: Boolean,
@@ -1166,7 +1180,7 @@ private fun PracticeBoard(
     highlightLastMove: Boolean = false
 ) {
     val perspective = playerColor ?: ChessColor.WHITE
-    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier.clickable { onClearSelection() }, contentAlignment = Alignment.Center) {
         ChessBoard(
             snapshot = snapshot,
             perspective = perspective,
