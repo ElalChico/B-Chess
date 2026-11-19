@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Base64
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bchess.android.core.*
@@ -309,6 +310,10 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         val fen = savedGamePrefs.getString("fen", null) ?: return false
         return try {
             engine.parseFEN(fen)
+            // Aviso al usuario: su partida fue reanudada y continúa exactamente donde la dejó
+            viewModelScope.launch {
+                Toast.makeText(appContext, "¡Partida reanudada! Continúa donde la dejaste.", Toast.LENGTH_LONG).show()
+            }
             val moves = org.json.JSONArray(savedGamePrefs.getString("moves", "[]"))
             moveHistory = (0 until moves.length()).map { moves.getString(it) }.toMutableList()
             uciHistory = (0 until moves.length()).map { moves.getString(it) }.toMutableList()

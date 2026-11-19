@@ -10,9 +10,49 @@ class ChessEngine {
     @Volatile var snapshot: BoardSnapshot = startingPosition()
         private set
 
-    fun reset() { snapshot = startingPosition() }
+    // Contador de repeticiones de posición (clave = tablero sin medio movimiento)
+    private val repetitionCounts = HashMap<String, Int>()
 
-    fun loadSnapshot(s: BoardSnapshot) { snapshot = copy(s) }
+    fun reset() { snapshot = startingPosition(); repetitionCounts.clear(); repetitionCounts[repetitionKey(snapshot)] = 1 }
+
+    fun loadSnapshot(s: BoardSnapshot) {
+        snapshot = copy(s)
+        repetitionCounts.clear()
+        repetitionCounts[repetitionKey(snapshot)] = 1
+    }
+
+    /** Clave de posición para detectar repetición (sin medio movimiento). */
+    private fun repetitionKey(s: BoardSnapshot): String {
+        val sb = StringBuilder()
+        for (rank in 7 downTo 0) {
+            var empty = 0
+            for (file in 0..7) {
+                val p = s.board[rank * 8 + file]
+                if (p == null) empty++
+                else {
+                    if (empty > 0) { sb.append(empty); empty = 0 }
+                    sb.append(when (p.type) {
+                        PieceType.PAWN -> 'p'
+                        PieceType.KNIGHT -> 'n'
+                        PieceType.BISHOP -> 'b'
+                        PieceType.ROOK -> 'r'
+                        PieceType.QUEEN -> 'q'
+                        PieceType.KING -> 'k'
+                    })
+                    if (p.color == Color.WHITE) sb.append('A') else sb.append('a')
+                }
+            }
+            if (empty > 0) sb.append(empty)
+            if (rank != 0) sb.append('/')
+        }
+        sb.append(' ').append(if (s.sideToMove == Color.WHITE) 'w' else 'b')
+        sb.append(' ').append(if (s.castling.whiteKingside) 'K' else '-')
+        sb.append(if (s.castling.whiteQueenside) 'Q' else '-')
+        sb.append(if (s.castling.blackKingside) 'k' else '-')
+        sb.append(if (s.castling.blackQueenside) 'q' else '-')
+        sb.append(' ').append(s.enPassantSquare?.let { Move.squareToAlgebraic(it) } ?: "-")
+        return sb.toString()
+    }
 
     fun pieceAt(sq: Int): Piece? =
         if (sq !in 0..63) null else snapshot.board[sq]
@@ -29,11 +69,14 @@ class ChessEngine {
             b[6 * 8 + f] = Piece(PieceType.PAWN, Color.BLACK)
             b[7 * 8 + f] = Piece(back[f], Color.BLACK)
         }
-        return BoardSnapshot(b)
+        val s = BoardSnapshot(b)
+        repetitionCounts[repetitionKey(s)] = (repetitionCounts[repetitionKey(s)] ?: 0) + 1
+        return s
     }
 
     fun parseFEN(fen: String): Boolean {
         try {
+            repetitionCounts.clear()
             val parts = fen.trim().split("\\s+".toRegex())
             if (parts.size < 4) return false
             val rows = parts[0].split("/")
@@ -75,6 +118,8 @@ class ChessEngine {
             val half = parts.getOrNull(4)?.toIntOrNull() ?: 0
             val full = parts.getOrNull(5)?.toIntOrNull() ?: 1
             snapshot = BoardSnapshot(b, side, castling, ep, half, full)
+            repetitionCounts.clear()
+            repetitionCounts[repetitionKey(snapshot)] = 1
             return true
         } catch (_: Exception) {
             return false
@@ -383,6 +428,8 @@ class ChessEngine {
         // final safety: don't allow moving into check
         if (isInCheck(snapshot.sideToMove, next)) return false
         snapshot = next
+        val key = repetitionKey(snapshot)
+        repetitionCounts[key] = (repetitionCounts[key] ?: 0) + 1
         return true
     }
 
@@ -404,7 +451,10 @@ class ChessEngine {
             }
         }
         if (snapshot.halfmoveClock >= 100) return GameEnd(null, GameEndReason.DRAW_FIFTY, "Regla de los 50 movimientos. Empate")
+        if (snapshot.halfmoveClock >= 150) return GameEnd(null, GameEndReason.DRAW_FIFTY, "Regla de los 75 movimientos. Empate")
         if (isInsufficientMaterial()) return GameEnd(null, GameEndReason.DRAW_INSUFFICIENT, "Material insuficiente. Empate")
+        val rep = repetitionCounts[repetitionKey(snapshot)] ?: 0
+        if (rep >= 3) return GameEnd(null, GameEndReason.DRAW_REPETITION, "Repetición de posición. Empate")
         return null
     }
 
