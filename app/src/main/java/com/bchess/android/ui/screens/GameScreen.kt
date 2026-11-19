@@ -283,9 +283,10 @@ fun GameScreen(
                 horizontalArrangement = Arrangement.spacedBy(7.dp)
             ) {
                 ActionBtn(
-                    label = if (ui.paused) "Reanudar" else "Pausar",
+                    label = if (ui.pendingReconnect) "Esperando rival…" else if (ui.paused) "Reanudar" else "Pausar",
                     weak = true,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    enabled = !ui.pendingReconnect
                 ) { onTogglePause() }
 
                 if (!isFullscreen) {
@@ -415,6 +416,8 @@ fun GameScreen(
 
 private fun statusText(ui: UiGameState): String = when {
     ui.gameEnd != null -> ui.gameEnd.message
+    ui.pendingReconnect && ui.disconnectedSide == "remote" -> "Rival desconectado · reintentando conexión..."
+    ui.pendingReconnect && ui.disconnectedSide == "local" -> "Conexión perdida · reintentando..."
     ui.paused -> "En pausa por ${ui.pauseBy}"
     ui.inCheck -> if (ui.snapshot.sideToMove == ui.localColor) "¡Jaque! Protege a tu rey" else "¡Jaque! Ataca"
     ui.snapshot.sideToMove == ui.localColor -> "Tu turno · mueve una pieza"
@@ -746,7 +749,7 @@ private fun HudClock(ms: Long, active: Boolean, visible: Boolean) {
 }
 
 @Composable
-private fun ActionBtn(label: String, weak: Boolean, modifier: Modifier = Modifier, color: Color = if (weak) Text1 else Gold, onClick: () -> Unit) {
+private fun ActionBtn(label: String, weak: Boolean, modifier: Modifier = Modifier, color: Color = if (weak) Text1 else Gold, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
         modifier = modifier
             .height(46.dp)
@@ -756,14 +759,14 @@ private fun ActionBtn(label: String, weak: Boolean, modifier: Modifier = Modifie
                 RoundedCornerShape(12.dp)
             )
             .border(1.dp, if (weak) Line2 else Color(0xFF3A3120), RoundedCornerShape(12.dp))
-            .clickable { onClick() },
+            .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(
             label,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-            color = color,
+            color = if (enabled) color else Muted,
             maxLines = 1
         )
     }

@@ -47,6 +47,17 @@ class ClockManager(
     private var syncJob: Job? = null
     private var running = false
 
+    /** Restaura relojes y turno exactos (para reanudar una partida pausada). */
+    fun restore(whiteMs: Long, blackMs: Long, whiteToMove: Boolean) {
+        _state.value = ClockState(
+            whiteMs = whiteMs,
+            blackMs = blackMs,
+            sideToMove = if (whiteToMove) Color.WHITE else Color.BLACK,
+            paused = false,
+            finished = false
+        )
+    }
+
     fun configure(timeMs: Long, incrementMs: Long) {
         initialMs = timeMs
         this.incrementMs = incrementMs

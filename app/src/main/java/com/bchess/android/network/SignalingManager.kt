@@ -176,6 +176,6 @@ class SignalingManager(private val database: FirebaseDatabase?) {
         val CUSTOM_CODE_REGEX = Regex("^[A-Za-z0-9]{4,12}$")
 
         /** Sala sin actividad durante más de esto se considera huérfana y se libera. */
-        const val STALE_MS = 10 * 60 * 1000L
+        const val STALE_MS = 24 * 60 * 60 * 1000L // 24 horas
     }
 }

@@ -44,7 +44,11 @@ data class UiGameState(
     val isStartingGame: Boolean = false, // evita clicks múltiples en "Comenzar partida"
     val lastGameWasRandom: Boolean = false, // si la última partida fue en modo aleatorio
     val premoves: List<Pair<Int, Int>> = emptyList(), // cola de premueves
-    val premoveMode: Boolean = false // si está activado, los taps se encolan como premueves
+    val premoveMode: Boolean = false, // si está activado, los taps se encolan como premueves
+    val disconnectedSide: String? = null, // "local" (tú) | "remote" (rival) | null
+    val pendingReconnect: Boolean = false, // esperando reconexión para reanudar
+    val savedGameState: String? = null, // JSON del estado para reanudar
+    val resumable: Boolean = false // hay una partida pausada lista para reanudar
 )
 
 /**
@@ -82,6 +86,9 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     private var checkSignalEnabled: Boolean = true
     private var lastLocalColor: Color = Color.WHITE
 
+    // Slot para partida pausa/reanudable (persistencia local)
+    private val savedGamePrefs = appContext.getSharedPreferences("bchess_saved_game", Context.MODE_PRIVATE)
+
     // Estados de diálogo personalizados
     private val _showGameEndDialog = MutableStateFlow(false)
     val showGameEndDialog: StateFlow<Boolean> = _showGameEndDialog.asStateFlow()
@@ -113,6 +120,10 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         bluetooth.onConnected = {
             sound.play(SoundType.CLICK)
             _ui.value = _ui.value.copy(lastError = "¡${_ui.value.remoteName.ifBlank { "Rival" }} conectado!")
+            // Al reconectar, reanuda la partida guardada si la hay
+            if (_ui.value.resumable && resumeSavedGame()) {
+                _ui.value = _ui.value.copy(lastError = "¡Partida reanudada!")
+            }
             viewModelScope.launch { delay(3000); _ui.value = _ui.value.copy(lastError = null) }
         }
 
@@ -121,12 +132,17 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             override fun onConnected() {
                 sound.play(SoundType.CLICK)
                 _ui.value = _ui.value.copy(lastError = "¡Conectado por Internet!")
+                if (_ui.value.resumable && resumeSavedGame()) {
+                    _ui.value = _ui.value.copy(lastError = "¡Partida reanudada!")
+                }
                 viewModelScope.launch { delay(3000); _ui.value = _ui.value.copy(lastError = null) }
             }
 
             override fun onMessageLine(line: String) { /* el flujo incoming ya dispara handleIncoming */ }
 
-            override fun onDisconnected(reason: String) { /* el colector de state maneja la UI */ }
+            override fun onDisconnected(reason: String) {
+                pauseGameOnDisconnect(hostDisconnect = true)
+            }
 
             override fun onError(error: String) {
                 _ui.value = _ui.value.copy(lastError = error)
@@ -160,14 +176,16 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             override fun onConnected() {
                 sound.play(SoundType.CLICK)
                 _ui.value = _ui.value.copy(lastError = "¡Conectado por red local!")
+                if (_ui.value.resumable && resumeSavedGame()) {
+                    _ui.value = _ui.value.copy(lastError = "¡Partida reanudada!")
+                }
                 viewModelScope.launch { delay(3000); _ui.value = _ui.value.copy(lastError = null) }
             }
 
             override fun onMessageLine(line: String) { /* el flujo incoming ya dispara handleIncoming */ }
 
             override fun onDisconnected(reason: String) {
-                _ui.value = _ui.value.copy(lastError = "Se cortó la conexión con el PC")
-                viewModelScope.launch { delay(3000); _ui.value = _ui.value.copy(lastError = null) }
+                pauseGameOnDisconnect(hostDisconnect = true)
             }
 
             override fun onError(error: String) {
@@ -223,7 +241,12 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         }
         viewModelScope.launch {
             bluetooth.state.collect { st ->
+                val wasConnected = btConnected
                 btConnected = st == BtState.CONNECTED
+                // Si el rival se desconecta durante una partida, pausa y guarda
+                if (wasConnected && st == BtState.DISCONNECTED) {
+                    pauseGameOnDisconnect(hostDisconnect = true)
+                }
                 applyConnected()
             }
         }
@@ -242,10 +265,110 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         }
         viewModelScope.launch {
             internet.state.collect { st ->
+                val wasConnected = internetConnected
                 internetConnected = st == BtState.CONNECTED
+                if (wasConnected && st == BtState.DISCONNECTED) {
+                    pauseGameOnDisconnect(hostDisconnect = true)
+                }
                 applyConnected()
             }
         }
+    }
+
+    // ================= Persistencia local de partida (pausa/reconexión) =================
+
+    /** Guarda el estado de la partida en SharedPreferences para poder reanudarla. */
+    private fun saveGameStateLocally() {
+        if (!_ui.value.lobby.gameStarted || _ui.value.gameEnd != null) return
+        try {
+            val cs = clock.state.value
+            savedGamePrefs.edit()
+                .putString("fen", engine.toFEN())
+                .putString("moves", org.json.JSONArray(moveHistory).toString())
+                .putString("uci", org.json.JSONArray(uciHistory).toString())
+                .putString("clocks", org.json.JSONArray(moveClockHistory).toString())
+                .putLong("whiteMs", cs.whiteMs)
+                .putLong("blackMs", cs.blackMs)
+                .putBoolean("whiteToMove", cs.sideToMove == Color.WHITE)
+                .putString("localColor", if (_ui.value.localColor == Color.WHITE) "white" else "black")
+                .putString("localName", localName)
+                .putString("remoteName", remoteName)
+                .putString("lastLocalColor", if (lastLocalColor == Color.WHITE) "white" else "black")
+                .putBoolean("isHost", isHost)
+                .putLong("timeMs", _ui.value.lobby.timeMs)
+                .putLong("incrementMs", _ui.value.lobby.incrementMs)
+                .putBoolean("saved", true)
+                .apply()
+        } catch (e: Exception) {
+            Log_w("saveGameState", e)
+        }
+    }
+
+    /** Restaura la partida guardada localmente. Devuelve true si había algo que reanudar. */
+    fun resumeSavedGame(): Boolean {
+        val fen = savedGamePrefs.getString("fen", null) ?: return false
+        return try {
+            engine.parseFEN(fen)
+            val moves = org.json.JSONArray(savedGamePrefs.getString("moves", "[]"))
+            moveHistory = (0 until moves.length()).map { moves.getString(it) }.toMutableList()
+            uciHistory = (0 until moves.length()).map { moves.getString(it) }.toMutableList()
+            val lastColor = if (savedGamePrefs.getString("localColor", "white") == "white") Color.WHITE else Color.BLACK
+            this.isHost = savedGamePrefs.getBoolean("isHost", false)
+            lastLocalColor = lastColor
+            val whiteMs = savedGamePrefs.getLong("whiteMs", 300_000)
+            val blackMs = savedGamePrefs.getLong("blackMs", 300_000)
+            val whiteToMove = savedGamePrefs.getBoolean("whiteToMove", true)
+            clock.restore(whiteMs, blackMs, whiteToMove)
+            clock.isHost = this.isHost || networkMode == NetworkMode.TCP
+            _ui.value = _ui.value.copy(
+                snapshot = engine.snapshot,
+                localColor = lastColor,
+                remoteColor = lastColor.opposite(),
+                isLocalTurn = engine.sideToMove() == lastColor,
+                inCheck = engine.isInCheck(engine.sideToMove()),
+                lobby = _ui.value.lobby.copy(
+                    gameStarted = true,
+                    connected = true,
+                    isHost = this.isHost,
+                    timeMs = savedGamePrefs.getLong("timeMs", 300_000),
+                    incrementMs = savedGamePrefs.getLong("incrementMs", 0)
+                ),
+                pendingReconnect = false,
+                savedGameState = null,
+                resumable = false,
+                paused = false,
+                disconnectedSide = null
+            )
+            clock.start()
+            true
+        } catch (e: Exception) {
+            Log_w("resumeSavedGame", e)
+            false
+        }
+    }
+
+    /** Borra el estado local guardado. */
+    /** Al desconectarse durante una partida, pausa y guarda el estado local. */
+    private fun pauseGameOnDisconnect(hostDisconnect: Boolean = false) {
+        if (!_ui.value.lobby.gameStarted || _ui.value.gameEnd != null) {
+            _ui.value = _ui.value.copy(lastError = "Se perdió la conexión")
+            viewModelScope.launch { delay(3000); _ui.value = _ui.value.copy(lastError = null) }
+            return
+        }
+        saveGameStateLocally()
+        clock.stop()
+        cancelPremovesOnCheck()
+        _ui.value = _ui.value.copy(
+            paused = true,
+            disconnectedSide = "remote",
+            pendingReconnect = true,
+            resumable = true,
+            savedGameState = savedGamePrefs.getString("fen", null)
+        )
+    }
+
+    fun clearSavedGame() {
+        savedGamePrefs.edit().clear().apply()
     }
 
     private fun observeTcp() {
@@ -256,7 +379,11 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         }
         viewModelScope.launch {
             tcp.state.collect { st ->
+                val wasConnected = tcpConnected
                 tcpConnected = st == BtState.CONNECTED
+                if (wasConnected && st == BtState.DISCONNECTED) {
+                    pauseGameOnDisconnect(hostDisconnect = true)
+                }
                 applyConnected()
             }
         }
@@ -472,11 +599,14 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     /** Vuelve a la sala conservando la conexión Bluetooth. */
     fun backToRoom() {
         clock.stop()
+        clearSavedGame()
         _ui.value = _ui.value.copy(
             gameEnd = null, paused = false, promotionPending = null, countdown = null,
             inCheck = false, checkKing = null, selection = BoardSelection(null),
             lobby = _ui.value.lobby.copy(gameStarted = false),
-            premoves = emptyList()
+            premoves = emptyList(),
+            pendingReconnect = false, resumable = false, savedGameState = null,
+            disconnectedSide = null
         )
     }
 
@@ -776,6 +906,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         )
         // Sonido de colocación eliminado: solo captura, jaque (mate se suena aparte)
         if (inCheck) sound.play(SoundType.CHECK) else if (isCapture) sound.play(SoundType.CAPTURE)
+        saveGameStateLocally()
         netSend(MoveMessage(from, to, promotion?.name?.take(1) ?: "", san, uci, fenAfter, System.currentTimeMillis()))
         if (end != null) {
             _ui.value = _ui.value.copy(gameEnd = end, premoves = emptyList())
@@ -859,6 +990,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                         if (inCheck) sound.play(SoundType.CHECK)
                         // Si el rival te pone en jaque, cancela los premueves encolados
                         if (inCheck) cancelPremovesOnCheck()
+                        saveGameStateLocally()
                         if (end != null) {
                             _ui.value = _ui.value.copy(gameEnd = end, premoves = emptyList())
                             sound.play(SoundType.CHECKMATE)
@@ -956,6 +1088,9 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     }
 
     private fun saveGameRecord(end: GameEnd) {
+        // La partida terminó: ya no hay nada que reanudar
+        clearSavedGame()
+        _ui.value = _ui.value.copy(pendingReconnect = false, resumable = false, savedGameState = null)
         try {
             val localColor = _ui.value.localColor
             val result = when (end.winner) {
@@ -1003,6 +1138,8 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
 
     // ---------- Actions ----------
     fun togglePause() {
+        // Mientras se espera la reconexión del rival, la partida no puede reanudarse manualmente
+        if (_ui.value.pendingReconnect) return
         val newPaused = !_ui.value.paused
         clock.setPaused(newPaused)
         _ui.value = _ui.value.copy(paused = newPaused, pauseBy = localName)
