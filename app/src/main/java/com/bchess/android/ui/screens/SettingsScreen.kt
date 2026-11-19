@@ -626,7 +626,7 @@ private fun UpdateSection(
                     // Botones de acción
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            onClick = { onDownloadClick(); scope.launch { updateManager.downloadAndInstall(result.apkUrl!!) { p -> } } },
+                            onClick = { onDownloadClick(); scope.launch { updateManager.downloadAndInstall(apkUrl = result.apkUrl!!, onProgress = { }, expectedSize = result.apkSize) } },
                             modifier = Modifier.weight(1f).padding(bottom = 4.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F766E), contentColor = Color(0xFFF0FDFB)),
                             border = androidx.compose.foundation.BorderStroke(1.dp, UpdateAccent),

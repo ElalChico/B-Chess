@@ -50,6 +50,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -115,6 +117,15 @@ class MainActivity : ComponentActivity() {
         vm = ViewModelProvider(this, factory)[GameViewModel::class.java]
         vm.init()
         requestPermissionsIfNeeded()
+
+        // Al volver del instalador del sistema: si la versión no cambió (el usuario
+        // canceló o falló el análisis del paquete), se libera el candado de descarga
+        // y se restaura "Actualización disponible" para poder reintentar.
+        lifecycle.addObserver(LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                UpdateManager.getInstance(applicationContext).onAppResumedAfterInstall()
+            }
+        })
 
         setContent {
             MaterialTheme(
@@ -730,7 +741,7 @@ class MainActivity : ComponentActivity() {
                     dismissedUpdateCode = update.remoteVersion.versionCode
                     update.apkUrl?.let { apkUrl ->
                         updateScope.launch {
-                            val result = updateManager.downloadAndInstall(apkUrl)
+                            val result = updateManager.downloadAndInstall(apkUrl, expectedSize = update.apkSize)
                             if (result.isFailure) {
                                 withContext(Dispatchers.Main) {
                                     android.widget.Toast.makeText(

@@ -75,6 +75,16 @@ class UpdateManager private constructor(context: Context) {
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val updateState: StateFlow<UpdateState> = _updateState
 
+    /**
+     * true mientras hay una descarga/instalación en curso.
+     * Mientras sea true NUNCA se borra el APK: el instalador del sistema lo está
+     * leyendo (borrarlo provoca "se produjo un error durante el análisis del paquete").
+     */
+    @Volatile private var transferInProgress = false
+
+    /** Último resultado de comprobación, para volver a "Actualización disponible" al cancelar. */
+    @Volatile private var lastCheckResult: UpdateCheckResult? = null
+
     companion object {
         @Volatile private var INSTANCE: UpdateManager? = null
         fun getInstance(context: Context): UpdateManager = INSTANCE ?: synchronized(this) {
@@ -109,9 +119,16 @@ class UpdateManager private constructor(context: Context) {
      * Verifica si hay actualización disponible en GitHub
      */
     suspend fun checkForUpdate(quiet: Boolean = false): Result<UpdateCheckResult> {
-        // Limpia APKs de actualizaciones que quedaran de sesiones anteriores
-        cleanupStaleDownloads()
-        if (!quiet) _updateState.value = UpdateState.Checking
+        // Auto-sanación: si el bandeja no está en una transferencia real, libera el candado
+        // (evita quedar bloqueado si una descarga se interrumpió de forma inesperada).
+        val st = _updateState.value
+        if (st !is UpdateState.Downloading && st !is UpdateState.Downloaded && st !is UpdateState.Installing) {
+            transferInProgress = false
+            // Limpia APKs de actualizaciones que quedaran de sesiones anteriores
+            cleanupStaleDownloads()
+        }
+        // Nunca pisar el estado de una transferencia en curso con "Buscando…"
+        if (!quiet && !transferInProgress) _updateState.value = UpdateState.Checking
         return suspendCoroutine { cont ->
             val request = Request.Builder()
                 .url(apiUrl)
@@ -217,7 +234,13 @@ class UpdateManager private constructor(context: Context) {
                 apkSize = 0L,
                 isPrerelease = false
             )
-            _updateState.value = if (result.hasUpdate) UpdateState.UpdateAvailable(result) else UpdateState.UpToDate
+            lastCheckResult = if (result.hasUpdate) result else null
+            // No pisar el estado de una descarga/instalación en curso: si no, el temporizador
+            // silencioso de Ajustes (90 s) devolvería la UI a "Actualización disponible"
+            // mientras el instalador sigue trabajando.
+            if (!transferInProgress) {
+                _updateState.value = if (result.hasUpdate) UpdateState.UpdateAvailable(result) else UpdateState.UpToDate
+            }
             return Result.success(result)
         } catch (e: Exception) {
             Log.e("UpdateManager", "parseReleaseJson failed", e)
@@ -263,6 +286,10 @@ class UpdateManager private constructor(context: Context) {
      * ni desinstalar para limpiar.
      */
     fun cleanupStaleDownloads() {
+        // Jamás borrar mientras hay una descarga/instalación en curso: el instalador
+        // del sistema lee el APK vía FileProvider y si desaparece a mitad de lectura
+        // aparece "se produjo un error durante el análisis del paquete".
+        if (transferInProgress) return
         try {
             File(ctx.cacheDir, "updates").listFiles()?.forEach { runCatching { it.delete() } }
             ctx.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
@@ -283,11 +310,17 @@ class UpdateManager private constructor(context: Context) {
      */
     suspend fun downloadAndInstall(
         apkUrl: String,
-        onProgress: (Float) -> Unit = {}
+        onProgress: (Float) -> Unit = {},
+        expectedSize: Long = 0L
     ): Result<Unit> {
-        _updateState.value = UpdateState.Downloading(0f)
+        // Evita dos descargas simultáneas escribiendo el mismo archivo (APK corrupto).
+        if (transferInProgress) return Result.failure(IllegalStateException("Descarga ya en curso"))
 
+        // Limpia APKs viejos ANTES de marcar la transferencia como activa
         cleanupStaleDownloads()
+        transferInProgress = true
+
+        _updateState.value = UpdateState.Downloading(0f)
 
         val file = File(updateCacheDir(), "b-chess-update.apk")
         if (file.exists()) file.delete()
@@ -304,6 +337,8 @@ class UpdateManager private constructor(context: Context) {
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
                     Log.e("UpdateManager", "downloadAndInstall failed", e)
+                    transferInProgress = false
+                    file.delete()
                     _updateState.value = UpdateState.Error(e.message ?: "Error descargando")
                     cont.resume(Result.failure(e))
                 }
@@ -311,6 +346,7 @@ class UpdateManager private constructor(context: Context) {
                 override fun onResponse(call: Call, response: Response) {
                     try {
                         if (!response.isSuccessful) {
+                            transferInProgress = false
                             _updateState.value = UpdateState.Error("Descarga falló: HTTP ${response.code}")
                             response.close()
                             cont.resume(Result.failure(Exception("HTTP ${response.code}")))
@@ -339,17 +375,79 @@ class UpdateManager private constructor(context: Context) {
                         sink.close()
                         source.close()
                         response.close()
-                        
+
+                        // Verificación de integridad: un APK truncado/corrompido provoca
+                        // "se produjo un error durante el análisis del paquete" en el instalador.
+                        val valid = verifyApk(file, downloaded, total, expectedSize)
+                        if (valid != null) {
+                            transferInProgress = false
+                            file.delete()
+                            _updateState.value = UpdateState.Error(valid)
+                            cont.resume(Result.failure(Exception(valid)))
+                            return
+                        }
+
                         _updateState.value = UpdateState.Downloaded(file)
                         val installResult = installApk(file)
+                        if (installResult.isFailure) transferInProgress = false
                         cont.resume(installResult)
                     } catch (e: Exception) {
                         Log.e("UpdateManager", "downloadAndInstall failed", e)
+                        transferInProgress = false
+                        runCatching { file.delete() }
                         _updateState.value = UpdateState.Error(e.message ?: "Error descargando")
                         cont.resume(Result.failure(e))
                     }
                 }
             })
+        }
+    }
+
+    /**
+     * Devuelve null si el APK es válido o un mensaje de error si no lo es.
+     * Comprueba cabecera ZIP ("PK"), tamaño esperado y longitud descargada.
+     */
+    private fun verifyApk(file: File, downloaded: Long, contentLength: Long, expectedSize: Long): String? {
+        if (!file.exists() || file.length() == 0L) return "Descarga vacía: el archivo no se guardó"
+        if (downloaded <= 0L) return "Descarga vacía: no se recibió ningún dato"
+        if (contentLength > 0 && downloaded != contentLength) {
+            return "Descarga incompleta ($downloaded de $contentLength bytes)"
+        }
+        if (expectedSize > 0 && file.length() != expectedSize) {
+            return "Descarga incompleta (${file.length()} de $expectedSize bytes)"
+        }
+        try {
+            java.io.RandomAccessFile(file, "r").use { raf ->
+                val magic = ByteArray(2)
+                raf.read(magic)
+                if (magic[0] != 'P'.code.toByte() || magic[1] != 'K'.code.toByte()) {
+                    return "El archivo descargado no es un APK válido"
+                }
+            }
+        } catch (e: Exception) {
+            return "No se pudo leer el APK descargado"
+        }
+        return null
+    }
+
+    /**
+     * Llamado al volver a primer plano desde el instalador del sistema.
+     * Si la versión no cambió, el usuario canceló o falló la instalación:
+     * se libera el candado, se limpia el APK y se restaura "Actualización disponible"
+     * para poder reintentar (antes el estado quedaba clavado en "Instalando…").
+     */
+    fun onAppResumedAfterInstall() {
+        if (_updateState.value !is UpdateState.Installing) return
+        transferInProgress = false
+        val current = getCurrentVersion()
+        val pending = lastCheckResult
+        if (pending != null && pending.remoteVersion.versionCode > current.versionCode) {
+            _updateState.value = UpdateState.UpdateAvailable(pending)
+            cleanupStaleDownloads()
+        } else {
+            // Sin resultado previo en memoria: vuelve a comprobar para ofrecer el botón
+            _updateState.value = UpdateState.Idle
+            scope.launch { checkForUpdate() }
         }
     }
 
