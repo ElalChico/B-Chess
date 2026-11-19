@@ -98,7 +98,10 @@ internal fun pieceResource(context: Context, piece: Piece, pieceSet: PieceSet = 
         }
         val name = "ps_${resKey}_$suffix"
         identifierCache.getOrPut(name) {
-            context.resources.getIdentifier(name, "drawable", context.packageName)
+            val id = context.resources.getIdentifier(name, "drawable", context.packageName)
+            // Si el recurso no existe (puede ocurrir con piezas promocionadas en algunos sets de piezas),
+            // devolvemos el recurso de dama blanca por defecto para que siempre se muestre una pieza
+            return if (id == 0) context.resources.getIdentifier("ps_${resKey}_wq", "drawable", context.packageName) else id
         }
     }
 }
