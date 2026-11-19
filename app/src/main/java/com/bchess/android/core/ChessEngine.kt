@@ -7,11 +7,11 @@ package com.bchess.android.core
  */
 class ChessEngine {
 
-    @Volatile var snapshot: BoardSnapshot = startingPosition()
-        private set
-
     // Contador de repeticiones de posición (clave = tablero sin medio movimiento)
     private val repetitionCounts = HashMap<String, Int>()
+
+    @Volatile var snapshot: BoardSnapshot = startingPosition()
+        private set
 
     fun reset() { snapshot = startingPosition(); repetitionCounts.clear(); repetitionCounts[repetitionKey(snapshot)] = 1 }
 
