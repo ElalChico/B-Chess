@@ -119,6 +119,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
 
         // Connection notification callback (Bluetooth)
         bluetooth.onConnected = {
+            intentionalDisconnect = false
             sound.play(SoundType.CLICK)
             _ui.value = _ui.value.copy(lastError = "¡${_ui.value.remoteName.ifBlank { "Rival" }} conectado!")
             // Al reconectar, reanuda la partida guardada si la hay
@@ -131,6 +132,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         // Connection callback (Internet P2P)
         internet.setListener(object : ChessNetwork.Listener {
             override fun onConnected() {
+                intentionalDisconnect = false
                 sound.play(SoundType.CLICK)
                 _ui.value = _ui.value.copy(lastError = "¡Conectado por Internet!")
                 if (_ui.value.resumable && resumeSavedGame()) {
@@ -175,6 +177,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         // Connection callback (LAN / cross-play PC)
         tcp.setListener(object : ChessNetwork.Listener {
             override fun onConnected() {
+                intentionalDisconnect = false
                 sound.play(SoundType.CLICK)
                 _ui.value = _ui.value.copy(lastError = "¡Conectado por red local!")
                 if (_ui.value.resumable && resumeSavedGame()) {
@@ -353,8 +356,13 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     }
 
     /** Borra el estado local guardado. */
-    /** Al desconectarse durante una partida, pausa y guarda el estado local. */
+    /** Al desconectarse durante una partida, pausa y guarda el estado local (solo desconexión accidental). */
     private fun pauseGameOnDisconnect(hostDisconnect: Boolean = false) {
+        if (intentionalDisconnect) {
+            // Salir/manual: desconexión total, sin reanudar
+            resetForNewSession()
+            return
+        }
         if (!_ui.value.lobby.gameStarted || _ui.value.gameEnd != null) {
             _ui.value = _ui.value.copy(lastError = "Se perdió la conexión")
             viewModelScope.launch { delay(3000); _ui.value = _ui.value.copy(lastError = null) }
@@ -605,6 +613,7 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
     fun backToRoom() {
         clock.stop()
         clearSavedGame()
+        intentionalDisconnect = false
         _ui.value = _ui.value.copy(
             gameEnd = null, paused = false, promotionPending = null, countdown = null,
             inCheck = false, checkKing = null, selection = BoardSelection(null),
@@ -693,6 +702,8 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
 
     private fun startGameInternal(myColor: Color, timeMs: Long, incMs: Long) {
         // Reenvía el perfil al arrancar: garantiza que el rival reciba nombre y foto en la partida
+        intentionalDisconnect = false
+        clearSavedGame()
         if (networkMode != NetworkMode.TCP) { sendHello(); sendProfile() }
         lastLocalColor = myColor
         engine.reset()
@@ -1191,17 +1202,53 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
             history = emptyList(), isLocalTurn = _ui.value.localColor == Color.WHITE)
     }
 
+    private var intentionalDisconnect = false
+
     fun disconnect() {
+        intentionalDisconnect = true
         try { bluetooth.disconnect() } catch (_: Exception) {}
         try { internet.disconnect() } catch (_: Exception) {}
         try { tcp.disconnect() } catch (_: Exception) {}
         try { clock.stop() } catch (_: Exception) {}
+        clearSavedGame()
+        resetForNewSession()
+    }
+
+    private fun resetForNewSession() {
+        intentionalDisconnect = false
+        engine.reset()
+        _ui.value = _ui.value.copy(
+            snapshot = engine.snapshot,
+            localColor = Color.WHITE,
+            remoteColor = Color.BLACK,
+            isLocalTurn = true,
+            inCheck = false,
+            checkKing = null,
+            gameEnd = null,
+            paused = false,
+            pauseBy = "",
+            selection = BoardSelection(null),
+            countdown = null,
+            tournament = TournamentState(),
+            promotionPending = null,
+            premoves = emptyList(),
+            premoveMode = false,
+            pendingReconnect = false,
+            resumable = false,
+            savedGameState = null,
+            disconnectedSide = null,
+            lastError = null,
+            lobby = _ui.value.lobby.copy(gameStarted = false, connected = false)
+        )
     }
 
     fun onClearedCleanup() {
+        intentionalDisconnect = true
         try { bluetooth.release() } catch (_: Exception) {}
         try { internet.disconnect() } catch (_: Exception) {}
         try { tcp.disconnect() } catch (_: Exception) {}
+        try { clock.stop() } catch (_: Exception) {}
+        clearSavedGame()
         try { sound.release() } catch (_: Exception) {}
     }
 }
