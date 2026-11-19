@@ -143,7 +143,8 @@ fun SettingsScreen(
                     theme = prefs.boardTheme,
                     pieceSet = prefs.pieceSet,
                     showMoveIndicators = false,
-                    showCoordinates = false
+                    showCoordinates = false,
+                    interactionEnabled = false
                 )
                 Text(t("Vista previa", "Preview"), color = Muted, fontSize = 9.sp)
             }

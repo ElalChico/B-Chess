@@ -123,7 +123,8 @@ fun ChessBoard(
     theme: BoardTheme = BoardTheme.LICHESS,
     pieceSet: PieceSet = PieceSet.DEFAULT,
     showMoveIndicators: Boolean = true,
-    showCoordinates: Boolean = true
+    showCoordinates: Boolean = true,
+    interactionEnabled: Boolean = true
 ) {
     var dragSquare by remember { mutableStateOf<Int?>(null) }
     var dragPosition by remember { mutableStateOf<Offset?>(null) }
@@ -131,41 +132,45 @@ fun ChessBoard(
     Layout(
         modifier = modifier
             .background(theme.boardBackground)
-            .pointerInput(perspective, snapshot) {
-                detectDragGestures(
-                    onDragStart = { pos ->
-                        val cell = size.width / 8f
-                        val row = (pos.y / cell).toInt().coerceIn(0, 7)
-                        val col = (pos.x / cell).toInt().coerceIn(0, 7)
-                        val sq = displayToSquare(row, col, perspective)
-                        val piece = snapshot.board.getOrNull(sq)
-                        if (piece != null && piece.color == perspective) {
-                            dragSquare = sq
-                            dragPosition = pos
-                            onSquareTap(sq)
-                        }
-                    },
-                    onDrag = { change, _ ->
-                        dragPosition = change.position
-                    },
-                    onDragEnd = {
-                        val from = dragSquare
-                        val target = dragPosition
-                        if (from != null && target != null) {
-                            val row = (target.y / (size.width / 8f)).toInt().coerceIn(0, 7)
-                            val col = (target.x / (size.width / 8f)).toInt().coerceIn(0, 7)
-                            val to = displayToSquare(row, col, perspective)
-                            if (to != from) onSquareTap(to)
-                        }
-                        dragSquare = null
-                        dragPosition = null
-                    },
-                    onDragCancel = {
-                        dragSquare = null
-                        dragPosition = null
+            .then(
+                if (interactionEnabled) {
+                    Modifier.pointerInput(perspective, snapshot) {
+                        detectDragGestures(
+                            onDragStart = { pos ->
+                                val cell = size.width / 8f
+                                val row = (pos.y / cell).toInt().coerceIn(0, 7)
+                                val col = (pos.x / cell).toInt().coerceIn(0, 7)
+                                val sq = displayToSquare(row, col, perspective)
+                                val piece = snapshot.board.getOrNull(sq)
+                                if (piece != null && piece.color == perspective) {
+                                    dragSquare = sq
+                                    dragPosition = pos
+                                    onSquareTap(sq)
+                                }
+                            },
+                            onDrag = { change, _ ->
+                                dragPosition = change.position
+                            },
+                            onDragEnd = {
+                                val from = dragSquare
+                                val target = dragPosition
+                                if (from != null && target != null) {
+                                    val row = (target.y / (size.width / 8f)).toInt().coerceIn(0, 7)
+                                    val col = (target.x / (size.width / 8f)).toInt().coerceIn(0, 7)
+                                    val to = displayToSquare(row, col, perspective)
+                                    if (to != from) onSquareTap(to)
+                                }
+                                dragSquare = null
+                                dragPosition = null
+                            },
+                            onDragCancel = {
+                                dragSquare = null
+                                dragPosition = null
+                            }
+                        )
                     }
-                )
-            },
+                } else Modifier
+            ),
         content = {
             for (row in 0 until 8) {
                 for (col in 0 until 8) {
@@ -184,7 +189,7 @@ fun ChessBoard(
                         lastMoveSq = selection.lastMove?.let { it.first == sq || it.second == sq } == true,
                         checkKing = selection.checkKingSquare == sq,
                         errorSq = selection.errorSquare == sq,
-                        onSquareTap = onSquareTap,
+                        onSquareTap = if (interactionEnabled) onSquareTap else { _ -> },
                         dragOrigin = dragSquare == sq
                     )
                 }
