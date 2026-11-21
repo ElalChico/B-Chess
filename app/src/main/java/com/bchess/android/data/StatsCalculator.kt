@@ -183,10 +183,11 @@ object StatsCalculator {
             val w2 = if (sans.size > 2) sans[2].replace(Regex("[+#]"), "") else null
             val b2 = if (sans.size > 3) sans[3].replace(Regex("[+#]"), "") else null
 
-            root.getOrPut(w1) { mutableMapOf() }
-                .getOrPut(b1) { mutableMapOf() }
-                .getOrPut(w2 ?: "") { mutableMapOf() }
-                .put(b2 ?: "", (root[w1]!![b1]!![w2 ?: ""]!![b2 ?: ""] ?: 0) + 1)
+            val l1 = root.getOrPut(w1) { mutableMapOf() }
+            val l2 = l1.getOrPut(b1) { mutableMapOf() }
+            val l3 = l2.getOrPut(w2 ?: "") { mutableMapOf() }
+            val current = l3.getOrDefault(b2 ?: "", 0)
+            l3.put(b2 ?: "", current + 1)
         }
 
         if (root.isEmpty()) return StatsOpenings(emptyList(), 1)

@@ -370,20 +370,23 @@ fun LobbyScreen(
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
-                    Text(
-                        "Toca el engranaje para editar tu foto, nombre y descripción",
-                        color = Muted,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
                     if (profileBio.isNotBlank()) {
                         Text(
                             profileBio,
                             color = Color(0xFFB9C4D1),
-                            fontSize = 12.sp,
-                            maxLines = 2,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            maxLines = 3,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             modifier = Modifier.padding(top = 4.dp)
+                        )
+                    } else {
+                        Text(
+                            "Toca el engranaje para editar tu foto, nombre y descripción",
+                            color = Muted,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 2.dp)
                         )
                     }
                 }
