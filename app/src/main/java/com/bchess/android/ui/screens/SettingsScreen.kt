@@ -43,7 +43,7 @@ import com.bchess.android.core.Color as ChessColor
 import com.bchess.android.ui.components.BoardSelection
 import com.bchess.android.ui.components.BoardThemeGridSelector
 import com.bchess.android.ui.components.ChessBoard
-import com.bchess.android.ui.components.PieceSetPreviewLarge
+import com.bchess.android.ui.components.PieceSetDial
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -148,14 +148,14 @@ fun SettingsScreen(
                 )
                 Text(t("Vista previa", "Preview"), color = Muted, fontSize = 9.sp)
             }
-            // Conjunto de piezas - Vista previa GRANDE con navegación
-            PieceSetPreviewLarge(
+            // Conjunto de piezas
+            Text(t("Conjunto de piezas", "Piece set"), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+            PieceSetDial(
                 selected = prefs.pieceSet,
                 isEn = isEn,
-                onSelect = { set -> prefs.setPieceSet(set) },
-                prefs = prefs
+                onSelect = { set -> prefs.setPieceSet(set) }
             )
-            // Botones de cambiar tema, debajo del conjunto de piezas
+            // Tema
             Text(t("Tema", "Theme"), color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
             BoardThemeGridSelector(
                 selected = prefs.boardTheme,

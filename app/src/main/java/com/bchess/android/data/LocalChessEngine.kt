@@ -265,12 +265,20 @@ class LocalChessEngine {
         // 2) Profundidad objetivo: 1 (principiante) hasta 5 (muy difícil).
         val targetDepth = depthFor(normalized)
         // 3) Presupuesto de tiempo: los niveles altos piensan más, como un motor real.
-        val budgetMs = 300L + normalized * 27L
+        val budgetMs = if (normalized < 28) {
+            300L + normalized * 22L
+        } else {
+            900L + (normalized - 28) * 35L
+        }
         val deadline = System.currentTimeMillis() + budgetMs
 
-        // 4) Ruido de evaluación en la raíz: levels bajos eligen a veces una jugada
-        //    peor de lo evaluado (errores típicos de principiante).
-        val noise = ((100 - normalized) * 0.5f).roundToInt()
+        // 4) Ruido de evaluación en la raíz: niveles bajos cometen más errores;
+        //    desde 28% el juego se vuelve claramente más preciso.
+        val noise = if (normalized < 28) {
+            ((27 - normalized) * 1.4f + 20f).roundToInt()
+        } else {
+            ((100 - normalized) * 0.12f).roundToInt()
+        }
 
         var bestMove: Move = rootMoves.first()
         var completedDepth = 0
@@ -290,16 +298,22 @@ class LocalChessEngine {
 
     /** Probabilidad de jugada aleatoria según el nivel (0% = casi todo aleatorio). */
     private fun errorProbability(percent: Int): Float = when {
-        percent <= 15 -> 1.00f - percent * 0.0400f        // 1.00 → 0.40  (Principiante)
-        percent <= 30 -> 0.40f - (percent - 15) * 0.0067f  // 0.40 → 0.30  (Aficionado)
-        percent <= 45 -> 0.30f - (percent - 30) * 0.0080f  // 0.30 → 0.18  (Intermedio)
-        percent <= 60 -> 0.18f - (percent - 45) * 0.0087f  // 0.18 → 0.05  (Avanzado)
-        else -> (0.05f - (percent - 60) * 0.00125f).coerceAtLeast(0f) // → 0 (Experto/Muy difícil)
+        percent <= 15 -> 1.00f - percent * 0.0400f                 // 1.00 → 0.40  (Principiante)
+        percent <= 27 -> 0.40f - (percent - 15) * (0.20f / 12f)    // 0.40 → 0.20  (Aficionado)
+        percent <= 40 -> 0.20f - (percent - 28) * (0.18f / 12f)    // 0.20 → 0.02  (Intermedio, desde 28%)
+        percent <= 60 -> 0.02f - (percent - 40) * 0.001f           // 0.02 → 0.00  (Avanzado)
+        else -> 0f                                                 // Experto/Muy difícil
     }
 
-    /** Profundidad de búsqueda para un nivel dado (1..5). */
-    internal fun depthFor(percent: Int): Int =
-        1 + (percent.coerceIn(0, 100) * 4.0 / 100.0).roundToInt()
+    /** Profundidad de búsqueda para un nivel dado. */
+    internal fun depthFor(percent: Int): Int = when {
+        percent <= 15 -> 1
+        percent <= 27 -> 2
+        percent <= 40 -> 4
+        percent <= 60 -> 4
+        percent <= 80 -> 5
+        else -> 6
+    }
 
     private class SearchTimeout : RuntimeException()
 

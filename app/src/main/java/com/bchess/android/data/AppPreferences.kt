@@ -287,12 +287,12 @@ class AppPreferences(context: Context) {
 
 /**
  * Nombre del nivel según el porcentaje de fuerza del motor.
- * Principiante queda solo entre 0 y 15, como pidió el usuario.
+ * A partir de 28% el motor juega a un nivel claramente más avanzado.
  */
 fun strengthLevelName(percent: Int, isEn: Boolean = false): String = when {
     isEn -> when {
         percent <= 15 -> "Beginner"
-        percent <= 30 -> "Amateur"
+        percent <= 27 -> "Amateur"
         percent <= 50 -> "Intermediate"
         percent <= 70 -> "Advanced"
         percent <= 85 -> "Expert"
@@ -300,7 +300,7 @@ fun strengthLevelName(percent: Int, isEn: Boolean = false): String = when {
     }
     else -> when {
         percent <= 15 -> "Principiante"
-        percent <= 30 -> "Aficionado"
+        percent <= 27 -> "Aficionado"
         percent <= 50 -> "Intermedio"
         percent <= 70 -> "Avanzado"
         percent <= 85 -> "Experto"

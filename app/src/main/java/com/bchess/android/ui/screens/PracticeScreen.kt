@@ -556,27 +556,28 @@ fun PracticeScreen(
             modifier = Modifier.fillMaxSize().background(PracticeBg).padding(10.dp)
         ) {
             val landscape = maxWidth > maxHeight
+            val myColor = playerColor ?: ChessColor.WHITE
+            val oppColor = myColor.opposite()
+            val unlimited = timeControl.timeMs == 0L
+            val myTime = if (myColor == ChessColor.WHITE) clock.whiteMs else clock.blackMs
+            val oppTime = if (oppColor == ChessColor.WHITE) clock.whiteMs else clock.blackMs
+            val sideToMove = engine.sideToMove()
+
             if (landscape) {
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Column(
-                        Modifier.weight(0.44f).fillMaxHeight(),
+                        Modifier.weight(0.42f).fillMaxHeight(),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         PracticeHeader(
-                            onBack = onBack,
-                            onRestart = ::restartSame,
                             enabled = !thinking,
                             strengthPercent = strengthPercent,
                             timeLabel = timeControl.label,
                             onOpenSettings = { forceSetup = true },
-                            profilePhoto = prefs.profilePhotoBase64,
-                            playerColor = playerColor,
                             premoveMode = premoveMode,
                             onTogglePremoveMode = { premoveMode = !premoveMode },
                             premoveCount = premoves.size
                         )
-                        EngineStatusRow(installState = installState, installed = engineManager.isInstalled())
-                        PracticeClockBar(clock, timeControl, engine.sideToMove(), playerColor)
                         PracticeControlRow(
                             paused = paused,
                             gameOver = gameEnd != null,
@@ -593,24 +594,47 @@ fun PracticeScreen(
                         PracticeGameStatus(
                             gameEnd = gameEnd,
                             thinking = thinking,
-                            sideToMove = engine.sideToMove(),
+                            sideToMove = sideToMove,
                             playerColor = playerColor,
                             error = error,
                             paused = paused
                         )
                     }
-                    PracticeBoard(
-                        modifier = Modifier.weight(0.56f).fillMaxHeight(),
-                        snapshot = snapshot,
-                        selection = selection,
-                        onSquareTap = ::onSquareTap,
-                        onClearSelection = ::clearSelection,
-                        boardTheme = boardTheme,
-                        pieceSet = pieceSet,
-                        showCoordinates = showCoordinates,
-                        playerColor = playerColor,
-                        moveIndicators = moveIndicators
-                    )
+                    Column(
+                        Modifier.weight(0.58f).fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        PracticeClockCard(
+                            name = "Stockfish",
+                            side = oppColor,
+                            timeMs = oppTime,
+                            unlimited = unlimited,
+                            active = sideToMove == oppColor,
+                            isStockfish = true,
+                            photoBase64 = null
+                        )
+                        PracticeBoard(
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            snapshot = snapshot,
+                            selection = selection,
+                            onSquareTap = ::onSquareTap,
+                            onClearSelection = ::clearSelection,
+                            boardTheme = boardTheme,
+                            pieceSet = pieceSet,
+                            showCoordinates = showCoordinates,
+                            playerColor = playerColor,
+                            moveIndicators = moveIndicators
+                        )
+                        PracticeClockCard(
+                            name = playerName.ifBlank { "Tú" },
+                            side = myColor,
+                            timeMs = myTime,
+                            unlimited = unlimited,
+                            active = sideToMove == myColor,
+                            isStockfish = false,
+                            photoBase64 = prefs.profilePhotoBase64
+                        )
+                    }
                 }
             } else {
                 Column(
@@ -618,20 +642,23 @@ fun PracticeScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     PracticeHeader(
-                        onBack = onBack,
-                        onRestart = ::restartSame,
                         enabled = !thinking,
                         strengthPercent = strengthPercent,
                         timeLabel = timeControl.label,
                         onOpenSettings = { forceSetup = true },
-                        profilePhoto = prefs.profilePhotoBase64,
-                        playerColor = playerColor,
                         premoveMode = premoveMode,
                         onTogglePremoveMode = { premoveMode = !premoveMode },
                         premoveCount = premoves.size
                     )
-                    EngineStatusRow(installState = installState, installed = engineManager.isInstalled())
-                    PracticeClockBar(clock, timeControl, engine.sideToMove(), playerColor)
+                    PracticeClockCard(
+                        name = "Stockfish",
+                        side = oppColor,
+                        timeMs = oppTime,
+                        unlimited = unlimited,
+                        active = sideToMove == oppColor,
+                        isStockfish = true,
+                        photoBase64 = null
+                    )
                     PracticeBoard(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                         snapshot = snapshot,
@@ -643,6 +670,15 @@ fun PracticeScreen(
                         showCoordinates = showCoordinates,
                         playerColor = playerColor,
                         moveIndicators = moveIndicators
+                    )
+                    PracticeClockCard(
+                        name = playerName.ifBlank { "Tú" },
+                        side = myColor,
+                        timeMs = myTime,
+                        unlimited = unlimited,
+                        active = sideToMove == myColor,
+                        isStockfish = false,
+                        photoBase64 = prefs.profilePhotoBase64
                     )
                     PracticeControlRow(
                         paused = paused,
@@ -659,7 +695,7 @@ fun PracticeScreen(
                     PracticeGameStatus(
                         gameEnd = gameEnd,
                         thinking = thinking,
-                        sideToMove = engine.sideToMove(),
+                        sideToMove = sideToMove,
                         playerColor = playerColor,
                         error = error,
                         paused = paused
@@ -958,79 +994,27 @@ private fun PracticeColorOption(
 
 @Composable
 private fun PracticeHeader(
-    onBack: () -> Unit,
-    onRestart: () -> Unit,
     enabled: Boolean,
     strengthPercent: Int,
     timeLabel: String,
     onOpenSettings: () -> Unit,
-    profilePhoto: String,
-    playerColor: ChessColor?,
     premoveMode: Boolean,
     onTogglePremoveMode: () -> Unit,
     premoveCount: Int
 ) {
-    val avatar = remember(profilePhoto) {
-        try {
-            profilePhoto.substringAfter("base64,", profilePhoto).takeIf { it.isNotBlank() }?.let {
-                val bytes = android.util.Base64.decode(it, android.util.Base64.DEFAULT)
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
-
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        OutlinedButton(
-            onClick = onBack,
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-        ) {
-            Text("← Inicio", color = PracticeMuted, fontSize = 12.sp)
-        }
-        Column(Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    Modifier.size(32.dp).clip(CircleShape)
-                        .background(PracticeCard, CircleShape)
-                        .border(1.5.dp, PracticeGold.copy(alpha = 0.7f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (avatar != null) {
-                        Image(
-                            painter = BitmapPainter(avatar),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize().clip(CircleShape),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Text("T", color = PracticeGold, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-                Box(
-                    Modifier.size(28.dp).clip(RoundedCornerShape(8.dp))
-                        .background(PracticeGold.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(com.bchess.android.R.drawable.stockfish_fish),
-                        contentDescription = "Stockfish",
-                        modifier = Modifier.size(22.dp).clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-                Column {
-                    Text("Practicar", color = PracticeText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        "${strengthLevelName(strengthPercent)} · $strengthPercent% · ${if (playerColor == null) "Aleatorio" else if (playerColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS"} · $timeLabel",
-                        color = PracticeMuted, fontSize = 10.5.sp,
-                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
-                }
-            }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("Practicar", color = PracticeText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "${strengthLevelName(strengthPercent)} · $strengthPercent% · $timeLabel",
+                color = PracticeMuted,
+                fontSize = 10.5.sp,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
         }
         IconButton(onClick = onTogglePremoveMode, enabled = enabled, modifier = Modifier.size(40.dp)) {
             Icon(
@@ -1057,58 +1041,105 @@ private fun PracticeHeader(
                 modifier = Modifier.size(24.dp)
             )
         }
-        TextButton(onClick = onRestart, enabled = enabled, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
-            Text("Reiniciar", color = PracticeGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun PracticeClockCard(
+    name: String,
+    side: ChessColor,
+    timeMs: Long,
+    unlimited: Boolean,
+    active: Boolean,
+    isStockfish: Boolean,
+    photoBase64: String?,
+    modifier: Modifier = Modifier
+) {
+    val sideLabel = if (side == ChessColor.WHITE) "BLANCAS" else "NEGRAS"
+    val avatarBitmap = remember(photoBase64, isStockfish) {
+        if (isStockfish) null else try {
+            photoBase64?.substringAfter("base64,", photoBase64)?.takeIf { it.isNotBlank() }?.let {
+                val bytes = android.util.Base64.decode(it, android.util.Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            }
+        } catch (_: Exception) {
+            null
         }
     }
-}
 
-@Composable
-private fun PracticeClockBar(
-    clock: ClockState,
-    timeControl: TimeControlOption,
-    sideToMove: ChessColor,
-    playerColor: ChessColor?
-) {
-    val opponentColor = playerColor?.opposite() ?: sideToMove.opposite()
-    val (topColor, bottomColor) = if (opponentColor == ChessColor.WHITE) {
-        ChessColor.WHITE to ChessColor.BLACK
-    } else {
-        ChessColor.BLACK to ChessColor.WHITE
-    }
-    val topLabel = if (topColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS"
-    val bottomLabel = if (bottomColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS"
-    val topTime = if (topColor == ChessColor.WHITE) clock.whiteMs else clock.blackMs
-    val bottomTime = if (bottomColor == ChessColor.WHITE) clock.whiteMs else clock.blackMs
-    val topActive = sideToMove == topColor
-    val bottomActive = sideToMove == bottomColor
-
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        PracticeClockTile(
-            label = topLabel,
-            time = if (timeControl.timeMs == 0L) "Ilimitado" else formatClock(topTime),
-            active = topActive,
-            modifier = Modifier.weight(1f)
-        )
-        PracticeClockTile(
-            label = bottomLabel,
-            time = if (timeControl.timeMs == 0L) "Ilimitado" else formatClock(bottomTime),
-            active = bottomActive,
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-private fun PracticeClockTile(label: String, time: String, active: Boolean, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.background(PracticeCard, RoundedCornerShape(10.dp))
-            .border(1.dp, if (active) PracticeGold else PracticeLine, RoundedCornerShape(10.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(if (active) Color(0xFF1A1F28) else PracticeCard, RoundedCornerShape(12.dp))
+            .border(
+                1.5.dp,
+                if (active) PracticeGold else PracticeLine,
+                RoundedCornerShape(12.dp)
+            )
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(label, color = PracticeMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-        Text(time, color = if (active) PracticeGold else PracticeText, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(if (isStockfish) PracticeGold.copy(alpha = 0.12f) else Color(0xFF15251D))
+                .border(
+                    1.5.dp,
+                    if (isStockfish) PracticeGold.copy(alpha = 0.6f) else PracticeGreen.copy(alpha = 0.7f),
+                    CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isStockfish) {
+                Image(
+                    painter = painterResource(com.bchess.android.R.drawable.stockfish_fish),
+                    contentDescription = "Stockfish",
+                    modifier = Modifier.size(28.dp).clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else if (avatarBitmap != null) {
+                Image(
+                    painter = BitmapPainter(avatarBitmap),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text(
+                    text = (name.firstOrNull() ?: 'T').uppercaseChar().toString(),
+                    color = PracticeGreen,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
+        }
+
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                name,
+                color = if (active) PracticeGold else PracticeText,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            Text(
+                sideLabel,
+                color = PracticeMuted,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.4.sp
+            )
+        }
+
+        Text(
+            text = if (unlimited) "∞" else formatClock(timeMs),
+            color = if (active) PracticeGold else PracticeText,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.ExtraBold
+        )
     }
 }
 
@@ -1238,8 +1269,8 @@ private fun PracticeLevel(strengthPercent: Int, onStrengthChange: (Int) -> Unit,
 
 private fun strengthBandIndex(percent: Int): Int = when (percent) {
     in 0..15 -> 0
-    in 16..30 -> 1
-    in 31..50 -> 2
+    in 16..27 -> 1
+    in 28..50 -> 2
     in 51..70 -> 3
     in 71..85 -> 4
     else -> 5
@@ -1247,8 +1278,8 @@ private fun strengthBandIndex(percent: Int): Int = when (percent) {
 
 private val STRENGTH_BANDS = listOf(
     "Principiante" to 0..15,
-    "Aficionado" to 16..30,
-    "Intermedio" to 31..50,
+    "Aficionado" to 16..27,
+    "Intermedio" to 28..50,
     "Avanzado" to 51..70,
     "Experto" to 71..85,
     "Muy difícil" to 86..100
@@ -1349,6 +1380,15 @@ private fun PracticeGameStatus(
     paused: Boolean = false
 ) {
     val perspective = playerColor ?: ChessColor.WHITE
+    val message = when {
+        gameEnd != null -> gameEnd.message
+        paused -> "Partida en pausa"
+        thinking -> "Stockfish está pensando…"
+        sideToMove == perspective -> null
+        else -> "Turno de Stockfish"
+    }
+    if (message == null && error == null) return
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -1356,26 +1396,18 @@ private fun PracticeGameStatus(
         border = androidx.compose.foundation.BorderStroke(1.dp, PracticeLine)
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 7.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    when {
-                        gameEnd != null -> gameEnd.message
-                        paused -> "Partida en pausa"
-                        thinking -> "Stockfish está pensando…"
-                        sideToMove == perspective -> if (perspective == ChessColor.WHITE) {
-                            "Tu turno · juegas con blancas"
-                        } else {
-                            "Tu turno · juegas con negras"
-                        }
-                        else -> "Turno de Stockfish"
-                    },
-                    color = if (gameEnd != null) PracticeGold else PracticeText,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1
-                )
-                if (thinking) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = PracticeGold)
+            if (message != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        message,
+                        color = if (gameEnd != null) PracticeGold else PracticeText,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1
+                    )
+                    if (thinking) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = PracticeGold)
+                }
             }
             if (error != null) {
                 Text(error, color = PracticeRed, fontSize = 10.sp, maxLines = 2)
