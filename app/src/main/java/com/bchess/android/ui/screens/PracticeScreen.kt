@@ -561,6 +561,8 @@ fun PracticeScreen(
             val unlimited = timeControl.timeMs == 0L
             val myTime = if (myColor == ChessColor.WHITE) clock.whiteMs else clock.blackMs
             val oppTime = if (oppColor == ChessColor.WHITE) clock.whiteMs else clock.blackMs
+            val myIsLowTime = !unlimited && myTime > 0L && myTime < 10_000L
+            val oppIsLowTime = !unlimited && oppTime > 0L && oppTime < 10_000L
             val sideToMove = engine.sideToMove()
 
             if (landscape) {
@@ -610,6 +612,7 @@ fun PracticeScreen(
                             timeMs = oppTime,
                             unlimited = unlimited,
                             active = sideToMove == oppColor,
+                            isLowTime = oppIsLowTime,
                             isStockfish = true,
                             photoBase64 = null
                         )
@@ -631,6 +634,7 @@ fun PracticeScreen(
                             timeMs = myTime,
                             unlimited = unlimited,
                             active = sideToMove == myColor,
+                            isLowTime = myIsLowTime,
                             isStockfish = false,
                             photoBase64 = prefs.profilePhotoBase64
                         )
@@ -656,6 +660,7 @@ fun PracticeScreen(
                         timeMs = oppTime,
                         unlimited = unlimited,
                         active = sideToMove == oppColor,
+                        isLowTime = oppIsLowTime,
                         isStockfish = true,
                         photoBase64 = null
                     )
@@ -677,6 +682,7 @@ fun PracticeScreen(
                         timeMs = myTime,
                         unlimited = unlimited,
                         active = sideToMove == myColor,
+                        isLowTime = myIsLowTime,
                         isStockfish = false,
                         photoBase64 = prefs.profilePhotoBase64
                     )
@@ -1051,6 +1057,7 @@ private fun PracticeClockCard(
     timeMs: Long,
     unlimited: Boolean,
     active: Boolean,
+    isLowTime: Boolean,
     isStockfish: Boolean,
     photoBase64: String?,
     modifier: Modifier = Modifier
@@ -1067,13 +1074,35 @@ private fun PracticeClockCard(
         }
     }
 
+    val bgColor = when {
+        isLowTime -> Color(0xFF2A1A1A)
+        active -> Color(0xFF1A1F28)
+        else -> PracticeCard
+    }
+    val borderColor = when {
+        isLowTime -> PracticeRed
+        active -> PracticeGreen
+        else -> PracticeLine
+    }
+    val nameColor = when {
+        isLowTime -> PracticeRed
+        active -> PracticeGreen
+        else -> PracticeText
+    }
+    val timeColor = when {
+        isLowTime -> PracticeRed
+        active -> PracticeGreen
+        else -> PracticeText
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(if (active) Color(0xFF1A1F28) else PracticeCard, RoundedCornerShape(12.dp))
+            .heightIn(min = 56.dp)
+            .background(bgColor, RoundedCornerShape(12.dp))
             .border(
                 1.5.dp,
-                if (active) PracticeGold else PracticeLine,
+                borderColor,
                 RoundedCornerShape(12.dp)
             )
             .padding(horizontal = 10.dp, vertical = 7.dp),
@@ -1087,7 +1116,7 @@ private fun PracticeClockCard(
                 .background(if (isStockfish) PracticeGold.copy(alpha = 0.12f) else Color(0xFF15251D))
                 .border(
                     1.5.dp,
-                    if (isStockfish) PracticeGold.copy(alpha = 0.6f) else PracticeGreen.copy(alpha = 0.7f),
+                    if (isStockfish) PracticeGold.copy(alpha = 0.6f) else borderColor.copy(alpha = 0.7f),
                     CircleShape
                 ),
             contentAlignment = Alignment.Center
@@ -1109,7 +1138,7 @@ private fun PracticeClockCard(
             } else {
                 Text(
                     text = (name.firstOrNull() ?: 'T').uppercaseChar().toString(),
-                    color = PracticeGreen,
+                    color = nameColor,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
@@ -1119,7 +1148,7 @@ private fun PracticeClockCard(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 name,
-                color = if (active) PracticeGold else PracticeText,
+                color = nameColor,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -1136,7 +1165,7 @@ private fun PracticeClockCard(
 
         Text(
             text = if (unlimited) "∞" else formatClock(timeMs),
-            color = if (active) PracticeGold else PracticeText,
+            color = timeColor,
             fontSize = 20.sp,
             fontWeight = FontWeight.ExtraBold
         )
