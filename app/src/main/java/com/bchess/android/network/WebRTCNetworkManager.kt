@@ -47,8 +47,22 @@ class WebRTCNetworkManager(
 ) : ChessNetwork {
 
     companion object {
-        val STUN_GOOGLE =
-            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
+        val ICE_SERVERS = listOf(
+            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder("stun:stun1.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder("stun:stun2.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder("stun:stun3.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder("stun:stun.cloudflare.com:3478").createIceServer(),
+            // TURN gratuito (relay) para NAT simétrico / redes distintas
+            PeerConnection.IceServer.builder("turn:openrelay.metered.ca:80")
+                .setUsername("openrelayproject")
+                .setPassword("openrelayproject")
+                .createIceServer(),
+            PeerConnection.IceServer.builder("turn:openrelay.metered.ca:443")
+                .setUsername("openrelayproject")
+                .setPassword("openrelayproject")
+                .createIceServer()
+        )
     }
 
     private var listener: ChessNetwork.Listener? = null
@@ -90,8 +104,8 @@ class WebRTCNetworkManager(
 
     /**
      * @param customCode código elegido por el anfitrión (null/vacío = automático).
-     *   Firebase solo verifica en ese momento si el código está libre; no guarda
-     *   una lista persistente y el nodo se borra al terminar la conexión.
+     *   Firebase reserva el código atómicamente; si es del mismo host y está vencido, se reutiliza.
+     *   El código se conserva 12h y puede reutilizarse. Al conectar, solo se limpia la señalización.
      */
     fun createMatch(customCode: String?, onMatchIdGenerated: (String) -> Unit) {
         role = "host"
@@ -107,52 +121,77 @@ class WebRTCNetworkManager(
         _state.value = BtState.WAITING_HOST
         _lastError.value = null
 
-        signaling.resolveMatchId(customCode, onResult = { id ->
-            matchId = id
-            _matchId.value = id
-            onMatchIdGenerated(id)
-            signaling.touchMatch(id)
-            openPeerConnection(signaling)
+        val hostName = hostName ?: "Jugador"
+        val hostId = signaling.generateHostId(hostName)
 
-            // Host crea el DataChannel y la oferta SDP
-            val dcInit = DataChannel.Init().apply {
-                ordered = true // los movimientos llegan en orden, incluso con micro-cortes
+        val custom = customCode?.trim().orEmpty()
+        if (custom.isEmpty()) {
+            // Código automático: push key (siempre único, no necesita transacción)
+            val key = signaling.createMatchId()
+            matchId = key
+            _matchId.value = key
+            onMatchIdGenerated(key)
+            // Guardar hostId, createdAt y estado
+            signaling.touchMatch(key)
+            signaling.setHostIdAndWaiting(key, hostId)
+            proceedWithConnection(signaling)
+        } else {
+            val normalized = custom.uppercase()
+            if (!SignalingManager.CUSTOM_CODE_REGEX.matches(normalized)) {
+                fail("Código no válido: usa de 4 a 12 letras o números")
+                return
             }
-            val local = peerConnection?.createDataChannel("chess-data", dcInit)
-            setupDataChannel(local)
+            // Reserva atómica con transacción
+            signaling.reserveCustomCode(normalized, hostId, onResult = { id ->
+                matchId = id
+                _matchId.value = id
+                onMatchIdGenerated(id)
+                proceedWithConnection(signaling)
+            }, onError = { message ->
+                fail(message)
+            })
+        }
+    }
 
-            peerConnection?.createOffer(object : SdpObserver {
-                override fun onCreateSuccess(sessionDescription: SessionDescription?) {
-                    val sdp = sessionDescription?.description ?: return
-                    peerConnection?.setLocalDescription(object : SdpObserver {
-                        override fun onCreateSuccess(p0: SessionDescription?) {}
-                        override fun onSetSuccess() { signaling.saveOffer(matchId, sdp, {}) }
-                        override fun onCreateFailure(p0: String?) {}
-                        override fun onSetFailure(p0: String?) {}
-                    }, sessionDescription)
-                }
-                override fun onSetSuccess() {}
-                override fun onCreateFailure(p0: String?) = fail("No se pudo crear la oferta")
-                override fun onSetFailure(p0: String?) {}
-            }, MediaConstraints())
+    private fun proceedWithConnection(signaling: SignalingManager) {
+        openPeerConnection(signaling)
 
-            // Host espera la respuesta del invitado
-            signaling.listenForAnswer(matchId) { answerSdp ->
-                peerConnection?.setRemoteDescription(object : SdpObserver {
+        // Host crea el DataChannel y la oferta SDP
+        val dcInit = DataChannel.Init().apply {
+            ordered = true // los movimientos llegan en orden, incluso con micro-cortes
+        }
+        val local = peerConnection?.createDataChannel("chess-data", dcInit)
+        setupDataChannel(local)
+
+        peerConnection?.createOffer(object : SdpObserver {
+            override fun onCreateSuccess(sessionDescription: SessionDescription?) {
+                val sdp = sessionDescription?.description ?: return
+                peerConnection?.setLocalDescription(object : SdpObserver {
                     override fun onCreateSuccess(p0: SessionDescription?) {}
-                    override fun onSetSuccess() {}
+                    override fun onSetSuccess() { signaling.saveOffer(matchId, sdp, {}) }
                     override fun onCreateFailure(p0: String?) {}
                     override fun onSetFailure(p0: String?) {}
-                }, SessionDescription(SessionDescription.Type.ANSWER, answerSdp))
+                }, sessionDescription)
             }
-            signaling.listenForIceCandidates(matchId, "guest") { candidateJson ->
-                addRemoteIceCandidate(candidateJson)
-            }
+            override fun onSetSuccess() {}
+            override fun onCreateFailure(p0: String?) = fail("No se pudo crear la oferta")
+            override fun onSetFailure(p0: String?) {}
+        }, MediaConstraints())
 
-            startWatchdog() // sin conexión en 90 s -> error legible
-        }, onError = { message ->
-            fail(message)
-        })
+        // Host espera la respuesta del invitado
+        signaling.listenForAnswer(matchId) { answerSdp ->
+            peerConnection?.setRemoteDescription(object : SdpObserver {
+                override fun onCreateSuccess(p0: SessionDescription?) {}
+                override fun onSetSuccess() {}
+                override fun onCreateFailure(p0: String?) {}
+                override fun onSetFailure(p0: String?) {}
+            }, SessionDescription(SessionDescription.Type.ANSWER, answerSdp))
+        }
+        signaling.listenForIceCandidates(matchId, "guest") { candidateJson ->
+            addRemoteIceCandidate(candidateJson)
+        }
+
+        startWatchdog() // timeout extendido: 10 min para host, 3 min para guest
     }
 
     override fun joinMatch(matchId: String) {
@@ -174,6 +213,12 @@ class WebRTCNetworkManager(
 
         _state.value = BtState.CONNECTING
         _lastError.value = null
+        
+        // Generar guestId para identificar a este invitado
+        val guestName = hostName ?: "Jugador"
+        val guestId = signaling.generateHostId(guestName + System.currentTimeMillis())
+        signaling.setGuestId(this.matchId, guestId)
+
         openPeerConnection(signaling)
 
         val currentId = this.matchId
@@ -236,12 +281,15 @@ class WebRTCNetworkManager(
         watchdog?.cancel()
         disconnectPeer()
         val id = matchId
+        val currentRole = role
         matchId = ""
         _matchId.value = null
+        // Evitar que el invitado elimine la sala del anfitrión.
+        // El anfitrión conserva el código (solo limpia señalización si aplica).
         try {
             FirebaseBootstrap.get().let { bootstrap ->
-                if (bootstrap is FirebaseInit.Ok && id.isNotBlank()) {
-                    SignalingManager(bootstrap.database).cleanupMatch(id)
+                if (bootstrap is FirebaseInit.Ok && id.isNotBlank() && currentRole == "host") {
+                    SignalingManager(bootstrap.database).cleanupSignalingOnly(id)
                 }
             }
         } catch (_: Exception) {}
@@ -249,10 +297,44 @@ class WebRTCNetworkManager(
         listener?.onDisconnected("Desconectado")
     }
 
+    /** El anfitrión cancela la espera: detiene el watchdog y la conexión, pero NO borra la sala de Firebase.
+     *  Marca la sala como "cancelled" en Firebase para que el invitado no pueda unirse,
+     *  pero conserva el código para reutilización por el mismo anfitrión durante 12h. */
+    fun cancelCreate() {
+        watchdog?.cancel()
+        disconnectPeer()
+        // Marcar como cancelada en Firebase (transacción atómica solo si somos el host)
+        val id = matchId
+        if (id.isNotBlank()) {
+            try {
+                FirebaseBootstrap.get().let { bootstrap ->
+                    if (bootstrap is FirebaseInit.Ok) {
+                        val hostId = SignalingManager(bootstrap.database).generateHostId(hostName)
+                        SignalingManager(bootstrap.database).cancelMatch(id, hostId)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        matchId = ""
+        _matchId.value = null
+        _state.value = BtState.IDLE
+        listener?.onDisconnected("Sala cancelada")
+    }
+
+    /** El invitado cancela su intento de unión: detiene todo pero NO toca la sala del anfitrión. */
+    fun cancelJoin() {
+        watchdog?.cancel()
+        disconnectPeer()
+        matchId = ""
+        _matchId.value = null
+        _state.value = BtState.IDLE
+        listener?.onDisconnected("Conexión cancelada")
+    }
+
     @Synchronized
     private fun openPeerConnection(signaling: SignalingManager) {
         ensureFactory()
-        val rtcConfig = PeerConnection.RTCConfiguration(listOf(STUN_GOOGLE))
+        val rtcConfig = PeerConnection.RTCConfiguration(ICE_SERVERS)
         val observer = object : PeerConnection.Observer {
             override fun onIceCandidate(iceCandidate: IceCandidate?) {
                 iceCandidate ?: return
@@ -270,6 +352,14 @@ class WebRTCNetworkManager(
                         watchdog?.cancel()
                         _state.value = BtState.CONNECTED
                         _lastError.value = null
+                        // Conexión establecida: limpiar solo señalización, conservar código para reutilización
+                        try {
+                            FirebaseBootstrap.get().let { bootstrap ->
+                                if (bootstrap is FirebaseInit.Ok && matchId.isNotBlank()) {
+                                    SignalingManager(bootstrap.database).cleanupSignalingOnly(matchId)
+                                }
+                            }
+                        } catch (_: Exception) {}
                         listener?.onConnected()
                     }
                     PeerConnection.PeerConnectionState.DISCONNECTED,
@@ -393,9 +483,13 @@ class WebRTCNetworkManager(
     private fun startWatchdog() {
         watchdog?.cancel()
         watchdog = scope.launch {
-            delay(90_000)
+            // Vigencia de 12 horas (STALE_MS) desde la creación/reapertura de la sala.
+            // Solo "Cancelar" explícito o expiración de 12h detiene la espera.
+            // No hay watchdog automático de 10/3 min: la sala persiste en background/foreground.
+            delay(SignalingManager.STALE_MS)
             if (_state.value != BtState.CONNECTED) {
-                fail("No se pudo conectar en 90 s. Revisa tu red o el código de partida.")
+                val msg = "La sala ha expirado tras 12 horas de inactividad."
+                fail(msg)
             }
         }
     }

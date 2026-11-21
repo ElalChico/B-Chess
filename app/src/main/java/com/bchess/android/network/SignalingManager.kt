@@ -106,6 +106,25 @@ class SignalingManager(private val database: FirebaseDatabase?) {
         }
     }
 
+    /** Establece el hostId y estado "waiting" en la sala. */
+    fun setHostIdAndWaiting(matchId: String, hostId: String) {
+        try {
+            matchesRef?.child(matchId)?.child("hostId")?.setValue(hostId)
+            matchesRef?.child(matchId)?.child("status")?.setValue("waiting")
+        } catch (e: Exception) {
+            Log.w(TAG, "setHostIdAndWaiting failed", e)
+        }
+    }
+
+    /** Establece el guestId en la sala. */
+    fun setGuestId(matchId: String, guestId: String) {
+        try {
+            matchesRef?.child(matchId)?.child("guestId")?.setValue(guestId)
+        } catch (e: Exception) {
+            Log.w(TAG, "setGuestId failed", e)
+        }
+    }
+
     /** Normaliza el código que pega el invitado (los códigos propios van en mayúsculas). */
     fun normalizeJoinCode(raw: String): String {
         val code = raw.trim()
@@ -120,6 +139,91 @@ class SignalingManager(private val database: FirebaseDatabase?) {
         } catch (e: Exception) {
             Log.w(TAG, "cleanupMatch failed", e)
         }
+    }
+
+    /** Limpia solo los nodos de señalización (offer, answer, iceCandidates) tras conectar.
+     *  Conserva createdAt, hostId y guestId para vigencia y reutilización. */
+    fun cleanupSignalingOnly(matchId: String) {
+        try {
+            matchesRef?.child(matchId)?.child("offer")?.removeValue()
+            matchesRef?.child(matchId)?.child("answer")?.removeValue()
+            matchesRef?.child(matchId)?.child("iceCandidates")?.removeValue()
+        } catch (e: Exception) {
+            Log.w(TAG, "cleanupSignalingOnly failed", e)
+        }
+    }
+
+    /** Marca la sala como cancelada por el anfitrión: pone estado "cancelled" y limpia señalización.
+     *  El código queda reservado para el mismo anfitrión durante STALE_MS. */
+    fun cancelMatch(matchId: String, hostId: String) {
+        try {
+            matchesRef?.child(matchId)?.runTransaction(object : com.google.firebase.database.Transaction.Handler {
+                override fun doTransaction(mutableData: com.google.firebase.database.MutableData): com.google.firebase.database.Transaction.Result {
+                    if (mutableData.value == null) return com.google.firebase.database.Transaction.success(mutableData)
+                    val currentHostId = mutableData.child("hostId").value as? String
+                    if (currentHostId != hostId) return com.google.firebase.database.Transaction.abort()
+                    mutableData.child("status").value = "cancelled"
+                    mutableData.child("offer").value = null
+                    mutableData.child("answer").value = null
+                    mutableData.child("iceCandidates").value = null
+                    return com.google.firebase.database.Transaction.success(mutableData)
+                }
+                override fun onComplete(databaseError: DatabaseError?, committed: Boolean, currentData: DataSnapshot?) {}
+            })
+        } catch (e: Exception) {
+            Log.w(TAG, "cancelMatch failed", e)
+        }
+    }
+
+    /** Genera un hostId determinista a partir del nombre del jugador. */
+    fun generateHostId(name: String): String {
+        var hash = 0
+        for (i in 0 until name.length) {
+            hash = ((hash shl 5) - hash) + name[i].toInt()
+        }
+        return Math.abs(hash).toString(36)
+    }
+
+    /** Reserva atómica de un código personalizado usando transacción Firebase.
+     *  Permite reutilizar si: no existe, está vencida, o pertenece al mismo hostId. */
+    fun reserveCustomCode(
+        code: String,
+        hostId: String,
+        onResult: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val ref = matchesRef?.child(code)
+        if (ref == null) { onError(MISSING_ERROR); return }
+        ref.runTransaction(object : com.google.firebase.database.Transaction.Handler {
+            override fun doTransaction(mutableData: com.google.firebase.database.MutableData): com.google.firebase.database.Transaction.Result {
+                if (mutableData.value == null) {
+                    // Sala libre: la reservamos
+                    mutableData.child("createdAt").value = ServerValue.TIMESTAMP
+                    mutableData.child("hostId").value = hostId
+                    mutableData.child("status").value = "waiting"
+                    return com.google.firebase.database.Transaction.success(mutableData)
+                }
+                val existingHostId = mutableData.child("hostId").value as? String
+                val createdAt = mutableData.child("createdAt").value as? Long
+                val stale = createdAt == null || System.currentTimeMillis() - createdAt > STALE_MS
+                if (stale || existingHostId == hostId) {
+                    // Vencida o mismo host: la reutilizamos
+                    mutableData.child("createdAt").value = ServerValue.TIMESTAMP
+                    mutableData.child("hostId").value = hostId
+                    mutableData.child("status").value = "waiting"
+                    mutableData.child("offer").value = null
+                    mutableData.child("answer").value = null
+                    mutableData.child("iceCandidates").value = null
+                    mutableData.child("guestId").value = null
+                    return com.google.firebase.database.Transaction.success(mutableData)
+                }
+                // Ocupada por otro host
+                return com.google.firebase.database.Transaction.abort()
+            }
+            override fun onComplete(databaseError: DatabaseError?, committed: Boolean, currentData: DataSnapshot?) {
+                if (committed) onResult(code) else onError("El código $code ya está en uso por otro host. Elige otro.")
+            }
+        })
     }
 
     fun saveOffer(matchId: String, sdp: String, onComplete: () -> Unit) {
@@ -176,6 +280,6 @@ class SignalingManager(private val database: FirebaseDatabase?) {
         val CUSTOM_CODE_REGEX = Regex("^[A-Za-z0-9]{4,12}$")
 
         /** Sala sin actividad durante más de esto se considera huérfana y se libera. */
-        const val STALE_MS = 24 * 60 * 60 * 1000L // 24 horas
+        const val STALE_MS = 12 * 60 * 60 * 1000L // 12 horas
     }
 }

@@ -15,6 +15,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
@@ -30,8 +33,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+
+import android.graphics.Color as AndroidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -47,6 +54,19 @@ import com.bchess.android.data.GameRecord
 import com.bchess.android.data.GameHistoryStore
 import com.bchess.android.data.LobbyState
 import com.bchess.android.data.PgnArchive
+import com.bchess.android.data.StatsCalculator
+import com.bchess.android.data.ProfileStats
+import com.bchess.android.data.StatsSummary
+import com.bchess.android.data.StatsFlow
+import com.bchess.android.data.StatsOpenings
+import com.bchess.android.data.StatsProgress
+import com.bchess.android.data.StatsColorForm
+import com.bchess.android.data.FlowNode
+import com.bchess.android.data.FlowLink
+import com.bchess.android.data.OpeningNode
+import com.bchess.android.data.ProgressPoint
+import com.bchess.android.data.ColorFormSeries
+import com.bchess.android.data.StatsColors
 import com.bchess.android.ui.components.PhotoCropDialog
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -110,6 +130,9 @@ private fun encodeProfilePhoto(cropped: Bitmap): String {
     if (!scaled.compress(Bitmap.CompressFormat.JPEG, 60, output) || output.size() > 42_000) return ""
     return Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
 }
+
+// Enum para las pestañas del perfil (fuera del @Composable)
+enum class ProfileTab { HISTORY, TOURNAMENTS, ANALYSIS }
 
 @Composable
 fun LobbyScreen(
@@ -502,25 +525,45 @@ fun LobbyScreen(
             }
         }
         if (!profileSetupRequired) {
-            // Pestañas: historial clásico y torneo (aparte, como pidió el usuario)
-            var tournamentTab by remember { mutableStateOf(false) }
+            // Pestañas: Historial, Torneos, Análisis
+            var currentTab by remember { mutableStateOf(ProfileTab.HISTORY) }
             val tournamentCount = history.count { it.gameType == "tournament" }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 HistoryTab(
                     label = "Historial",
-                    selected = !tournamentTab,
+                    selected = currentTab == ProfileTab.HISTORY,
                     modifier = Modifier.weight(1f)
-                ) { tournamentTab = false }
+                ) { currentTab = ProfileTab.HISTORY }
                 HistoryTab(
                     label = "Torneos${if (tournamentCount > 0) " ($tournamentCount)" else ""}",
-                    selected = tournamentTab,
+                    selected = currentTab == ProfileTab.TOURNAMENTS,
                     modifier = Modifier.weight(1f),
                     accent = true
-                ) { tournamentTab = true }
+                ) { currentTab = ProfileTab.TOURNAMENTS }
+                HistoryTab(
+                    label = "Análisis",
+                    selected = currentTab == ProfileTab.ANALYSIS,
+                    modifier = Modifier.weight(1f)
+                ) { currentTab = ProfileTab.ANALYSIS }
             }
-            val visibleHistory = history.filter { if (tournamentTab) it.gameType == "tournament" else true }
-            // Estadísticas + mini gráfico del conjunto visible
-            StatsHud(visibleHistory, tournamentTab)
+
+            // Contenido según pestaña
+            val visibleHistory = when (currentTab) {
+                ProfileTab.HISTORY -> history.filter { it.gameType != "tournament" }
+                ProfileTab.TOURNAMENTS -> history.filter { it.gameType == "tournament" }
+                ProfileTab.ANALYSIS -> history // para el análisis usamos todo el historial
+            }
+            val isTournamentTab = currentTab == ProfileTab.TOURNAMENTS
+
+            when (currentTab) {
+                ProfileTab.HISTORY, ProfileTab.TOURNAMENTS -> {
+                    StatsHud(visibleHistory, isTournamentTab)
+                }
+                ProfileTab.ANALYSIS -> {
+                    // Análisis completo con StatsCalculator (replica Desktop)
+                    StatsAnalysisPanel(history)
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = { importPgn.launch(arrayOf("application/x-chess-pgn", "text/plain", "application/octet-stream")) },
@@ -533,7 +576,7 @@ fun LobbyScreen(
                     Text("Cargar PGN", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
                 OutlinedButton(
-                    onClick = { exportPgn.launch(if (tournamentTab) "b-chess-torneos.pgn" else "chess-x-partidas.pgn") },
+                    onClick = { exportPgn.launch(if (isTournamentTab) "b-chess-torneos.pgn" else "chess-x-partidas.pgn") },
                     modifier = Modifier.weight(1f),
                     enabled = visibleHistory.isNotEmpty(),
                     shape = RoundedCornerShape(10.dp),
@@ -548,7 +591,7 @@ fun LobbyScreen(
             pgnMessage?.let { Text(it, color = if (it.startsWith("Error:")) Color(0xFFFF9B9B) else Green, fontSize = 11.sp) }
             if (visibleHistory.isEmpty()) {
                 Text(
-                    if (tournamentTab) "Sin partidas de torneo guardadas. En un torneo por Bluetooth o Internet aparecerán aquí."
+                    if (isTournamentTab) "Sin partidas de torneo guardadas. En un torneo por Bluetooth o Internet aparecerán aquí."
                     else "Sin partidas guardadas. Al terminar una por Bluetooth, Internet o contra Stockfish aparecerá aquí.",
                     color = Muted,
                     fontSize = 12.sp
@@ -703,6 +746,356 @@ private fun StatsHud(records: List<GameRecord>, tournamentTab: Boolean) {
     }
 }
 
+@Composable
+private fun StatsAnalysisPanel(records: List<GameRecord>) {
+    if (records.isEmpty()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Sin datos para analizar", color = Text1, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Juega partidas para ver estadísticas detalladas.", color = Muted, fontSize = 13.sp)
+        }
+        return
+    }
+
+    // Calcular estadísticas completas (puede ser costoso, usar remember)
+    val stats by remember(records) {
+        mutableStateOf(StatsCalculator.computeAll(records))
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // 1. RESUMEN GENERAL (Donut + Chips)
+        StatsChartCard(
+            title = "Resumen general",
+            subtitle = "Ganadas / Empatadas / Perdidas + Blancas / Negras / vs IA / En línea"
+        ) {
+            StatsSummaryView(stats.summary)
+        }
+
+        // 2. FLUJO (Sankey): Color -> Resultado -> Motivo
+        StatsChartCard(
+            title = "Flujo de partidas",
+            subtitle = "Tu color → Tu resultado → Cómo terminó (Mate, Tiempo, Abandono...)"
+        ) {
+            StatsFlowView(stats.flow)
+        }
+
+        // 3. APERTURAS (Tree): w1 -> b1 -> w2 -> b2
+        StatsChartCard(
+            title = "Aperturas más usadas",
+            subtitle = "Primera y segunda jugada. Color = frecuencia (azul=poco, rojo=mucho)"
+        ) {
+            StatsOpeningsView(stats.openings)
+        }
+
+        // 4. PROGRESO: % victorias acumulado
+        StatsChartCard(
+            title = "Progreso de resultados",
+            subtitle = "% victorias acumulado (P1, P2, P3...). Total / vs IA / En línea"
+        ) {
+            StatsProgressView(stats.progress)
+        }
+
+        // 5. RESULTADOS POR COLOR: 6 series acumuladas
+        StatsChartCard(
+            title = "Resultados por color",
+            subtitle = "Acumulado de Ganadas/Empatadas/Perdidas con Blancas (sólido) y Negras (discontinuo)"
+        ) {
+            StatsColorFormView(stats.colorForm)
+        }
+    }
+}
+
+@Composable
+private fun StatsChartCard(
+    title: String,
+    subtitle: String,
+    content: @Composable () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Card2, RoundedCornerShape(14.dp))
+            .border(1.dp, Line, RoundedCornerShape(14.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(title, color = Text1, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = Muted, fontSize = 11.sp)
+        }
+        content()
+    }
+}
+
+// ===== VISTAS DE CADA GRÁFICO =====
+
+@Composable
+private fun StatsSummaryView(summary: StatsSummary) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Donut (simulado con barra proporcional + número central)
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(summary.total.toString(), color = Text1, fontSize = 48.sp, fontWeight = FontWeight.ExtraBold)
+            Text("${summary.winRate}% victorias", color = Muted, fontSize = 14.sp)
+            // Barra W/D/L
+            Row(modifier = Modifier.fillMaxWidth().height(16.dp).clip(RoundedCornerShape(8.dp)).background(Card)) {
+                if (summary.wins > 0) Box(Modifier.weight(summary.wins.toFloat()).fillMaxHeight().background(Green))
+                if (summary.draws > 0) Box(Modifier.weight(summary.draws.toFloat()).fillMaxHeight().background(Gold))
+                if (summary.losses > 0) Box(Modifier.weight(summary.losses.toFloat()).fillMaxHeight().background(Color(0xFFFF6B6B)))
+            }
+        }
+        // Chips
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            SummaryChip("Blancas", summary.whites, Color(0xFF58A6FF), Modifier.weight(1f))
+            SummaryChip("Negras", summary.blacks, Color(0xFFA371F7), Modifier.weight(1f))
+            SummaryChip("vs IA", summary.aiGames, Color(0xFFF0883E), Modifier.weight(1f))
+            SummaryChip("En línea", summary.onlineGames, Color(0xFF39D2C0), Modifier.weight(1f))
+        }
+        // Stats pills
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatPill("Partidas", summary.total.toString(), Text1, Modifier.weight(1f))
+            StatPill("Ganadas", summary.wins.toString(), Green, Modifier.weight(1f))
+            StatPill("Empates", summary.draws.toString(), Gold, Modifier.weight(1f))
+            StatPill("Perdidas", summary.losses.toString(), Color(0xFFFF9B9B), Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatPill("Mejor racha", summary.bestStreakDisplay(), Gold, Modifier.weight(1f))
+            StatPill("Racha actual", summary.streakDisplay(), Color(0xFF58A6FF), Modifier.weight(1f))
+            StatPill("Mov. totales", summary.totalMoves.toString(), Color(0xFF39D2C0), Modifier.weight(1f))
+            StatPill("Media/partida", summary.avgMovesPerGame.toString(), Color(0xFFF0883E), Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun StatsFlowView(flow: StatsFlow) {
+    // Representación simplificada del Sankey como lista de flujos
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Nodos:", color = Text1, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().height(200.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            items(flow.nodes) { node ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(12.dp).background(Color(AndroidColor.parseColor(node.color)), CircleShape))
+                        Text(node.name, color = Text1, fontSize = 13.sp)
+                    }
+                    Text("${node.value} partidas", color = Muted, fontSize = 12.sp)
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("Enlaces (flujo):", color = Text1, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().height(200.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            items(flow.links) { link ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("${link.source} → ${link.target}", color = Text1, fontSize = 12.sp)
+                    Text("${link.value}", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatsOpeningsView(openings: StatsOpenings) {
+    if (openings.roots.isEmpty()) {
+        Text("Sin aperturas registradas (necesitas partidas con al menos 2 jugadas)", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(16.dp))
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        openings.roots.forEach { root ->
+            OpeningNodeView(root, 0)
+        }
+    }
+}
+
+@Composable
+private fun OpeningNodeView(node: OpeningNode, depth: Int) {
+    val indent = depth * 24
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = indent.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(10.dp).background(Color(AndroidColor.parseColor(node.color)), CircleShape))
+        Text(node.name, color = Text1, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Text("${node.value}", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    }
+    if (node.children.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            node.children.forEach { child ->
+                OpeningNodeView(child, depth + 1)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatsProgressView(progress: StatsProgress) {
+    if (progress.points.isEmpty()) {
+        Text("Sin datos de progreso", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(16.dp))
+        return
+    }
+    // Gráfico de líneas simple usando Canvas
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Leyenda
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            LegendItem("Todas", StatsColors.WHITE)
+            LegendItem("vs IA", StatsColors.AI)
+            LegendItem("En línea", StatsColors.ONLINE)
+        }
+        // Canvas para líneas
+        Canvas(
+            modifier = Modifier.fillMaxWidth().height(200.dp).background(Card, RoundedCornerShape(8.dp)).padding(8.dp)
+        ) {
+            val width = size.width
+            val height = size.height
+            val padding = 32f
+            val plotW = width - padding * 2
+            val plotH = height - padding * 2
+            val n = progress.points.size
+            if (n < 2) return@Canvas
+
+            // Ejes
+            drawLine(Color(0xFF30363D), Offset(padding, padding), Offset(padding, padding + plotH), strokeWidth = 1f)
+            drawLine(Color(0xFF30363D), Offset(padding, padding + plotH), Offset(padding + plotW, padding + plotH), strokeWidth = 1f)
+            // Etiquetas Y
+            drawIntoCanvas { canvas ->
+                val paint = android.graphics.Paint().apply { color = Muted.toArgb(); textSize = 24f }
+                canvas.nativeCanvas.drawText("0%", 4f, padding + plotH + 8f, paint)
+                canvas.nativeCanvas.drawText("50%", 4f, padding + plotH / 2 + 8f, paint)
+                canvas.nativeCanvas.drawText("100%", 4f, padding + 8f, paint)
+            }
+
+            // Series - filter nulls and convert to DoubleArray
+            val series = listOf(
+                progress.points.mapNotNull { it.totalWinRate }.toDoubleArray(),
+                progress.points.mapNotNull { it.aiWinRate }.toDoubleArray(),
+                progress.points.mapNotNull { it.onlineWinRate }.toDoubleArray()
+            )
+            val colors = listOf(
+                Color(AndroidColor.parseColor(StatsColors.WHITE)),
+                Color(AndroidColor.parseColor(StatsColors.AI)),
+                Color(AndroidColor.parseColor(StatsColors.ONLINE))
+            )
+
+            series.forEachIndexed { si, pts ->
+                val color = colors[si]
+                val path = androidx.compose.ui.graphics.Path()
+                var first = true
+                pts.forEachIndexed { i, y ->
+                    val x = padding + (i.toFloat() / (n - 1)) * plotW
+                    val py = padding + plotH - (y.toFloat() / 100f) * plotH
+                    if (first) { path.moveTo(x, py); first = false }
+                    else path.lineTo(x, py)
+                }
+                drawPath(path, color, style = Stroke(width = 3f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun LegendItem(label: String, colorHex: String) {
+    Row(
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(12.dp).background(Color(AndroidColor.parseColor(colorHex)), RoundedCornerShape(2.dp)))
+        Text(label, color = Text1, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun StatsColorFormView(colorForm: StatsColorForm) {
+    if (colorForm.series.isEmpty()) {
+        Text("Sin datos", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(16.dp))
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Leyenda
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(colorForm.series) { s ->
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(12.dp).background(Color(AndroidColor.parseColor(s.color)), RoundedCornerShape(2.dp)))
+                    Text(s.name, color = Text1, fontSize = 10.sp)
+                }
+            }
+        }
+        // Canvas para 6 líneas
+        Canvas(
+            modifier = Modifier.fillMaxWidth().height(220.dp).background(Card, RoundedCornerShape(8.dp)).padding(8.dp)
+        ) {
+            val width = size.width
+            val height = size.height
+            val padding = 32f
+            val plotW = width - padding * 2
+            val plotH = height - padding * 2
+            val n = colorForm.series.first().data.size
+            if (n < 2) return@Canvas
+
+            // Ejes
+            drawLine(Color(0xFF30363D), Offset(padding, padding), Offset(padding, padding + plotH), strokeWidth = 1f)
+            drawLine(Color(0xFF30363D), Offset(padding, padding + plotH), Offset(padding + plotW, padding + plotH), strokeWidth = 1f)
+            // Y labels
+            drawIntoCanvas { canvas ->
+                val paint = android.graphics.Paint().apply { color = Muted.toArgb(); textSize = 24f }
+                val maxVal = colorForm.series.flatMap { it.data }.maxOrNull() ?: 1
+                canvas.nativeCanvas.drawText("0", 4f, padding + plotH + 8f, paint)
+                canvas.nativeCanvas.drawText((maxVal / 2).toString(), 4f, padding + plotH / 2 + 8f, paint)
+                canvas.nativeCanvas.drawText(maxVal.toString(), 4f, padding + 8f, paint)
+            }
+
+            colorForm.series.forEach { s ->
+                val color = Color(AndroidColor.parseColor(s.color))
+                val path = androidx.compose.ui.graphics.Path()
+                val dashEffect = if (s.dash) PathEffect.dashPathEffect(floatArrayOf(10f, 5f), 0f) else null
+                val stroke = Stroke(width = 2f, pathEffect = dashEffect)
+                var first = true
+                s.data.forEachIndexed { i, y ->
+                    val x = padding + (i.toFloat() / (n - 1)) * plotW
+                    val maxVal = colorForm.series.flatMap { it.data }.maxOrNull() ?: 1
+                    val py = padding + plotH - (y.toFloat() / maxVal) * plotH
+                    if (first) { path.moveTo(x, py); first = false }
+                    else path.lineTo(x, py)
+                }
+                drawPath(path, color, style = stroke)
+            }
+        }
+    }
+}
+
 private fun readPgnArchive(input: InputStream): String {
     val text = StringBuilder()
     input.bufferedReader(StandardCharsets.UTF_8).use { reader ->
@@ -845,6 +1238,18 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
         rec.opponent to (rec.playerName.ifBlank { "Tú" })
     }
 
+    // Resultado LOCAL prominente (HAS GANADO / HAS PERDIDO / TABLAS)
+    val localResultLabel = when (rec.localWon) {
+        true -> "HAS GANADO"
+        false -> "HAS PERDIDO"
+        null -> "TABLAS"
+    }
+    val localResultColor = when (rec.localWon) {
+        true -> Green
+        false -> Color(0xFFFF6B6B)
+        null -> Gold
+    }
+
     // Resultado con color (estilo B-Chess Desktop: Victoria / Derrota / Tablas)
     val resultColor = when {
         rec.localWon == true -> Green
@@ -855,6 +1260,21 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
         rec.localWon == true -> "Victoria"
         rec.localWon == false -> "Derrota"
         else -> "Tablas"
+    }
+
+    // Motivo de fin
+    val endReasonLabel = rec.endReason?.let { reason ->
+        when (reason) {
+            "CHECKMATE" -> "Jaque mate"
+            "TIMEOUT" -> "Tiempo"
+            "RESIGNATION" -> "Abandono"
+            "DRAW_AGREED" -> "Tablas acordadas"
+            "STALEMATE" -> "Rey ahogado"
+            "DRAW_INSUFFICIENT" -> "Material insuficiente"
+            "DRAW_FIFTY" -> "Regla 50 mov."
+            "DRAW_REPETITION" -> "Repetición"
+            else -> reason
+        }
     }
 
     // Rol local en la partida: Anfitrión (principal) / Invitado.
@@ -930,14 +1350,32 @@ private fun HistoryItem(rec: GameRecord, onReplay: () -> Unit, onDelete: () -> U
                     modifier = Modifier.weight(1f)
                 )
             }
-            // Fila de chips: resultado (con color), rol (anfitrión/invitado) y color jugado
+            // Fila 1: Resultado LOCAL prominente
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                // Resultado local en grande
+                Text(
+                    localResultLabel,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = localResultColor,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
                 HistoryChip(resultLabel, resultColor)
                 if (roleLabel != null) HistoryChip(roleLabel, roleColor)
                 HistoryChip(sideLabel, sideColor)
+            }
+            // Fila 2: Motivo de fin (si existe)
+            endReasonLabel?.let { reason ->
+                Text(
+                    "Fin: $reason",
+                    fontSize = 9.sp,
+                    color = Muted.copy(alpha = 0.8f),
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
             Text(
                 "${rec.dateLabel()} · ${rec.movesSan.size} jugadas · $modeLabel",

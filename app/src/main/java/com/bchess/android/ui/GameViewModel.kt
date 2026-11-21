@@ -890,7 +890,9 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
         }
         // Promotion needs UI choice if pawn reaching last rank
         val piece = engine.pieceAt(from)
-        if (piece?.type == PieceType.PAWN && (to / 8 == 7 || to / 8 == 0) && promotion == null) {
+        val isWhitePromotion = piece?.type == PieceType.PAWN && piece.color == Color.WHITE && to / 8 == 7
+        val isBlackPromotion = piece?.type == PieceType.PAWN && piece.color == Color.BLACK && to / 8 == 0
+        if ((isWhitePromotion || isBlackPromotion) && promotion == null) {
             _ui.value = _ui.value.copy(promotionPending = Pair(from, to))
             return
         }
@@ -1156,7 +1158,8 @@ class GameViewModel(private val appContext: Context) : ViewModel() {
                 moveClocks = moveClockHistory.toList(),
                 opponentPhotoBase64 = opponentPhoto,
                 gameType = gameType,
-                localIsHost = lobby.isHost
+                localIsHost = lobby.isHost,
+                endReason = end.reason.name
             )
             GameHistoryStore.append(appContext, base.copy(pgn = buildPgn(base, whiteName, blackName)))
         } catch (_: Exception) { }

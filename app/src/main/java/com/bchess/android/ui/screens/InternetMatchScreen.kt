@@ -76,6 +76,8 @@ fun InternetMatchScreen(
     error: String?,
     onCreateMatch: (String) -> Unit,
     onJoinMatch: (String) -> Unit,
+    onCancelCreate: () -> Unit = {},
+    onCancelJoin: () -> Unit = {},
     tcpState: BtState = BtState.IDLE,
     tcpMatchId: String? = null,
     tcpError: String? = null,
@@ -104,6 +106,9 @@ fun InternetMatchScreen(
     val lanConnecting = tcpState == BtState.CONNECTING
     val lanConnected = tcpState == BtState.CONNECTED
     val activeError = if (tab == "lan") tcpError else error
+
+    // Si hay un matchId activo y estamos en WAITING_HOST, mostrar "Reanudar espera"
+    val hasActiveRoom = matchId != null && waiting
 
     if (copied) {
         LaunchedEffect(copied) {
@@ -187,40 +192,97 @@ fun InternetMatchScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (tab == "web") {
-            if (!waiting && !connecting && mode == null) {
-                // ---- Elegir rol ----
-                Button(
-                    onClick = { mode = "create" },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = ScreenGold, contentColor = Color(0xFF17130A))
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text("Crear partida", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
-                        Text("Elige tu código o genera uno automático", fontSize = 12.sp, color = Color(0xFF3A2E14))
-                    }
-                }
+                if (!waiting && !connecting && mode == null) {
+                    if (hasActiveRoom) {
+                        // ---- Sala activa: reanudar espera ----
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = SurfaceColor,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, ScreenLine)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(18.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("SALA ACTIVA", color = ScreenMuted, fontSize = 11.sp, letterSpacing = 2.sp)
+                                Text(
+                                    "Tienes una sala esperando invitado (código: $matchId). Puedes reanudar la espera o cancelar.",
+                                    color = ScreenMuted,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 17.sp
+                                )
+                                Text(
+                                    matchId!!,
+                                    color = ScreenGold,
+                                    fontSize = 26.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    textAlign = TextAlign.Center,
+                                    letterSpacing = 1.5.sp
+                                )
+                                OutlinedButton(
+                                    onClick = {
+                                        clipboard.setText(AnnotatedString(matchId!!))
+                                        copied = true
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (copied) ScreenAccent else ScreenLine),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = if (copied) ScreenAccent else ScreenText),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+                                ) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            if (copied) "¡Copiada!" else "Copiar código",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    CircularProgressIndicator(color = ScreenAccent, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    Text("Esperando al invitado…", color = ScreenMuted, fontSize = 13.sp)
+                                }
+                                TextButton(onClick = { onCancelCreate() }) {
+                                    Text("Cancelar sala", color = ScreenError, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    } else {
+                        // ---- Elegir rol ----
+                        Button(
+                            onClick = { mode = "create" },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = ScreenGold, contentColor = Color(0xFF17130A))
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("Crear partida", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
+                                Text("Elige tu código o genera uno automático", fontSize = 12.sp, color = Color(0xFF3A2E14))
+                            }
+                        }
 
-                OutlinedButton(
-                    onClick = { mode = "join" },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, ScreenLine),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ScreenText)
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        horizontalAlignment = Alignment.Start
-                    ) {
-                        Text("Unirme con código", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text("Pega el código del anfitrión", fontSize = 12.sp, color = ScreenMuted)
+                        OutlinedButton(
+                            onClick = { mode = "join" },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, ScreenLine),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ScreenText)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                Text("Unirme con código", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text("Pega el código del anfitrión", fontSize = 12.sp, color = ScreenMuted)
+                            }
+                        }
                     }
                 }
-            }
 
             // ---- Vista de creación (anfitrión) ----
             if (mode == "create" || waiting) {
@@ -270,6 +332,13 @@ fun InternetMatchScreen(
                             ) {
                                 Text("Crear sala", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
                             }
+                            Text(
+                                "El código personalizado se aplicará al pulsar \"Crear sala\". Si sales antes, no se creará ni se reservará ninguna sala.",
+                                color = ScreenMuted.copy(alpha = 0.7f),
+                                fontSize = 10.5.sp,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 15.sp
+                            )
                             TextButton(onClick = { mode = null; customCode = "" }) {
                                 Text("Cancelar", color = ScreenMuted, fontSize = 13.sp)
                             }
@@ -305,9 +374,14 @@ fun InternetMatchScreen(
                                 }
                             }
                             if (waiting) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    CircularProgressIndicator(color = ScreenAccent, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                    Text("Esperando al invitado…", color = ScreenMuted, fontSize = 13.sp)
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        CircularProgressIndicator(color = ScreenAccent, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                        Text("Esperando al invitado…", color = ScreenMuted, fontSize = 13.sp)
+                                    }
+                                    TextButton(onClick = { onCancelCreate() }) {
+                                        Text("Cancelar sala", color = ScreenError, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
@@ -337,7 +411,10 @@ fun InternetMatchScreen(
                         ) {
                             OutlinedTextField(
                                 value = joinCode,
-                                onValueChange = { input -> joinCode = normalizeCodeInput(input) },
+                                onValueChange = { input ->
+                                    val t = input.trim()
+                                    joinCode = if (t.startsWith("-")) t else t.filter { it.isLetterOrDigit() }.uppercase().take(24)
+                                },
                                 modifier = Modifier.weight(1f),
                                 singleLine = false,
                                 maxLines = 4,
@@ -355,7 +432,10 @@ fun InternetMatchScreen(
                             )
                             TextButton(
                                 onClick = {
-                                    clipboard.getText()?.let { joinCode = normalizeCodeInput(it.toString()) }
+                                    clipboard.getText()?.let { txt ->
+                                        val t = txt.toString().trim()
+                                        joinCode = if (t.startsWith("-")) t else t.filter { it.isLetterOrDigit() }.uppercase().take(24)
+                                    }
                                 },
                                 enabled = joinCode.isNotBlank()
                             ) {
@@ -378,6 +458,14 @@ fun InternetMatchScreen(
                                     Text("Conectar", fontWeight = FontWeight.Bold)
                                 }
                             }
+                        }
+                    if (connecting) {
+                        TextButton(onClick = onCancelJoin) {
+                            Text("Cancelar conexión", color = ScreenError, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        TextButton(onClick = { mode = null; joinCode = "" }) {
+                            Text("Cancelar", color = ScreenMuted, fontSize = 13.sp)
                         }
                     }
                 }
@@ -589,6 +677,7 @@ fun InternetMatchScreen(
                     }
                 }
             }
+            }
 
             activeError?.let {
                 Surface(
@@ -687,14 +776,4 @@ fun InternetMatchScreen(
             }
         }
     }
-}
-
-/**
- * Normaliza la entrada del campo de código: las claves push de Firebase
- * (empiezan por '-') distinguen mayúsculas y se conservan tal cual;
- * el resto, solo letras y dígitos en MAYÚSCULAS.
- */
-private fun normalizeCodeInput(raw: String): String {
-    val t = raw.trim()
-    return if (t.startsWith("-")) t else t.filter { it.isLetterOrDigit() }.uppercase().take(24)
 }

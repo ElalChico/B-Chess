@@ -58,7 +58,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
@@ -68,11 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import android.content.Intent
-import android.net.Uri
 import android.graphics.BitmapFactory
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import com.bchess.android.core.ChessEngine
 import com.bchess.android.core.Color as ChessColor
@@ -80,24 +75,22 @@ import com.bchess.android.core.GameEnd
 import com.bchess.android.core.GameEndReason
 import com.bchess.android.core.Move
 import com.bchess.android.core.PieceType
-import com.bchess.android.Screen
 import com.bchess.android.data.AppPreferences
+import com.bchess.android.data.BoardTheme
 import com.bchess.android.data.ClockManager
 import com.bchess.android.data.ClockState
 import com.bchess.android.data.EngineInstallState
+import com.bchess.android.data.GAME_TYPE_PRACTICE
 import com.bchess.android.data.GameHistoryStore
 import com.bchess.android.data.GameRecord
-import com.bchess.android.data.GAME_TYPE_PRACTICE
+import com.bchess.android.data.LocalChessEngine
 import com.bchess.android.data.PieceSet
 import com.bchess.android.data.PredefinedControls
-import com.bchess.android.data.LocalChessEngine
 import com.bchess.android.data.SoundManager
 import com.bchess.android.data.SoundType
-import com.bchess.android.data.strengthLevelName
-import com.bchess.android.data.BoardTheme
 import com.bchess.android.data.TimeControlOption
 import com.bchess.android.data.formatClock
-import com.bchess.android.data.buildOgn
+import com.bchess.android.data.strengthLevelName
 import com.bchess.android.ui.components.BoardSelection
 import com.bchess.android.ui.components.ChessBoard
 import com.bchess.android.ui.components.GameEndDialog
@@ -140,28 +133,28 @@ fun PracticeScreen(
     val engine = remember { ChessEngine() }
     val coroutineScope = rememberCoroutineScope()
     val installState by engineManager.installState.collectAsState()
-    val moveHistory = remember { mutableStateListOf<String>() }
+    val sanHistory = remember { mutableStateListOf<String>() }
+    val uciHistory = remember { mutableStateListOf<String>() }
     var snapshot by remember { mutableStateOf(engine.snapshot) }
     var selection by remember { mutableStateOf(BoardSelection(null)) }
-    // Fuerza del motor: se guarda en preferencias para mantenerse entre sesiones
     var strengthPercent by remember { mutableStateOf(prefs.strengthPercent) }
     var progressiveEnabled by remember { mutableStateOf(prefs.progressiveLevel) }
     var progressiveWins by remember { mutableStateOf(prefs.progressiveWins) }
-    // Contador de finales de partida: dispara la lógica progresiva una sola vez por partida
     var gameEndCount by remember { mutableStateOf(0) }
-    // null = aleatorio
     var playerColor by remember { mutableStateOf<ChessColor?>(ChessColor.WHITE) }
     var gameStarted by remember { mutableStateOf(false) }
-    // Cuando se pulsa el engranaje durante una partida, se muestra la configuración de Stockfish
     var forceSetup by remember { mutableStateOf(false) }
-    // Cola de premueves del jugador
     var premoves by remember { mutableStateOf<List<Pair<Int, Int>>>(emptyList()) }
     var premoveMode by remember { mutableStateOf(false) }
-    // Limpia selección y premueves (clic fuera del tablero)
+    var saveHistory by remember { mutableStateOf(true) }
+    var paused by remember { mutableStateOf(false) }
+    var endSaved by remember { mutableStateOf(false) }
+
     fun clearSelection() {
         selection = BoardSelection(null, lastMove = selection.lastMove, checkKingSquare = selection.checkKingSquare)
         premoves = emptyList()
     }
+
     var timeControl by remember(initialTimeMs, initialIncrementMs) {
         mutableStateOf(
             PredefinedControls.options.firstOrNull {
@@ -177,14 +170,80 @@ fun PracticeScreen(
     var thinking by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var gameEnd by remember { mutableStateOf<GameEnd?>(null) }
-    LaunchedEffect(gameStarted, gameEnd) { onGameStateChange?.invoke(gameStarted && gameEnd == null) }
+    LaunchedEffect(gameStarted, gameEnd, paused) {
+        onGameStateChange?.invoke(gameStarted && gameEnd == null && !paused)
+    }
 
-    var showSidePicker by remember { mutableStateOf(false) }
     var lastMove by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var endDialogDismissed by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val playerName = prefs.profileName
 
-    // Subida progresiva: al ganar 6 partidas con el nivel actual, el nivel sube solo
+    fun buildCurrentRecord(end: GameEnd): GameRecord {
+        val currentColor = playerColor ?: ChessColor.WHITE
+        val result = when (end.winner) {
+            null -> "1/2-1/2"
+            ChessColor.WHITE -> "1-0"
+            ChessColor.BLACK -> "0-1"
+        }
+        val localWon = end.winner?.let { it == currentColor }
+        return GameRecord(
+            opponent = "Stockfish",
+            playerName = playerName,
+            result = result,
+            localWon = localWon,
+            localColorWhite = currentColor == ChessColor.WHITE,
+            timeLabel = timeControl.label,
+            movesSan = sanHistory.toList(),
+            pgn = "",
+            finalFen = engine.toFEN(),
+            uciMoves = uciHistory.toList(),
+            gameType = GAME_TYPE_PRACTICE,
+            endReason = end.reason.name,
+            saveMode = if (saveHistory) "auto" else "never"
+        )
+    }
+
+    fun saveEndIfNeeded(end: GameEnd) {
+        if (endSaved) return
+        endSaved = true
+        if (saveHistory) {
+            try {
+                GameHistoryStore.append(context, buildCurrentRecord(end))
+            } catch (_: Exception) {}
+        }
+    }
+
+    val clockRef = remember { object { var cm: ClockManager? = null } }
+    val clockManager = remember(coroutineScope) {
+        ClockManager(
+            scope = coroutineScope,
+            isHost = true,
+            onSyncRequest = { _ -> },
+            onTimeout = { loser ->
+                coroutineScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                    if (gameEnd != null) return@launch
+                    val end = GameEnd(
+                        winner = loser.opposite(),
+                        reason = GameEndReason.TIMEOUT,
+                        message = if (loser == playerColor) "Te quedaste sin tiempo" else "Stockfish se quedó sin tiempo"
+                    )
+                    gameEnd = end
+                    clockRef.cm?.finish()
+                    sound?.play(if (loser == playerColor) SoundType.LOSE else SoundType.WIN)
+                    saveEndIfNeeded(end)
+                    gameEndCount++
+                }
+            }
+        )
+    }
+    clockRef.cm = clockManager
+    val clock by clockManager.state.collectAsState()
+
+    DisposableEffect(engineManager, clockManager) {
+        onDispose { clockManager.stop() }
+    }
+
     LaunchedEffect(gameEndCount) {
         if (gameEndCount == 0) return@LaunchedEffect
         val end = gameEnd ?: return@LaunchedEffect
@@ -208,31 +267,42 @@ fun PracticeScreen(
             progressiveWins = wins
         }
     }
-    val playerName = prefs.profileName
-    val clockManager = remember(coroutineScope) {
-        ClockManager(
-            scope = coroutineScope,
-            isHost = true,
-            onSyncRequest = {},
-            onTimeout = { loser ->
-                val winner = loser.opposite()
-                gameEnd = GameEnd(
-                    winner = winner,
-                    reason = GameEndReason.TIMEOUT,
-                    message = if (loser == playerColor) "Te quedaste sin tiempo" else "Stockfish se quedó sin tiempo"
-                )
-                gameEndCount++
-                sound?.play(if (loser == playerColor) SoundType.LOSE else SoundType.WIN)
+
+    fun resetGame() {
+        endDialogDismissed = false
+        endSaved = false
+        premoves = emptyList()
+        paused = false
+        clockManager.stop()
+        clockManager.setPaused(false)
+        clockManager.configure(timeControl.timeMs, timeControl.incrementMs)
+        engine.reset()
+        sanHistory.clear()
+        uciHistory.clear()
+        snapshot = engine.snapshot
+        selection = BoardSelection(null)
+        gameEnd = null
+        lastMove = null
+        error = null
+        thinking = false
+    }
+
+    fun finishWith(end: GameEnd) {
+        if (gameEnd != null) return
+        gameEnd = end
+        clockManager.finish()
+        paused = false
+        sound?.play(
+            when {
+                end.reason == GameEndReason.CHECKMATE && end.winner == playerColor -> SoundType.WIN
+                end.reason == GameEndReason.CHECKMATE -> SoundType.LOSE
+                end.winner == playerColor -> SoundType.WIN
+                end.winner != null -> SoundType.LOSE
+                else -> SoundType.DRAW
             }
         )
-    }
-    val clock by clockManager.state.collectAsState()
-    DisposableEffect(engineManager, clockManager) {
-        onDispose {
-            clockManager.stop()
-            // engineManager es un singleton compartido: NO se detiene aquí
-            // para evitar corromper el estado de Stockfish al cambiar de pantalla
-        }
+        saveEndIfNeeded(end)
+        gameEndCount++
     }
 
     fun refreshAfterMove(move: Move) {
@@ -240,118 +310,137 @@ fun PracticeScreen(
         lastMove = move.from to move.to
         val checkedKing = if (checkSignal && engine.isInCheck(engine.sideToMove())) {
             engine.findKing(engine.sideToMove())
-        } else {
-            null
-        }
+        } else null
         selection = BoardSelection(null, lastMove = lastMove, checkKingSquare = checkedKing)
-        gameEnd = engine.detectEnd()
-        // Si el jugador queda en jaque, cancela los premueves
+
         val current = playerColor
         if (current != null && engine.sideToMove() == current && engine.isInCheck(current)) {
             premoves = emptyList()
         }
-        if (gameEnd != null) {
-            clockManager.finish()
-            gameEndCount++
+        val detected = engine.detectEnd()
+        if (detected != null) {
+            finishWith(detected)
         }
     }
 
-    // Sonido de jugada y de fin de partida: captura/jaque/mate (sin sonido de colocación)
-    fun playMoveSound(captured: Boolean) {
+    fun playMoveSound(captured: Boolean, causedEnd: GameEnd?) {
         when {
-            gameEnd?.reason == GameEndReason.CHECKMATE -> sound?.play(SoundType.CHECKMATE)
-            gameEnd != null -> sound?.play(SoundType.DRAW)
+            causedEnd?.reason == GameEndReason.CHECKMATE -> sound?.play(SoundType.CHECKMATE)
+            causedEnd != null -> sound?.play(SoundType.DRAW)
             engine.isInCheck(engine.sideToMove()) -> sound?.play(SoundType.CHECK)
             captured -> sound?.play(SoundType.CAPTURE)
         }
-        val winner = gameEnd?.winner
+        val winner = causedEnd?.winner
         if (winner != null) {
             sound?.play(if (winner == playerColor) SoundType.WIN else SoundType.LOSE)
         }
     }
 
-    var callEngineMove: (() -> Unit)? = null
-
-    fun executePremoveIfAny() {
-        if (premoves.isEmpty() || !gameStarted || gameEnd != null) return
-        val currentColor = playerColor ?: return
-        if (engine.sideToMove() != currentColor) return
-        val (from, to) = premoves.first()
-        premoves = premoves.drop(1)
-        val piece = engine.pieceAt(from)
-        if (piece == null || piece.color != currentColor) return
-        val legal = engine.legalMovesFrom(from).map { it.to }.distinct()
-        if (to !in legal) return
-        val move = engine.legalMoves().firstOrNull { it.from == from && it.to == to } ?: return
-        val captured = engine.pieceAt(to) != null
-        if (!engine.doMove(move)) return
-        moveHistory.add(move.uci())
-        clockManager.onMovePlayed(currentColor)
-        snapshot = engine.snapshot
-        selection = BoardSelection(null, lastMove = from to to, checkKingSquare = null)
-        refreshAfterMove(move)
-        playMoveSound(captured)
-        if (gameEnd == null) callEngineMove?.invoke()
-    }
-
-    fun requestEngineMove() {
-        if (gameEnd != null || !gameStarted) return
-        thinking = true
-        error = null
-        coroutineScope.launch {
-
-            try {
-                val response = engineManager.bestMove(moveHistory.toList(), strengthPercent)
-                if (gameEnd != null) return@launch
-                val move = engine.legalMoves().firstOrNull { it.uci() == response }
-                    ?: throw IllegalStateException("Stockfish devolvió un movimiento no válido")
-                val mover = engine.sideToMove()
-                val captured = engine.pieceAt(move.to) != null
-                if (!engine.doMove(move)) throw IllegalStateException("No se pudo aplicar el movimiento del motor")
-                moveHistory.add(move.uci())
-                clockManager.onMovePlayed(mover)
-                refreshAfterMove(move)
-                playMoveSound(captured)
-                // Ejecutar premueves en cadena cuando es el turno del jugador
-                executePremoveIfAny()
-            } catch (e: Exception) {
-                error = e.message ?: "No se pudo obtener el movimiento del motor"
-            } finally {
-                thinking = false
-            }
-        }
-    }
-
-    callEngineMove = ::requestEngineMove
-
-    fun resetGame() {
-        endDialogDismissed = false
-        premoves = emptyList()
-        clockManager.stop()
-        clockManager.configure(timeControl.timeMs, timeControl.incrementMs)
-        engine.reset()
-        moveHistory.clear()
-        snapshot = engine.snapshot
-        selection = BoardSelection(null)
-        gameEnd = null
-        lastMove = null
-        error = null
-    }
+    var requestEngineMoveRef: (() -> Unit)? = null
+    var executePremoveIfAnyRef: (() -> Unit)? = null
 
     fun startNewGame(side: ChessColor?) {
         if (!engineManager.isInstalled()) {
             error = (installState as? EngineInstallState.Error)?.message ?: "Stockfish no está disponible"
             return
         }
-        // Asigna color real (aleatorio si aplica) ANTES de inicializar el reloj/motor
         val resolved = side ?: (if (kotlin.random.Random.nextBoolean()) ChessColor.WHITE else ChessColor.BLACK)
         playerColor = resolved
         forceSetup = false
         resetGame()
         gameStarted = true
         clockManager.start()
-        // Si la IA juega con Blancas (el usuario es Negras), la IA mueve primero
-        if (resolved == ChessColor.BLACK) requestEngineMove()
+        if (resolved == ChessColor.BLACK) requestEngineMoveRef?.invoke()
+    }
+
+    requestEngineMoveRef = {
+        if (gameEnd != null || !gameStarted || paused) Unit else {
+            thinking = true
+            error = null
+            coroutineScope.launch {
+                try {
+                    val response = engineManager.bestMove(uciHistory.toList(), strengthPercent)
+                    if (gameEnd != null || paused) return@launch
+                    val move = engine.legalMoves().firstOrNull { it.uci() == response }
+                        ?: throw IllegalStateException("Stockfish devolvió un movimiento no válido")
+                    val mover = engine.sideToMove()
+                    val captured = engine.pieceAt(move.to) != null
+                    val san = try { engine.toSAN(move) } catch (_: Exception) { move.uci() }
+                    if (!engine.doMove(move)) throw IllegalStateException("No se pudo aplicar el movimiento del motor")
+                    uciHistory.add(move.uci())
+                    sanHistory.add(if (san.isBlank()) move.uci() else san)
+                    clockManager.onMovePlayed(mover)
+                    refreshAfterMove(move)
+                    playMoveSound(captured, gameEnd)
+                    if (gameEnd == null && !paused) executePremoveIfAnyRef?.invoke()
+                } catch (e: Exception) {
+                    if (gameEnd == null) error = e.message ?: "No se pudo obtener el movimiento del motor"
+                } finally {
+                    thinking = false
+                }
+            }
+        }
+    }
+
+    executePremoveIfAnyRef = {
+        if (premoves.isEmpty() || !gameStarted || gameEnd != null || paused) Unit else {
+            val currentColor = playerColor
+            if (currentColor != null && engine.sideToMove() == currentColor) {
+                val (from, to) = premoves.first()
+                premoves = premoves.drop(1)
+                val piece = engine.pieceAt(from)
+                if (piece != null && piece.color == currentColor) {
+                    val legalTargets = engine.legalMovesFrom(from).map { it.to }.distinct()
+                    if (to in legalTargets) {
+                        val move = engine.legalMoves().firstOrNull {
+                            it.from == from && it.to == to && (it.promotion == null || it.promotion == PieceType.QUEEN)
+                        } ?: engine.legalMoves().firstOrNull { it.from == from && it.to == to }
+                        if (move != null) {
+                            val captured = engine.pieceAt(move.to) != null
+                            val san = try { engine.toSAN(move) } catch (_: Exception) { move.uci() }
+                            if (engine.doMove(move)) {
+                                uciHistory.add(move.uci())
+                                sanHistory.add(if (san.isBlank()) move.uci() else san)
+                                clockManager.onMovePlayed(currentColor)
+                                snapshot = engine.snapshot
+                                selection = BoardSelection(null, lastMove = from to to, checkKingSquare = null)
+                                refreshAfterMove(move)
+                                playMoveSound(captured, gameEnd)
+                                if (gameEnd == null && !paused) requestEngineMoveRef?.invoke()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun togglePause() {
+        if (!gameStarted || gameEnd != null) return
+        val next = !paused
+        paused = next
+        clockManager.setPaused(next)
+        sound?.play(SoundType.PAUSE)
+    }
+
+    fun offerDraw() {
+        if (!gameStarted || gameEnd != null) return
+        finishWith(GameEnd(null, GameEndReason.DRAW_AGREED, "Tablas acordadas"))
+    }
+
+    fun resign() {
+        if (!gameStarted || gameEnd != null) return
+        val winner = (playerColor ?: ChessColor.WHITE).opposite()
+        finishWith(GameEnd(winner, GameEndReason.RESIGNATION, "Te has rendido"))
+    }
+
+    fun restartSame() {
+        val side = playerColor ?: ChessColor.WHITE
+        startNewGame(side)
+    }
+
+    fun rematchRandom() {
+        startNewGame(if (kotlin.random.Random.nextBoolean()) ChessColor.WHITE else ChessColor.BLACK)
     }
 
     fun prepareNewGame(side: ChessColor?) {
@@ -360,18 +449,13 @@ fun PracticeScreen(
         resetGame()
     }
 
-    // (los estados premoves/premoveMode se declaran arriba)
-
-
-
     fun onSquareTap(square: Int) {
         val currentColor = playerColor ?: return
-        val myTurn = gameStarted && !thinking && gameEnd == null && engine.sideToMove() == currentColor
-        if (!myTurn && !gameStarted) return
-        if (gameEnd != null) return
-        if (thinking) return
+        if (paused || thinking || gameEnd != null) return
+        val myTurn = gameStarted && engine.sideToMove() == currentColor
+        if (!gameStarted) return
         val premoveModeActive = premoveMode || !myTurn
-        // ---- Flujo de premueve (modo activo o no es tu turno) ----
+
         if (premoveModeActive) {
             if (!engineManager.isInstalled()) return
             val piece = engine.pieceAt(square)
@@ -391,14 +475,14 @@ fun PracticeScreen(
             }
             return
         }
-        // ---- Flujo normal (es tu turno) ----
+
         if (!engineManager.isInstalled()) {
             error = (installState as? EngineInstallState.Error)?.message ?: "Stockfish no está disponible"
             return
         }
         val piece = engine.pieceAt(square)
         val selected = selection
-        if (piece?.color == playerColor) {
+        if (piece?.color == currentColor) {
             selection = BoardSelection(
                 from = square,
                 legalTargets = engine.legalMovesFrom(square).map { it.to }.distinct(),
@@ -411,23 +495,23 @@ fun PracticeScreen(
         if (from != null && square in selected.legalTargets) {
             val move = engine.legalMoves().firstOrNull {
                 it.from == from && it.to == square && (it.promotion == null || it.promotion == PieceType.QUEEN)
-            } ?: run {
+            } ?: engine.legalMoves().firstOrNull { it.from == from && it.to == square } ?: run {
                 selection = BoardSelection(null, lastMove = lastMove)
                 return
             }
             val captured = engine.pieceAt(move.to) != null
+            val san = try { engine.toSAN(move) } catch (_: Exception) { move.uci() }
             if (!engine.doMove(move)) {
                 error = "No se pudo aplicar el movimiento"
                 return
             }
-            moveHistory.add(move.uci())
-            val currentColor = playerColor ?: ChessColor.WHITE
+            uciHistory.add(move.uci())
+            sanHistory.add(if (san.isBlank()) move.uci() else san)
             clockManager.onMovePlayed(currentColor)
             refreshAfterMove(move)
-            playMoveSound(captured)
-            if (gameEnd == null) requestEngineMove()
-            // Ejecutar premueves en cadena
-            executePremoveIfAny()
+            playMoveSound(captured, gameEnd)
+            if (gameEnd == null && !paused) requestEngineMoveRef?.invoke()
+            if (gameEnd == null && !paused) executePremoveIfAnyRef?.invoke()
         } else {
             if (selected.from != null) sound?.play(SoundType.ILLEGAL)
             selection = BoardSelection(null, lastMove = lastMove)
@@ -463,7 +547,9 @@ fun PracticeScreen(
             onStart = { startNewGame(playerColor) },
             gameInProgress = gameStarted,
             onBackToGame = { forceSetup = false },
-            error = error
+            error = error,
+            saveHistory = saveHistory,
+            onSaveHistoryChange = { saveHistory = it }
         )
     } else {
         BoxWithConstraints(
@@ -478,7 +564,7 @@ fun PracticeScreen(
                     ) {
                         PracticeHeader(
                             onBack = onBack,
-                            onRestart = { startNewGame(playerColor) },
+                            onRestart = ::restartSame,
                             enabled = !thinking,
                             strengthPercent = strengthPercent,
                             timeLabel = timeControl.label,
@@ -489,11 +575,17 @@ fun PracticeScreen(
                             onTogglePremoveMode = { premoveMode = !premoveMode },
                             premoveCount = premoves.size
                         )
-                        EngineStatusRow(
-                            installState = installState,
-                            installed = engineManager.isInstalled()
-                        )
+                        EngineStatusRow(installState = installState, installed = engineManager.isInstalled())
                         PracticeClockBar(clock, timeControl, engine.sideToMove(), playerColor)
+                        PracticeControlRow(
+                            paused = paused,
+                            gameOver = gameEnd != null,
+                            onPause = ::togglePause,
+                            onDraw = ::offerDraw,
+                            onResign = ::resign,
+                            onRestart = ::restartSame,
+                            onRematch = ::rematchRandom
+                        )
                         Spacer(Modifier.weight(1f))
                         if (gameEnd != null && endDialogDismissed) {
                             PracticeReopenResultButton { endDialogDismissed = false }
@@ -503,7 +595,8 @@ fun PracticeScreen(
                             thinking = thinking,
                             sideToMove = engine.sideToMove(),
                             playerColor = playerColor,
-                            error = error
+                            error = error,
+                            paused = paused
                         )
                     }
                     PracticeBoard(
@@ -526,7 +619,7 @@ fun PracticeScreen(
                 ) {
                     PracticeHeader(
                         onBack = onBack,
-                        onRestart = { startNewGame(playerColor) },
+                        onRestart = ::restartSame,
                         enabled = !thinking,
                         strengthPercent = strengthPercent,
                         timeLabel = timeControl.label,
@@ -537,10 +630,7 @@ fun PracticeScreen(
                         onTogglePremoveMode = { premoveMode = !premoveMode },
                         premoveCount = premoves.size
                     )
-                    EngineStatusRow(
-                        installState = installState,
-                        installed = engineManager.isInstalled()
-                    )
+                    EngineStatusRow(installState = installState, installed = engineManager.isInstalled())
                     PracticeClockBar(clock, timeControl, engine.sideToMove(), playerColor)
                     PracticeBoard(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -554,6 +644,15 @@ fun PracticeScreen(
                         playerColor = playerColor,
                         moveIndicators = moveIndicators
                     )
+                    PracticeControlRow(
+                        paused = paused,
+                        gameOver = gameEnd != null,
+                        onPause = ::togglePause,
+                        onDraw = ::offerDraw,
+                        onResign = ::resign,
+                        onRestart = ::restartSame,
+                        onRematch = ::rematchRandom
+                    )
                     if (gameEnd != null && endDialogDismissed) {
                         PracticeReopenResultButton { endDialogDismissed = false }
                     }
@@ -562,66 +661,99 @@ fun PracticeScreen(
                         thinking = thinking,
                         sideToMove = engine.sideToMove(),
                         playerColor = playerColor,
-                        error = error
+                        error = error,
+                        paused = paused
                     )
                 }
             }
 
             if (gameEnd != null && !endDialogDismissed) {
                 val end = gameEnd!!
-                val localWon = end.winner?.let { it == playerColor }
-                val record = GameRecord(
-                    opponent = "Stockfish",
-                    playerName = playerName,
-                    result = when (end.winner) {
-                        null -> "1/2-1/2"
-                        playerColor -> "1-0"
-                        else -> "0-1"
-                    },
-                    localWon = localWon,
-                    localColorWhite = playerColor == ChessColor.WHITE,
-                    timeLabel = timeControl.label,
-                    movesSan = moveHistory.toList(),
-                    pgn = "",
-                    finalFen = engine.toFEN(),
-                    uciMoves = moveHistory.toList(),
-                    gameType = GAME_TYPE_PRACTICE
-                )
+                val record = buildCurrentRecord(end)
+                val localName = playerName
+                val localC = playerColor ?: ChessColor.WHITE
                 GameEndDialog(
                     end = end,
                     isHost = true,
                     tournamentActive = false,
                     tournamentFinished = false,
-                    localName = playerName,
+                    localName = localName,
                     remoteName = "Stockfish",
-                    localPhotoBase64 = "",
+                    localPhotoBase64 = prefs.profilePhotoBase64,
                     remotePhotoBase64 = null,
                     winnerName = when (end.winner) {
                         null -> null
-                        playerColor -> playerName
+                        localC -> localName
                         else -> "Stockfish"
                     },
-                    onNewGameSame = { startNewGame(playerColor) },
-                    onNewGameRandom = { startNewGame(if (kotlin.random.Random.nextBoolean()) ChessColor.WHITE else ChessColor.BLACK) },
+                    localColor = localC,
+                    onNewGameSame = ::restartSame,
+                    onNewGameRandom = ::rematchRandom,
                     onTournamentNext = { },
-                    onBackToRoom = { resetGame() },
+                    onBackToRoom = {
+                        endDialogDismissed = true
+                        gameStarted = false
+                        forceSetup = false
+                        resetGame()
+                    },
                     onReplayPgn = {
-                        GameHistoryStore.append(context, record)
-                        onReplay(record)
+                        saveEndIfNeeded(end)
+                        onReplay(buildCurrentRecord(end))
                     },
                     onDismiss = { endDialogDismissed = true }
                 )
             }
+        }
+    }
+}
 
-            if (showSidePicker) {
-                PracticeSidePicker(
-                    onDismiss = { showSidePicker = false },
-                    onChoose = { side ->
-                        showSidePicker = false
-                        prepareNewGame(side)
-                    }
-                )
-            }
+@Composable
+private fun PracticeControlRow(
+    paused: Boolean,
+    gameOver: Boolean,
+    onPause: () -> Unit,
+    onDraw: () -> Unit,
+    onResign: () -> Unit,
+    onRestart: () -> Unit,
+    onRematch: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = onPause,
+                enabled = !gameOver,
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PracticeLine)
+            ) { Text(if (paused) "Reanudar" else "Pausar", color = PracticeText, fontSize = 12.sp) }
+            OutlinedButton(
+                onClick = onDraw,
+                enabled = !gameOver,
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PracticeLine)
+            ) { Text("Tablas", color = PracticeText, fontSize = 12.sp) }
+            OutlinedButton(
+                onClick = onResign,
+                enabled = !gameOver,
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PracticeRed.copy(alpha = 0.6f))
+            ) { Text("Rendirse", color = PracticeRed, fontSize = 12.sp) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = onRestart,
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, PracticeGold.copy(alpha = 0.6f))
+            ) { Text("Reiniciar", color = PracticeGold, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+            Button(
+                onClick = onRematch,
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = PracticeGold, contentColor = Color(0xFF17130A))
+            ) { Text("Rematch", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
         }
     }
 }
@@ -644,7 +776,9 @@ private fun PracticeSetup(
     onStart: () -> Unit,
     gameInProgress: Boolean,
     onBackToGame: () -> Unit,
-    error: String?
+    error: String?,
+    saveHistory: Boolean,
+    onSaveHistoryChange: (Boolean) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize().background(PracticeBg).verticalScroll(rememberScrollState())
@@ -675,7 +809,6 @@ private fun PracticeSetup(
             }
         }
         EngineStatusRow(installState = installState, installed = installed)
-        // Presentación del rival con su imagen
         StockfishPresentation()
         Text("Configura antes de comenzar", color = PracticeText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         PracticeLevel(strengthPercent, onStrengthChange, enabled = installed)
@@ -714,6 +847,31 @@ private fun PracticeSetup(
                 PracticeColorOption("Aleatorio", playerColor == null, Modifier.weight(1f)) {
                     onPlayerColorChange(null)
                 }
+            }
+        }
+        Column(
+            modifier = Modifier.fillMaxWidth().background(PracticeCard, RoundedCornerShape(12.dp))
+                .border(1.dp, PracticeLine, RoundedCornerShape(12.dp)).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Guardar en historial", color = PracticeText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (saveHistory) "Se guardará automáticamente al terminar" else "Esta partida no se guardará",
+                        color = PracticeMuted, fontSize = 10.sp
+                    )
+                }
+                Switch(
+                    checked = saveHistory,
+                    onCheckedChange = onSaveHistoryChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = PracticeGold,
+                        checkedTrackColor = PracticeGold.copy(alpha = 0.35f),
+                        uncheckedThumbColor = PracticeMuted,
+                        uncheckedTrackColor = PracticeLine
+                    )
+                )
             }
         }
         if (error != null) {
@@ -833,10 +991,8 @@ private fun PracticeHeader(
         ) {
             Text("← Inicio", color = PracticeMuted, fontSize = 12.sp)
         }
-        // Foto del usuario + icono Stockfish + nombre
         Column(Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Foto del usuario
                 Box(
                     Modifier.size(32.dp).clip(CircleShape)
                         .background(PracticeCard, CircleShape)
@@ -854,7 +1010,6 @@ private fun PracticeHeader(
                         Text("T", color = PracticeGold, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-                // Icono Stockfish
                 Box(
                     Modifier.size(28.dp).clip(RoundedCornerShape(8.dp))
                         .background(PracticeGold.copy(alpha = 0.15f)),
@@ -870,14 +1025,13 @@ private fun PracticeHeader(
                 Column {
                     Text("Practicar", color = PracticeText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "${strengthLevelName(strengthPercent)} · $strengthPercent% · ${if (playerColor == null) "Aleatorio" else playerColor.toString().uppercase()} · $timeLabel",
+                        "${strengthLevelName(strengthPercent)} · $strengthPercent% · ${if (playerColor == null) "Aleatorio" else if (playerColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS"} · $timeLabel",
                         color = PracticeMuted, fontSize = 10.5.sp,
                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
             }
         }
-        // Botón de modo premove (PREMUEVE)
         IconButton(onClick = onTogglePremoveMode, enabled = enabled, modifier = Modifier.size(40.dp)) {
             Icon(
                 Icons.Outlined.SkipNext,
@@ -895,7 +1049,6 @@ private fun PracticeHeader(
                 Text("$premoveCount", color = Color(0xFF3DDC97), fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
-        // Botón ajustes (volver a configuración)
         IconButton(onClick = onOpenSettings, enabled = enabled, modifier = Modifier.size(40.dp)) {
             Icon(
                 Icons.Outlined.Settings,
@@ -904,7 +1057,7 @@ private fun PracticeHeader(
                 modifier = Modifier.size(24.dp)
             )
         }
-        TextButton(onClick = { /* reiniciar */ }, enabled = enabled, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
+        TextButton(onClick = onRestart, enabled = enabled, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
             Text("Reiniciar", color = PracticeGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }
@@ -917,7 +1070,6 @@ private fun PracticeClockBar(
     sideToMove: ChessColor,
     playerColor: ChessColor?
 ) {
-    // El oponente siempre arriba, el jugador siempre abajo
     val opponentColor = playerColor?.opposite() ?: sideToMove.opposite()
     val (topColor, bottomColor) = if (opponentColor == ChessColor.WHITE) {
         ChessColor.WHITE to ChessColor.BLACK
@@ -973,29 +1125,6 @@ private fun PracticeReopenResultButton(onClick: () -> Unit) {
 }
 
 @Composable
-private fun PracticeSidePicker(onDismiss: () -> Unit, onChoose: (ChessColor) -> Unit) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
-                .background(PracticeCard, RoundedCornerShape(18.dp))
-                .border(1.dp, PracticeLine, RoundedCornerShape(18.dp))
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("Elige tu color", color = PracticeText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("La configuración se aplica antes de iniciar la partida.", color = PracticeMuted, fontSize = 12.sp)
-            OutlinedButton(onClick = { onChoose(ChessColor.WHITE) }, modifier = Modifier.fillMaxWidth()) {
-                Text("Jugar con blancas", color = PracticeText)
-            }
-            OutlinedButton(onClick = { onChoose(ChessColor.BLACK) }, modifier = Modifier.fillMaxWidth()) {
-                Text("Jugar con negras", color = PracticeText)
-            }
-        }
-    }
-}
-
-@Composable
 private fun StockfishPresentation() {
     Row(
         modifier = Modifier.fillMaxWidth().background(PracticeCard, RoundedCornerShape(12.dp))
@@ -1029,7 +1158,6 @@ private fun EngineStatusRow(
             .border(1.dp, PracticeLine, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar del motor sobre el tablero
         Image(
             painter = painterResource(com.bchess.android.R.drawable.stockfish_fish),
             contentDescription = "Stockfish",
@@ -1085,7 +1213,6 @@ private fun PracticeLevel(strengthPercent: Int, onStrengthChange: (Int) -> Unit,
                 inactiveTrackColor = PracticeLine
             )
         )
-        // Escala de niveles: Principiante es solo 0-15
         Row(
             Modifier.fillMaxWidth().padding(top = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -1109,7 +1236,6 @@ private fun PracticeLevel(strengthPercent: Int, onStrengthChange: (Int) -> Unit,
     }
 }
 
-/** Índice de la banda de nivel (0=Principiante … 5=Muy difícil). */
 private fun strengthBandIndex(percent: Int): Int = when (percent) {
     in 0..15 -> 0
     in 16..30 -> 1
@@ -1131,7 +1257,6 @@ private val STRENGTH_BANDS = listOf(
 private fun strengthBandRange(percent: Int): String =
     STRENGTH_BANDS.firstOrNull { percent in it.second }?.second?.let { "${it.first}-${it.last}%" } ?: ""
 
-/** Interruptor de subida progresiva de nivel con progreso de victorias. */
 @Composable
 private fun PracticeProgressive(
     enabled: Boolean,
@@ -1220,7 +1345,8 @@ private fun PracticeGameStatus(
     thinking: Boolean,
     sideToMove: ChessColor,
     playerColor: ChessColor?,
-    error: String?
+    error: String?,
+    paused: Boolean = false
 ) {
     val perspective = playerColor ?: ChessColor.WHITE
     Surface(
@@ -1234,6 +1360,7 @@ private fun PracticeGameStatus(
                 Text(
                     when {
                         gameEnd != null -> gameEnd.message
+                        paused -> "Partida en pausa"
                         thinking -> "Stockfish está pensando…"
                         sideToMove == perspective -> if (perspective == ChessColor.WHITE) {
                             "Tu turno · juegas con blancas"

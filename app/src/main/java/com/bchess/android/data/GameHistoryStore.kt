@@ -54,7 +54,9 @@ object GameHistoryStore {
                             "gameType",
                             if (o.optString("opp", "").equals("Stockfish", ignoreCase = true)) GAME_TYPE_PRACTICE else GAME_TYPE_BT
                         ),
-                        localIsHost = if (o.has("role")) o.optBoolean("role") else null
+                        localIsHost = if (o.has("role")) o.optBoolean("role") else null,
+                        endReason = optStringOrNull(o, "endReason"),
+                        saveMode = optStringOrNull(o, "saveMode") ?: "auto"
                     )
                 )
             }
@@ -67,6 +69,10 @@ object GameHistoryStore {
         val sa = o.optJSONArray("san")
         if (sa != null) for (j in 0 until sa.length()) san.add(sa.optString(j, ""))
         return san
+    }
+
+    private fun optStringOrNull(o: JSONObject, key: String): String? {
+        return if (o.has(key) && !o.isNull(key)) o.optString(key).takeIf { it.isNotBlank() } else null
     }
 
     /**
@@ -142,6 +148,8 @@ object GameHistoryStore {
             o.put("gameType", r.gameType)
             if (r.localIsHost != null) o.put("role", r.localIsHost)
             if (r.opponentPhotoBase64 != null) o.put("oppPhoto", r.opponentPhotoBase64)
+            if (r.endReason != null) o.put("endReason", r.endReason)
+            if (r.saveMode != "auto") o.put("saveMode", r.saveMode)
             arr.put(o)
         }
         fun fits(): Boolean {

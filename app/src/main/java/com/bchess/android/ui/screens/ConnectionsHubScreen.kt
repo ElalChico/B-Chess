@@ -143,6 +143,9 @@ fun ConnectionsHubScreen(
                 onFinishConnection = onFinishConnection
             )
         } else {
+            // ===== BLUETOOTH =====
+            SectionLabel("BLUETOOTH")
+
             // ===== Acción principal: crear partida =====
             BigAction(
                 icon = Icons.Outlined.AddCircle,

@@ -29,7 +29,11 @@ data class GameRecord(
     val gameType: String = GAME_TYPE_PRACTICE, // practice | bt | internet | tournament
     // Rol local en la partida: true = anfitrión (principal), false = invitado,
     // null = desconocido (práctica vs IA, partidas importadas antiguas).
-    val localIsHost: Boolean? = null
+    val localIsHost: Boolean? = null,
+    // Motivo de finalización: "CHECKMATE", "TIMEOUT", "RESIGNATION", "DRAW_AGREED", "STALEMATE", etc.
+    val endReason: String? = null,
+    // Modo de guardado para Stockfish: "auto" = siempre, "manual" = solo si usuario elige, "never" = nunca
+    val saveMode: String = "auto"
 ) {
     fun dateLabel(): String = SimpleDateFormat("dd/MM/yy HH:mm", Locale.getDefault()).format(Date(dateMs))
 }

@@ -65,6 +65,7 @@ fun GameEndDialog(
     localPhotoBase64: String = "",
     remotePhotoBase64: String? = null,
     winnerName: String? = null,
+    localColor: ChessColor = ChessColor.WHITE, // Color del jugador local
     onNewGameSame: () -> Unit,
     onNewGameRandom: () -> Unit,
     onTournamentNext: () -> Unit,
@@ -74,6 +75,29 @@ fun GameEndDialog(
 ) {
     val resultColorStr = if (end.winner == null) "draw" else
         (if (end.winner == ChessColor.WHITE) "white" else "black")
+
+    // Resultado desde la perspectiva del jugador LOCAL
+    val localWon = end.winner?.let { it == localColor }
+    val localResultLabel = when (localWon) {
+        true -> "HAS GANADO"
+        false -> "HAS PERDIDO"
+        null -> "TABLAS"
+    }
+    val localResultColor = when (localWon) {
+        true -> Color(0xFF3DDC97)  // Green
+        false -> Color(0xFFFF6B6B) // Red
+        null -> Color(0xFFD29922)  // Gold
+    }
+    val localResultBgColor = when (localWon) {
+        true -> Color(0xFF1B2E1B)
+        false -> Color(0xFF2E1B1B)
+        null -> Color(0xFF2E2E1B)
+    }
+    val localResultBorderColor = when (localWon) {
+        true -> Color(0xFF3DDC97)
+        false -> Color(0xFFFF6B6B)
+        null -> Color(0xFFD29922)
+    }
 
     val winnerDisplayName = winnerName ?: (when (resultColorStr) {
         "white" -> if (localName.isNotBlank()) localName else "Blancas"
@@ -91,21 +115,6 @@ fun GameEndDialog(
         "white" -> "🏆"
         "black" -> "🏆"
         else -> "🤝"
-    }
-    val resultBgColor = when (resultColorStr) {
-        "white" -> Color(0xFF2E1B1B)
-        "black" -> Color(0xFF1B2E4E)
-        else -> Color(0xFF1B2E2E)
-    }
-    val resultBorderColor = when (resultColorStr) {
-        "white" -> Color(0xFFFF6B6B)
-        "black" -> Color(0xFF5B9DF9)
-        else -> Color(0xFF3DDC97)
-    }
-    val resultTitleColor = when (resultColorStr) {
-        "white" -> Color(0xFFFF6B6B)
-        "black" -> Color(0xFF5B9DF9)
-        else -> Color(0xFF3DDC97)
     }
 
     Dialog(
@@ -126,12 +135,12 @@ fun GameEndDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Winner announcement card
+                // LOCAL RESULT - PRIORIDAD VISUAL (lo que ve el jugador)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(resultBgColor, RoundedCornerShape(20.dp))
-                        .border(2.dp, resultBorderColor, RoundedCornerShape(20.dp))
+                        .background(localResultBgColor, RoundedCornerShape(20.dp))
+                        .border(2.dp, localResultBorderColor, RoundedCornerShape(20.dp))
                         .padding(20.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -141,30 +150,34 @@ fun GameEndDialog(
                             modifier = Modifier
                                 .size(80.dp)
                                 .clip(CircleShape)
-                                .background(resultBorderColor.copy(alpha = 0.15f), CircleShape)
-                                .border(2.dp, resultBorderColor, CircleShape),
+                                .background(localResultBorderColor.copy(alpha = 0.15f), CircleShape)
+                                .border(2.dp, localResultBorderColor, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(resultIcon, fontSize = 36.sp)
+                            Text(
+                                when (localWon) {
+                                    true -> "🏆"
+                                    false -> "😔"
+                                    null -> "🤝"
+                                },
+                                fontSize = 36.sp
+                            )
                         }
                         
                         Text(
-                            text = when (resultColorStr) {
-                                "white" -> "¡BLANCAS GANAN!"
-                                "black" -> "¡NEGRAS GANAN!"
-                                else -> "¡TABLAS!"
-                            },
-                            fontSize = 24.sp,
+                            text = localResultLabel,
+                            fontSize = 28.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = resultTitleColor,
+                            color = localResultColor,
                             textAlign = TextAlign.Center
                         )
                         
+                        // Detalle del ganador (color + nombre)
                         if (resultColorStr != "draw") {
                             Text(
-                                text = winnerDisplayName,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
+                                text = "${if (resultColorStr == "white") "Blancas" else "Negras"} ganan: $winnerDisplayName",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
                                 color = Color(0xFFE8EAF0),
                                 textAlign = TextAlign.Center
                             )

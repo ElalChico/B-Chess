@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +50,7 @@ fun ConnectScreen(
     devices: List<DiscoveredDevice>,
     onHostListen: () -> Unit,
     onSearch: () -> Unit,
+    onCancel: () -> Unit = {},  // Nuevo: cancelar conexión/escaneo
     onChooseRole: (Boolean) -> Unit, // true = anfitrión, false = invitado
     onConnect: (String) -> Unit,
     onBack: () -> Unit,
@@ -241,6 +244,37 @@ fun ConnectScreen(
                     },
                     color = Text1, fontSize = 13.sp
                 )
+            }
+            // Botón CANCELAR para forzar detención de conexión/escaneo
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = onCancel,
+                modifier = Modifier.align(Alignment.CenterHorizontally).height(44.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, Red),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Red,
+                    disabledContentColor = Muted
+                )
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.Close,
+                        contentDescription = "Cancelar",
+                        tint = Red,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Cancelar ${when (btState) { BtState.WAITING_HOST -> "escucha"; BtState.SCANNING -> "búsqueda"; else -> "conexión" }}",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Red
+                    )
+                }
             }
         }
 

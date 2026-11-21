@@ -203,23 +203,7 @@ fun GameScreen(
             )
         }
 
-        // LOCAL CLOCK - bottom bar, mirroring the rival's clock above
-        StackedBar(
-            name = ui.localName.ifBlank { "Tú" },
-            isYou = true,
-            isTurn = ui.snapshot.sideToMove == ui.localColor,
-            clockMs = localClockMs,
-            totalMs = ui.lobby.timeMs,
-            showClock = ui.lobby.timeMs > 0,
-            inCheck = ui.inCheck && ui.snapshot.sideToMove == ui.localColor,
-            sideLabel = if (ui.localColor == ChessColor.WHITE) "BLANCAS" else "NEGRAS",
-            photoBase64 = localPhotoBase64,
-            isLowTime = localIsLowTime
-        )
-
-        Spacer(Modifier.height(6.dp))
-
-        // Tu barra abajo
+        // Tu barra abajo (con reloj, menú y opciones)
         StackedBar(
             name = ui.localName.ifBlank { "Jugador" },
             isYou = true,
@@ -403,6 +387,7 @@ fun GameScreen(
                     localPhotoBase64 = localPhotoBase64,
                     remotePhotoBase64 = remoteProfile?.photoBase64,
                     winnerName = winnerName,
+                    localColor = ui.localColor,
                     onNewGameSame = onNewGameSame,
                     onNewGameRandom = onNewGameRandom,
                     onTournamentNext = onTournamentNext,

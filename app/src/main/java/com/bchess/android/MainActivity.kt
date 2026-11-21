@@ -396,6 +396,7 @@ class MainActivity : ComponentActivity() {
                     onSearch = startGuestScanning,
                     onConnect = { addr -> vm.bluetooth.connectTo(addr) },
                     onBack = { vm.disconnect(); screen = Screen.HOME },
+                    onCancel = { vm.disconnect(); screen = Screen.HOME },  // Cancelar conexión/escaneo
                     remoteProfile = remoteProfile,
                     onViewRivalProfile = { rivalProfileFromScreen = Screen.CONNECT; screen = Screen.RIVAL_PROFILE }
                 )
@@ -417,6 +418,8 @@ class MainActivity : ComponentActivity() {
                         vm.setIsHost(false)
                         vm.internet.joinMatch(code)
                     },
+                    onCancelCreate = { vm.internet.cancelCreate() },
+                    onCancelJoin = { vm.internet.cancelJoin() },
                     tcpState = tcpState,
                     tcpMatchId = tcpMatchId,
                     tcpError = tcpError,
@@ -432,7 +435,8 @@ class MainActivity : ComponentActivity() {
                         vm.setIsHost(false)
                         vm.tcp.joinMatch("$ip:${port.ifBlank { TcpBridgeNetwork.DEFAULT_PORT.toString() }}")
                     },
-                    onBack = { vm.disconnect(); screen = Screen.HOME },
+                    // onBack: navegar a HOME SIN desconectar (la sala P2P persiste 12h)
+                    onBack = { screen = Screen.HOME },
                     onFinishConnection = {
                         vm.sendDisconnect()
                         screen = Screen.HOME

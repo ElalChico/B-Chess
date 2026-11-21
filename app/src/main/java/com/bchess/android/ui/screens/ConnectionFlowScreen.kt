@@ -21,9 +21,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +61,7 @@ fun ConnectionFlowScreen(
     onSearch: () -> Unit,
     onConnect: (String) -> Unit,
     onBack: () -> Unit,
+    onCancel: () -> Unit = {},  // Nuevo: cancelar conexión/escaneo
     remoteProfile: RemoteProfile? = null,
     onViewRivalProfile: () -> Unit = {}
 ) {
@@ -200,6 +204,41 @@ fun ConnectionFlowScreen(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
             )
+        }
+
+        // Botón CANCELAR cuando hay conexión/escaneo en progreso
+        if (busy) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = onCancel,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, ScreenError),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = ScreenError,
+                    disabledContentColor = ScreenMuted
+                )
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.Close,
+                        contentDescription = "Cancelar",
+                        tint = ScreenError,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Cancelar ${if (isHost) "escucha" else "búsqueda"}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ScreenError
+                    )
+                }
+            }
         }
 
         if (error != null) {
